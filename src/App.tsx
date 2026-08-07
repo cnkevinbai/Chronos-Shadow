@@ -85,7 +85,8 @@ function AppInner() {
   const [minimized, setMinimized] = useState(false);
 
   // ── API 密钥 ────────────────────────────────────────────────────
-  const [apiKeys, setApiKeys] = useState({ deepseek: "", kimi: "", glm: "" });
+  // API key presence flags — actual keys never leave Rust backend
+  const [hasKeys, setHasKeys] = useState({ deepseek: false, kimi: false, glm: false });
 
   // ── 启动时恢复持久化配置 (延迟确保 IPC 就绪) ─────────────────
   useEffect(() => {
@@ -94,24 +95,20 @@ function AppInner() {
     const load = async () => {
       try {
         const s = await loadSettings();
-        if (s.api_key_deepseek || s.api_key_kimi || s.api_key_glm) {
-          setApiKeys({
-            deepseek: s.api_key_deepseek ?? "",
-            kimi: s.api_key_kimi ?? "",
-            glm: s.api_key_glm ?? "",
-          });
-        }
+        setHasKeys({
+          deepseek: s.has_key_deepseek ?? false,
+          kimi: s.has_key_kimi ?? false,
+          glm: s.has_key_glm ?? false,
+        });
       } catch {
         tid2 = setTimeout(async () => {
           try {
             const s = await loadSettings();
-            if (s.api_key_deepseek || s.api_key_kimi || s.api_key_glm) {
-              setApiKeys({
-                deepseek: s.api_key_deepseek ?? "",
-                kimi: s.api_key_kimi ?? "",
-                glm: s.api_key_glm ?? "",
-              });
-            }
+            setHasKeys({
+              deepseek: s.has_key_deepseek ?? false,
+              kimi: s.has_key_kimi ?? false,
+              glm: s.has_key_glm ?? false,
+            });
           } catch { /* silent */ }
         }, 1000);
       }
@@ -194,10 +191,11 @@ function AppInner() {
   };
 
   // ── 根据模型推导 API Key ────────────────────────────────────────
-  const activeApiKey =
-    selectedLLM.startsWith("deepseek") ? apiKeys.deepseek :
-    selectedLLM.startsWith("kimi") ? apiKeys.kimi :
-    selectedLLM.startsWith("glm") ? apiKeys.glm : "";
+  // API key resolved server-side from Windows Credential Vault — frontend only sees presence
+  const hasActiveKey =
+    selectedLLM.startsWith("deepseek") ? hasKeys.deepseek :
+    selectedLLM.startsWith("kimi") ? hasKeys.kimi :
+    selectedLLM.startsWith("glm") ? hasKeys.glm : false;
 
   // ── 渲染 ────────────────────────────────────────────────────────
 
@@ -335,7 +333,7 @@ function AppInner() {
             {/* 中央画布 — 根据 Dock 切换 */}
             <section className="flex-1 bg-[#09090b] overflow-hidden flex flex-col">
               {dockView === "chat" && (
-                <div className="flex-1 overflow-hidden"><ChatPanel selectedModel={selectedLLM} apiKey={activeApiKey} /></div>
+                <div className="flex-1 overflow-hidden"><ChatPanel selectedModel={selectedLLM} apiKey="" /></div>
               )}
               {dockView === "pipeline" && (
                 <div className="flex-1 overflow-hidden">
@@ -382,7 +380,7 @@ function AppInner() {
         ) : (
           /* 全局配置 */
           <div className="flex-1 overflow-hidden animate-fadeIn">
-            <SettingsPanel apiKeys={apiKeys} onApiKeysChange={setApiKeys} />
+            <SettingsPanel hasKeys={hasKeys} onKeyChange={(provider, has) => setHasKeys(prev => ({ ...prev, [provider]: has }))} />
           </div>
         )}
       </div>

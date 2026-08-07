@@ -744,6 +744,9 @@ export interface AppSettings {
   api_key_deepseek?: string;
   api_key_kimi?: string;
   api_key_glm?: string;
+  has_key_deepseek?: boolean;
+  has_key_kimi?: boolean;
+  has_key_glm?: boolean;
 }
 
 export async function loadSettings(): Promise<AppSettings> {

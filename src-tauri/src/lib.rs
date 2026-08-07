@@ -240,8 +240,10 @@ async fn chat_api(
         ));
     }
 
+    // Resolve API key from vault if frontend sent empty (key now stored server-side)
+    let resolved_key = if api_key.is_empty() { resolve_key_from_vault(&model) } else { api_key };
     let mut client = state.api_client.lock().await;
-    let response = client.chat(&endpoint, &api_key, &model, msgs, max_tokens).await;
+    let response = client.chat(&endpoint, &resolved_key, &model, msgs, max_tokens).await;
 
     // Record to parallel billing engine (Official + Budget + Router)
     if response.success {
@@ -283,11 +285,13 @@ async fn chat_api_stream(
         ));
     }
 
+    // Resolve API key from vault if frontend sent empty (key now stored server-side)
+    let resolved_key = if api_key.is_empty() { resolve_key_from_vault(&model) } else { api_key };
     let mut client = state.api_client.lock().await;
     let response = client
         .chat_stream(
             &endpoint,
-            &api_key,
+            &resolved_key,
             &model,
             msgs,
             max_tokens,
@@ -816,6 +820,16 @@ fn parse_model_to_enum(model: &str) -> agent::router::ModelModel {
     agent::billing::parse_model_string(model)
 }
 
+/// Resolve API key from Windows Credential Manager vault by model name
+fn resolve_key_from_vault(model: &str) -> String {
+    let vault = agent::security_vault::NativeSecurityVault::new();
+    let target = if model.contains("deepseek") { "deepseek" }
+        else if model.contains("kimi") { "kimi" }
+        else if model.contains("glm") { "glm" }
+        else { return String::new() };
+    vault.fetch_api_key_native(target).unwrap_or_default()
+}
+
 /// Estimate prompt/completion split from total tokens and response content
 fn split_tokens(total: u32, content: &str) -> (u32, u32) {
     let completion_est = (content.len() as f64 / 4.0).ceil() as u32;
@@ -844,6 +858,13 @@ struct AppSettings {
     api_key_deepseek: String,
     api_key_kimi: String,
     api_key_glm: String,
+    /// Vault presence flags — set by load_settings after keyring restore
+    #[serde(default)]
+    has_key_deepseek: bool,
+    #[serde(default)]
+    has_key_kimi: bool,
+    #[serde(default)]
+    has_key_glm: bool,
 }
 
 impl Default for AppSettings {
@@ -865,6 +886,9 @@ impl Default for AppSettings {
             api_key_deepseek: String::new(),
             api_key_kimi: String::new(),
             api_key_glm: String::new(),
+            has_key_deepseek: false,
+            has_key_kimi: false,
+            has_key_glm: false,
         }
     }
 }
@@ -908,19 +932,29 @@ fn load_settings(app_handle: tauri::AppHandle) -> AppSettings {
     let vault = agent::security_vault::NativeSecurityVault::new();
     if settings.api_key_deepseek.is_empty() || settings.api_key_deepseek == "[stored in vault]" {
         if let Ok(key) = vault.fetch_api_key_native("deepseek") {
-            if !key.is_empty() { settings.api_key_deepseek = key; }
+            if !key.is_empty() { settings.has_key_deepseek = true; settings.api_key_deepseek = key; }
         }
+    } else if !settings.api_key_deepseek.is_empty() {
+        settings.has_key_deepseek = true;
     }
     if settings.api_key_kimi.is_empty() || settings.api_key_kimi == "[stored in vault]" {
         if let Ok(key) = vault.fetch_api_key_native("kimi") {
-            if !key.is_empty() { settings.api_key_kimi = key; }
+            if !key.is_empty() { settings.has_key_kimi = true; settings.api_key_kimi = key; }
         }
+    } else if !settings.api_key_kimi.is_empty() {
+        settings.has_key_kimi = true;
     }
     if settings.api_key_glm.is_empty() || settings.api_key_glm == "[stored in vault]" {
         if let Ok(key) = vault.fetch_api_key_native("glm") {
-            if !key.is_empty() { settings.api_key_glm = key; }
+            if !key.is_empty() { settings.has_key_glm = true; settings.api_key_glm = key; }
         }
+    } else if !settings.api_key_glm.is_empty() {
+        settings.has_key_glm = true;
     }
+    // Strip actual key values before sending to frontend
+    settings.api_key_deepseek = String::new();
+    settings.api_key_kimi = String::new();
+    settings.api_key_glm = String::new();
     settings
 }
 

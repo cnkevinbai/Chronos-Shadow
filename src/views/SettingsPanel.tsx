@@ -12,11 +12,11 @@ import { ChronosLogo, KeyIcon, GlobeIcon, ShieldIcon, CoinsIcon } from "@/compon
 type Tab = "api" | "cost" | "lan" | "security" | "lang" | "about";
 
 interface SettingsPanelProps {
-  apiKeys: { deepseek: string; kimi: string; glm: string };
-  onApiKeysChange: (keys: { deepseek: string; kimi: string; glm: string }) => void;
+  hasKeys: { deepseek: boolean; kimi: boolean; glm: boolean };
+  onKeyChange: (provider: string, has: boolean) => void;
 }
 
-export default function SettingsPanel({ apiKeys, onApiKeysChange }: SettingsPanelProps) {
+export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("api");
 
   // 成本风控
@@ -63,9 +63,10 @@ export default function SettingsPanel({ apiKeys, onApiKeysChange }: SettingsPane
       setAstAudit(s.ast_audit);
       setBlockGpl(s.block_gpl);
       setPrivacyBlur(s.privacy_blur);
-      // Restore API keys from persistent store
-      const keys = { deepseek: s.api_key_deepseek ?? "", kimi: s.api_key_kimi ?? "", glm: s.api_key_glm ?? "" };
-      if (keys.deepseek || keys.kimi || keys.glm) onApiKeysChange(keys);
+      // Restore key presence flags from vault
+      if (s.has_key_deepseek) onKeyChange("deepseek", true);
+      if (s.has_key_kimi) onKeyChange("kimi", true);
+      if (s.has_key_glm) onKeyChange("glm", true);
     }).catch(() => {});
   }, []);
 
@@ -80,15 +81,9 @@ export default function SettingsPanel({ apiKeys, onApiKeysChange }: SettingsPane
         auto_fallback: autoFallback, max_healing: maxHealing,
         ast_audit: astAudit, block_gpl: blockGpl, privacy_blur: privacyBlur,
         caching_priority: cachingPriority, accumulated_cost: 0,
-        api_key_deepseek: apiKeys.deepseek, api_key_kimi: apiKeys.kimi, api_key_glm: apiKeys.glm,
+        api_key_deepseek: "", api_key_kimi: "", api_key_glm: "",
       });
-      // Then sync API keys to router
-      const providers: [string, string][] = [
-        ["deepseek-v4-pro", apiKeys.deepseek], ["deepseek-v4-flash", apiKeys.deepseek],
-        ["kimi-k3", apiKeys.kimi], ["kimi-k2.7-code", apiKeys.kimi], ["kimi-k2.7-code-highspeed", apiKeys.kimi],
-        ["glm-5.2", apiKeys.glm], ["glm-5v-turbo", apiKeys.glm], ["glm-5.1", apiKeys.glm], ["glm-4.7", apiKeys.glm],
-      ];
-      await Promise.all(providers.map(([model, key]) => key ? setModelApiKey(model, key).catch(() => "") : Promise.resolve("")));
+      // Router keys are now vault-resolved server-side — no sync needed
       toast.showToast("success", "CONFIG SAVED", result);
     } catch (e) {
       toast.showToast("error", "SAVE FAILED", String(e));
@@ -144,18 +139,32 @@ export default function SettingsPanel({ apiKeys, onApiKeysChange }: SettingsPane
       {/* Right content */}
       <div className="flex-1 p-6 overflow-y-auto animate-fadeIn">
         {activeTab === "api" && (
-          <SettingsSection title={t.settings_api_credentials} desc={lang === "zh" ? "配置云端多模型矩阵所需的 API 端点凭据，密钥本地加密存储。" : "Configure cloud model matrix API credentials. Keys are locally encrypted."}>
+          <SettingsSection title={t.settings_api_credentials} desc={lang === "zh" ? "API 密钥存储于 Windows 凭据保险箱，前端永不可见。在此粘贴新密钥以更新。" : "API keys vaulted in Windows Credential Manager. Paste new key below to update."}>
             {[
-              [t.settings_deepseek_key, apiKeys.deepseek, (v: string) => onApiKeysChange({ ...apiKeys, deepseek: v })],
-              [t.settings_kimi_key, apiKeys.kimi, (v: string) => onApiKeysChange({ ...apiKeys, kimi: v })],
-              [t.settings_glm_key, apiKeys.glm, (v: string) => onApiKeysChange({ ...apiKeys, glm: v })],
-            ].map(([label, value, setter]) => (
-              <div key={label as string} className="flex flex-col space-y-1">
-                <label className="text-[11px] font-medium text-zinc-400">{label as string}</label>
+              { provider: "deepseek" as const, label: t.settings_deepseek_key, has: hasKeys.deepseek },
+              { provider: "kimi" as const, label: t.settings_kimi_key, has: hasKeys.kimi },
+              { provider: "glm" as const, label: t.settings_glm_key, has: hasKeys.glm },
+            ].map(({ provider, label, has }) => (
+              <div key={provider} className="flex flex-col space-y-1">
+                <label className="text-[11px] font-medium text-zinc-400">
+                  {label} {has && <span className="text-emerald-400 text-[10px]">✓ 已配置</span>}
+                </label>
                 <input
                   type="password"
-                  value={value as string}
-                  onChange={(e) => (setter as (v: string) => void)(e.target.value)}
+                  placeholder={has ? "•••••••• (已存储于凭据保险箱)" : "在此输入 API Key"}
+                  onChange={async (e) => {
+                    const key = e.target.value.trim();
+                    if (!key) return;
+                    try {
+                      const { vaultApiKey } = await import("@/lib/tauri");
+                      await vaultApiKey(provider, key);
+                      onKeyChange(provider, true);
+                      e.target.value = "";
+                      toast.showToast("success", "KEY VAULTED", `[${provider}] 已写入 Windows 凭据保险箱。`);
+                    } catch {
+                      toast.showToast("error", "VAULT FAILED", "凭据写入失败，请检查系统权限。");
+                    }
+                  }}
                   className="bg-black border border-[#27272a] rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none"
                 />
               </div>
