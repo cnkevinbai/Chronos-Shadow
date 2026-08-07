@@ -1051,6 +1051,10 @@ fn load_settings(app_handle: tauri::AppHandle) -> AppSettings {
     } else if !settings.api_key_glm.is_empty() {
         settings.has_key_glm = true;
     }
+    // Also check file-based persistence for has_key flags
+    if !settings.has_key_deepseek { settings.has_key_deepseek = load_key_file("deepseek").is_some(); }
+    if !settings.has_key_kimi { settings.has_key_kimi = load_key_file("kimi").is_some(); }
+    if !settings.has_key_glm { settings.has_key_glm = load_key_file("glm").is_some(); }
     // Strip actual key values before sending to frontend
     settings.api_key_deepseek = String::new();
     settings.api_key_kimi = String::new();
