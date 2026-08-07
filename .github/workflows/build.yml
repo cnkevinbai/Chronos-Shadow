@@ -26,13 +26,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: TypeScript check
-        run: npx tsc -b --noEmit
+      - name: Add WiX Toolset to PATH
+        run: echo "$env:WIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+        env:
+          WIX: "C:\\Program Files (x86)\\WiX Toolset v3.11"
 
-      - name: Vite production build
-        run: npx vite build
-
-      - name: Cargo check
+      - name: Cargo check (incl. frontend build via beforeBuildCommand)
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
       - name: Cargo build (release)
