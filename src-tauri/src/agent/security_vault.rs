@@ -41,7 +41,7 @@ impl NativeSecurityVault {
         );
 
         Self {
-            service_namespace: "ChronosShadow/API-Vault",
+            service_namespace: "ChronosShadow",
             hardware_derived_key: *Key::<Aes256Gcm>::from_slice(&derived),
         }
     }

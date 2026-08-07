@@ -242,7 +242,7 @@ async fn chat_api(
 
     // Resolve API key from vault if frontend sent empty (key now stored server-side)
     let resolved_key = if api_key.is_empty() { resolve_key_from_vault(&model) } else { api_key };
-    if resolved_key.is_empty() && api_key.is_empty() {
+    if resolved_key.is_empty() {
         return Err("[VAULT EMPTY] API Key 未找到。请在「⚙️ 全局配置 → API 密钥凭据」中输入并保存。".into());
     }
     let mut client = state.api_client.lock().await;
@@ -290,7 +290,7 @@ async fn chat_api_stream(
 
     // Resolve API key from vault if frontend sent empty (key now stored server-side)
     let resolved_key = if api_key.is_empty() { resolve_key_from_vault(&model) } else { api_key };
-    if resolved_key.is_empty() && api_key.is_empty() {
+    if resolved_key.is_empty() {
         return Err("[VAULT EMPTY] API Key 未找到。请在「⚙️ 全局配置 → API 密钥凭据」中输入并保存。".into());
     }
     let mut client = state.api_client.lock().await;
@@ -778,6 +778,9 @@ fn get_vault_status() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 fn vault_api_key(target_model: String, secret_key: String) -> Result<String, String> {
+    // Cache in memory immediately — survives keyring failures
+    cache_key(&target_model, &secret_key);
+    // Also persist to Windows Credential Manager
     let vault = agent::security_vault::NativeSecurityVault::new();
     vault.vault_api_key_native(&target_model, &secret_key)?;
     Ok(format!("[{}] 已存入 Windows 凭据保险箱", target_model))
@@ -826,9 +829,19 @@ fn parse_model_to_enum(model: &str) -> agent::router::ModelModel {
     agent::billing::parse_model_string(model)
 }
 
-/// Resolve API key from Windows Credential Manager vault by model name
+/// In-memory key cache — survives even if Windows Credential Manager is unavailable
+static KEY_CACHE: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, String>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
+/// Store key in memory cache (called by vault_api_key command)
+fn cache_key(provider: &str, key: &str) {
+    if let Ok(mut cache) = KEY_CACHE.lock() {
+        cache.insert(provider.to_string(), key.to_string());
+    }
+}
+
+/// Resolve API key: memory cache → Windows Credential Manager vault
 fn resolve_key_from_vault(model: &str) -> String {
-    let vault = agent::security_vault::NativeSecurityVault::new();
     let target = if model.contains("deepseek") { "deepseek" }
         else if model.contains("kimi") { "kimi" }
         else if model.contains("glm") { "glm" }
@@ -836,13 +849,30 @@ fn resolve_key_from_vault(model: &str) -> String {
             tracing::warn!("[VAULT] Unknown model '{}', cannot resolve key", model);
             return String::new();
         };
+
+    // 1. Try in-memory cache first (survives keyring failures)
+    if let Ok(cache) = KEY_CACHE.lock() {
+        if let Some(key) = cache.get(target) {
+            if !key.is_empty() {
+                tracing::info!("[VAULT] Key resolved from memory cache for '{}'", target);
+                return key.clone();
+            }
+        }
+    }
+
+    // 2. Fall back to Windows Credential Manager
+    let vault = agent::security_vault::NativeSecurityVault::new();
     match vault.fetch_api_key_native(target) {
         Ok(key) if !key.is_empty() => {
-            tracing::info!("[VAULT] Key resolved for '{}' — len={}", target, key.len());
+            tracing::info!("[VAULT] Key resolved from WinCred for '{}' — len={}", target, key.len());
+            // Cache for future calls
+            if let Ok(mut cache) = KEY_CACHE.lock() {
+                cache.insert(target.to_string(), key.clone());
+            }
             key
         }
         Ok(_) => {
-            tracing::warn!("[VAULT] Key for '{}' is empty — re-enter in Settings", target);
+            tracing::warn!("[VAULT] Key for '{}' is empty in WinCred — re-enter in Settings", target);
             String::new()
         }
         Err(e) => {
@@ -990,12 +1020,15 @@ fn save_settings(app_handle: tauri::AppHandle, new_settings: AppSettings) -> Res
     let vault = agent::security_vault::NativeSecurityVault::new();
     let mut disk_settings = new_settings.clone();
     if !new_settings.api_key_deepseek.is_empty() {
+        cache_key("deepseek", &new_settings.api_key_deepseek);
         let _ = vault.vault_api_key_native("deepseek", &new_settings.api_key_deepseek);
     }
     if !new_settings.api_key_kimi.is_empty() {
+        cache_key("kimi", &new_settings.api_key_kimi);
         let _ = vault.vault_api_key_native("kimi", &new_settings.api_key_kimi);
     }
     if !new_settings.api_key_glm.is_empty() {
+        cache_key("glm", &new_settings.api_key_glm);
         let _ = vault.vault_api_key_native("glm", &new_settings.api_key_glm);
     }
     // Mask keys before writing to disk — only store presence flag
