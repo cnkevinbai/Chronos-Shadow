@@ -1139,11 +1139,11 @@ export default function ChatPanel({
             </span>
             <span className="text-[10px] text-zinc-500">
               |{" "}
-              {apiKey
+              {hasKey
                 ? `${modelDisplayName(selectedModel)}`
                 : t.agent_listening}
             </span>
-            {!apiKey && (
+            {!hasKey && (
               <span className="text-[9px] text-amber-500">(Demo)</span>
             )}
           </div>
