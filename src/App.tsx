@@ -190,7 +190,14 @@ function AppInner() {
     advance: async () => { await advancePipeline(); refreshStatus(); toast.showToast("info", "PIPELINE", t.toast_pipeline_advance); },
   };
 
-  // ── 根据模型推导 API Key ────────────────────────────────────────
+  // ── 模型 → 对应 Key 配置状态 ─────────────────────────────────
+  const hasKeyForModel = (model: string) => {
+    if (model.startsWith("deepseek")) return hasKeys.deepseek;
+    if (model.startsWith("kimi")) return hasKeys.kimi;
+    if (model.startsWith("glm")) return hasKeys.glm;
+    return false;
+  };
+
   // ── 渲染 ────────────────────────────────────────────────────────
 
   return (
@@ -327,7 +334,7 @@ function AppInner() {
             {/* 中央画布 — 根据 Dock 切换 */}
             <section className="flex-1 bg-[#09090b] overflow-hidden flex flex-col">
               {dockView === "chat" && (
-                <div className="flex-1 overflow-hidden"><ChatPanel selectedModel={selectedLLM} apiKey="" hasKey={hasKeys.deepseek || hasKeys.kimi || hasKeys.glm} /></div>
+                <div className="flex-1 overflow-hidden"><ChatPanel selectedModel={selectedLLM} apiKey="" hasKey={hasKeyForModel(selectedLLM)} /></div>
               )}
               {dockView === "pipeline" && (
                 <div className="flex-1 overflow-hidden">
