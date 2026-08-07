@@ -73,8 +73,8 @@ interface Message {
 interface ChatPanelProps {
   selectedModel: string;
   apiKey?: string;
-  /** Whether a vault key exists for the selected model — drives welcome message */
-  hasKey?: boolean;
+  /** Per-provider key presence — drives welcome message + status bar */
+  hasKeys?: { deepseek: boolean; kimi: boolean; glm: boolean };
 }
 
 function modelDisplayName(model: string): string {
@@ -134,8 +134,12 @@ function MarkdownContent({ text }: { text: string }) {
 export default function ChatPanel({
   selectedModel,
   apiKey = "",
-  hasKey = false,
+  hasKeys = { deepseek: false, kimi: false, glm: false },
 }: ChatPanelProps) {
+  const keyForModel = (m: string) => m.startsWith("deepseek") ? hasKeys.deepseek : m.startsWith("kimi") ? hasKeys.kimi : m.startsWith("glm") ? hasKeys.glm : false;
+  const currentHasKey = keyForModel(selectedModel);
+  const anyKey = hasKeys.deepseek || hasKeys.kimi || hasKeys.glm;
+  const availableProvider = hasKeys.deepseek ? "DeepSeek" : hasKeys.kimi ? "Kimi" : hasKeys.glm ? "GLM" : null;
   const t = useT();
   const toast = useToast();
 
@@ -166,7 +170,7 @@ export default function ChatPanel({
       id: "msg-0",
       sender: "System",
       model: "Local System",
-      content: hasKey ? t.chat_welcome_connected : t.chat_welcome_demo,
+      content: anyKey ? t.chat_welcome_connected : t.chat_welcome_demo,
       timestamp: new Date().toLocaleTimeString(),
     },
   ]);
@@ -176,11 +180,11 @@ export default function ChatPanel({
     setMessages((prev) => [
       {
         ...prev[0],
-        content: hasKey ? t.chat_welcome_connected : t.chat_welcome_demo,
+        content: anyKey ? t.chat_welcome_connected : t.chat_welcome_demo,
       },
       ...prev.slice(1),
     ]);
-  }, [hasKey, t]);
+  }, [anyKey, t]);
 
   const [isThinking, setIsThinking] = useState(false);
   const [macrosVisible, setMacrosVisible] = useState(false);
@@ -1139,12 +1143,16 @@ export default function ChatPanel({
             </span>
             <span className="text-[10px] text-zinc-500">
               |{" "}
-              {hasKey
-                ? `${modelDisplayName(selectedModel)}`
-                : t.agent_listening}
+              {currentHasKey
+                ? modelDisplayName(selectedModel)
+                : anyKey
+                  ? `${t.agent_listening.replace("...", "")} — ${availableProvider} 可用`
+                  : t.agent_listening}
             </span>
-            {!hasKey && (
-              <span className="text-[9px] text-amber-500">(Demo)</span>
+            {!currentHasKey && (
+              <span className={anyKey ? "text-[9px] text-cyan-400" : "text-[9px] text-amber-500"}>
+                {anyKey ? `(切换至 ${availableProvider})` : "(Demo)"}
+              </span>
             )}
           </div>
           <div className="flex items-center space-x-1.5">
