@@ -2,6 +2,8 @@
 
 > 下一代工业级开源桌面智能体 — 将大模型潜能与 Windows 系统底层操控深度融合
 
+[**🇨🇳 中文**](README.md) | [**🇬🇧 English**](README_EN.md)
+
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.80%2B-orange.svg)](https://rust-lang.org)
 [![Tauri](https://img.shields.io/badge/tauri-v2.0-purple.svg)](https://tauri.app)
