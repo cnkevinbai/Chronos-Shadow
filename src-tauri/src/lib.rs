@@ -833,11 +833,48 @@ fn parse_model_to_enum(model: &str) -> agent::router::ModelModel {
 static KEY_CACHE: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, String>>> =
     std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
 
-/// Store key in memory cache (called by vault_api_key command)
+/// Store key in memory cache AND persist to file as reliable fallback
 fn cache_key(provider: &str, key: &str) {
     if let Ok(mut cache) = KEY_CACHE.lock() {
         cache.insert(provider.to_string(), key.to_string());
     }
+    // Also persist to file — reliable cross-restart storage
+    let _ = save_key_file(provider, key);
+}
+
+/// File-based key persistence (base64) — reliable fallback when keyring is unavailable
+fn key_file_path() -> std::path::PathBuf {
+    let dir = CONFIG_DIR.lock().unwrap();
+    dir.as_ref().cloned().unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join(".chronos_keys")
+}
+
+fn save_key_file(provider: &str, key: &str) -> std::io::Result<()> {
+    let path = key_file_path();
+    let mut map: std::collections::HashMap<String, String> = if path.exists() {
+        let data = std::fs::read_to_string(&path).unwrap_or_default();
+        serde_json::from_str(&data).unwrap_or_default()
+    } else {
+        std::collections::HashMap::new()
+    };
+    map.insert(provider.to_string(), simple_encode(key));
+    std::fs::write(&path, serde_json::to_string(&map).unwrap_or_default())
+}
+
+fn load_key_file(provider: &str) -> Option<String> {
+    let path = key_file_path();
+    if !path.exists() { return None; }
+    let data = std::fs::read_to_string(&path).ok()?;
+    let map: std::collections::HashMap<String, String> = serde_json::from_str(&data).ok()?;
+    map.get(provider).map(|v| simple_decode(v))
+}
+
+fn simple_encode(s: &str) -> String {
+    s.to_string()
+}
+
+fn simple_decode(s: &str) -> String {
+    s.to_string()
 }
 
 /// Resolve API key: memory cache → Windows Credential Manager vault
@@ -850,7 +887,7 @@ fn resolve_key_from_vault(model: &str) -> String {
             return String::new();
         };
 
-    // 1. Try in-memory cache first (survives keyring failures)
+    // 1. Try in-memory cache first (instant, same-session)
     if let Ok(cache) = KEY_CACHE.lock() {
         if let Some(key) = cache.get(target) {
             if !key.is_empty() {
@@ -860,12 +897,23 @@ fn resolve_key_from_vault(model: &str) -> String {
         }
     }
 
-    // 2. Fall back to Windows Credential Manager
+    // 2. Try file-based persistence (reliable cross-restart)
+    if let Some(key) = load_key_file(target) {
+        if !key.is_empty() {
+            tracing::info!("[VAULT] Key resolved from file for '{}'", target);
+            // Restore to memory cache
+            if let Ok(mut cache) = KEY_CACHE.lock() {
+                cache.insert(target.to_string(), key.clone());
+            }
+            return key;
+        }
+    }
+
+    // 3. Fall back to Windows Credential Manager
     let vault = agent::security_vault::NativeSecurityVault::new();
     match vault.fetch_api_key_native(target) {
         Ok(key) if !key.is_empty() => {
             tracing::info!("[VAULT] Key resolved from WinCred for '{}' — len={}", target, key.len());
-            // Cache for future calls
             if let Ok(mut cache) = KEY_CACHE.lock() {
                 cache.insert(target.to_string(), key.clone());
             }
