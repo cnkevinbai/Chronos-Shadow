@@ -1,0 +1,26 @@
+{
+  "name": "cluster_docker_hothealer",
+  "description": "跨平台容器编译自愈器。通过 SSH 代理隧道强行切入指定的远程 Linux 容器（Docker/K8s Pod）内部执行静默编译，并在端侧截获 Stderr 错误日志触发自愈反思环。",
+  "version": "2.0.0",
+  "author": "Chronos-Shadow Team",
+  "type": "builtin",
+  "category": "devops",
+  "tags": ["Docker", "K8s", "容器编译", "SSH", "自愈", "Stderr拦截"],
+  "executor": "native",
+  "script_path": "skills/cluster_docker_hothealer/run.ps1",
+  "timeout_secs": 60,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "project_id": { "type": "string", "description": "中央 VFS 文件树中注册的项目全局唯一标识符" },
+      "container_name_or_id": { "type": "string", "description": "远程服务器上运行的目标容器名称或哈希 ID" },
+      "in_container_build_cmd": { "type": "string", "description": "容器内编译指令，如 'mvn clean compile' 或 'cargo check'" }
+    },
+    "required": ["project_id", "container_name_or_id", "in_container_build_cmd"]
+  },
+  "benefits": {
+    "token_reduction": "免上传容器镜像/全量日志",
+    "method": "docker exec + SSH隧道 + Stderr精炼",
+    "reliability": "消除本地通过/上线崩死幻觉"
+  }
+}

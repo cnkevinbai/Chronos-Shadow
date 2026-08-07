@@ -1,0 +1,39 @@
+{
+  "name": "context_glue_excelfiller",
+  "description": "WorkBuddy 专属跨应用数据粘合器。自动读取本地 Excel 结构化数据，通过 Win32 底层句柄安全、批量地注入到指定的活动软件窗体表单中。",
+  "version": "1.0.0",
+  "author": "Chronos-Shadow Team",
+  "type": "builtin",
+  "category": "workbuddy",
+  "tags": ["跨应用", "Excel", "句柄注入", "Win32", "数据粘合", "自动填表"],
+  "executor": "native",
+  "script_path": "skills/context_glue_excelfiller/run.ps1",
+  "timeout_secs": 60,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "excel_path": {
+        "type": "string",
+        "description": "本地原始 Excel 数据资产的绝对路径"
+      },
+      "target_window_title": {
+        "type": "string",
+        "description": "目标接收窗体的 Win32 标题模糊匹配关键字，如 '数字化 ERP'"
+      },
+      "mapping_rules": {
+        "type": "object",
+        "description": "Excel 列名与目标表单字段输入框句柄的映射关系 JSON",
+        "properties": {
+          "excel_column": { "type": "string" },
+          "form_element_id": { "type": "string" }
+        }
+      }
+    },
+    "required": ["excel_path", "target_window_title", "mapping_rules"]
+  },
+  "benefits": {
+    "token_reduction": "千分之一",
+    "method": "WM_SETTEXT 句柄直写，跳过鼠标模拟",
+    "workflow": "大模型发指令 → 本地批量写入 → 只看最终快照"
+  }
+}

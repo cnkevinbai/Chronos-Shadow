@@ -1,0 +1,38 @@
+{
+  "name": "omnidesign_matrix",
+  "version": "1.0.0",
+  "description": "2026全能型专业视觉设计矩阵。将自然语言PRD自动编译转化为契合国际一线审美（Linear/Vercel/Apple风）的跨端响应式UI/UX系统。自动输出PC桌面端与移动端高保真代码，并联动本地ONNX执行像素级还原度走查。",
+  "author": "Chronos-Shadow Team",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "target_platform": {
+        "type": "string",
+        "enum": ["pc_tauri", "mobile_responsive", "hybrid_all"],
+        "description": "目标交付平台。pc_tauri 输出桌面端特化代码；mobile_responsive 输出移动端特化代码；hybrid_all 跨端全栈同步输出"
+      },
+      "design_theme_profile": {
+        "type": "string",
+        "enum": ["vercel_monochrome", "linear_metallic", "apple_fluid"],
+        "description": "国际主流审美风格：vercel_monochrome(极简单色黑白风)，linear_metallic(极客暗黑硬件质感)，apple_fluid(动态灵动岛流体美学)"
+      },
+      "component_blueprint_json": {
+        "type": "string",
+        "description": "产品经理 Agent 锁定的结构化 PRD 组件树及功能白名单边界数据，作为视觉渲染的硬约束"
+      }
+    },
+    "required": ["target_platform", "design_theme_profile", "component_blueprint_json"]
+  },
+  "capabilities": [
+    "pc_desktop_codegen",
+    "mobile_responsive_codegen",
+    "onnx_pixel_diff_inspection",
+    "design_system_asset_linking",
+    "cross_platform_visual_alignment"
+  ],
+  "resources": {
+    "design_tokens": "resources/design_system/tokens.json",
+    "component_library": "resources/design_system/components/",
+    "onnx_diff_model": "resources/privacy_mask.onnx"
+  }
+}

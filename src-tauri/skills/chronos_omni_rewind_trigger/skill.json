@@ -1,0 +1,36 @@
+{
+  "name": "chronos_omni_rewind_trigger",
+  "description": "Chronos 时空之影专用级安全红线武器。在长链自动化 Quest 启动前执行原子锁定冷备份，或在系统崩溃/触碰红线时一键强制逆转宿主机环境至历史指定检查点。",
+  "version": "2.0.0",
+  "author": "Chronos-Shadow Team",
+  "type": "builtin",
+  "category": "security",
+  "tags": ["时光倒流", "VSS", "检查点", "回滚", "安全红线", "原子备份"],
+  "executor": "native",
+  "script_path": "skills/chronos_omni_rewind_trigger/run.ps1",
+  "timeout_secs": 20,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "command_type": {
+        "type": "string",
+        "enum": ["checkpoint_capture", "omni_rewind"],
+        "description": "checkpoint_capture 建立快照；omni_rewind 执行时空倒流还原"
+      },
+      "checkpoint_id": {
+        "type": "string",
+        "description": "快照检查点全局唯一识别符，例如 'ckpt_before_erp_migration_01'"
+      },
+      "rollback_reason": {
+        "type": "string",
+        "description": "触发时空回滚的原因（若执行 rewind），例如 'Verifier 检测到第三步表单格式写崩'"
+      }
+    },
+    "required": ["command_type", "checkpoint_id"]
+  },
+  "benefits": {
+    "recovery_time": "秒级",
+    "method": "VSS 卷影 + Win32 窗口位置冷备份",
+    "safety": "0 沉没成本，避免高额新会话"
+  }
+}

@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default capability for Chronos-Shadow","local":true,"windows":["main"],"permissions":["core:default","dialog:default","updater:default",{"identifier":"shell:allow-execute","allow":[{"args":true,"cmd":"vssadmin","name":"vssadmin"},{"args":true,"cmd":"cmd","name":"cmd-sandbox"}]}]}}

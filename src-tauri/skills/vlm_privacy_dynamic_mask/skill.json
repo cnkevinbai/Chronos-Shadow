@@ -1,0 +1,33 @@
+{
+  "name": "vlm_privacy_dynamic_mask",
+  "description": "Chronos-Shadow 专属视觉风控盾。在多模态大模型进行屏幕走查前，调用本地端侧 ONNX 视觉模型实时模糊、遮罩屏幕上的聊天记录、密码输入框及企业敏感应用，确保隐私绝对不出海。",
+  "version": "2.0.0",
+  "author": "Chronos-Shadow Team",
+  "type": "builtin",
+  "category": "security",
+  "tags": ["隐私遮罩", "ONNX", "端侧推理", "视觉风控", "GDPR合规"],
+  "executor": "native",
+  "script_path": "skills/vlm_privacy_dynamic_mask/run.ps1",
+  "timeout_secs": 15,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "mask_intensity": {
+        "type": "string",
+        "enum": ["light", "medium", "heavy_blackout"],
+        "description": "遮罩脱敏强度，heavy_blackout 表示直接抹黑敏感区域"
+      },
+      "app_blacklist_keywords": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "需要强制整窗全遮罩的软件标题关键字，如 ['WeChat', '网银']"
+      }
+    },
+    "required": ["mask_intensity"]
+  },
+  "benefits": {
+    "token_reduction": "80%",
+    "privacy_level": "企业级物理隔绝",
+    "method": "ONNX 端侧推理 + 像素级黑色矩形硬遮罩"
+  }
+}

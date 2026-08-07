@@ -1,0 +1,45 @@
+{
+  "name": "mcp-server-audit-vault",
+  "displayName": "Audit Vault",
+  "description": "企业级静态安全合规风控保险箱。读取增量 AST 语法树变动，静默审查 SQL 注入、硬编码密钥泄露，扫描第三方依赖的开源协议合规性。",
+  "transport": "stdio",
+  "command": "node",
+  "args": ["resources/mcp/audit-vault-server.js"],
+  "tools": [
+    {
+      "name": "scan_incremental_ast_diff",
+      "description": "读取增量 AST 语法树变动，静默审查 SQL 注入、硬编码 AWS/大模型 API Key 等高危模式。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_paths": { "type": "array", "items": { "type": "string" }, "description": "需要扫描的文件路径列表，为空则扫描全部变更文件" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"], "default": "high", "description": "最低告警级别" }
+        }
+      }
+    },
+    {
+      "name": "verify_license_compliance",
+      "description": "扫描本地 package.json / Cargo.toml 的第三方包依赖，探测 GPL/AGPL 等破坏商业闭环的协议，返回高危阻断信号。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "project_path": { "type": "string", "description": "项目根路径" },
+          "blocked_licenses": { "type": "array", "items": { "type": "string" }, "default": ["GPL", "AGPL"], "description": "阻断协议列表" }
+        },
+        "required": ["project_path"]
+      }
+    },
+    {
+      "name": "generate_audit_report",
+      "description": "生成当前项目的全量安全审计报告，含漏洞统计、协议合规评分、密钥泄露风险等级。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "format": { "type": "string", "enum": ["json", "markdown", "sarif"], "default": "json" }
+        }
+      }
+    }
+  ],
+  "resources": [],
+  "benefits": "端侧安全审查，零云端请求，拦截危险代码进入编译流"
+}

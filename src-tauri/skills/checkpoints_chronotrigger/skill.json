@@ -1,0 +1,36 @@
+{
+  "name": "checkpoints_chronotrigger",
+  "description": "Chronos 时空之影专用级安全触发器。支持对当前宿主机工作区文件与软件视窗执行原子锁定冷备份或系统级时光倒流回滚。",
+  "version": "1.0.0",
+  "author": "Chronos-Shadow Team",
+  "type": "builtin",
+  "category": "security",
+  "tags": ["时光倒流", "快照", "VSS", "回滚", "安全检查点", "原子备份"],
+  "executor": "native",
+  "script_path": "skills/checkpoints_chronotrigger/run.ps1",
+  "timeout_secs": 30,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "operation": {
+        "type": "string",
+        "enum": ["capture", "rewind"],
+        "description": "capture 表示建立增量时空检查点；rewind 表示执行 Omni-Rewind 时空逆转回滚"
+      },
+      "checkpoint_id": {
+        "type": "string",
+        "description": "检查点全局唯一标识符，如 'ckpt_before_refactor_01'"
+      },
+      "description": {
+        "type": "string",
+        "description": "对当前时空状态的描述性备注"
+      }
+    },
+    "required": ["operation", "checkpoint_id"]
+  },
+  "benefits": {
+    "recovery_time": "秒级",
+    "method": "VSS 卷影复制 + Win32 窗口位置快照",
+    "safety": "避免全新高资费会话"
+  }
+}

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chronos-Shadow | 时空之影</title>
+    <style>
+      /* Splash Screen */
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #09090b;
+        transition: opacity 0.5s ease-out;
+      }
+      #splash.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #splash img {
+        max-width: 80%;
+        max-height: 60%;
+        object-fit: contain;
+        animation: splashPulse 2s ease-in-out infinite;
+      }
+      @keyframes splashPulse {
+        0%, 100% { transform: scale(1); opacity: 0.9; }
+        50% { transform: scale(1.03); opacity: 1; }
+      }
+      .splash-loader {
+        margin-top: 2rem;
+        width: 200px;
+        height: 3px;
+        background: #27272a;
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .splash-loader-bar {
+        width: 30%;
+        height: 100%;
+        background: linear-gradient(90deg, #10b981, #22d3ee, #10b981);
+        background-size: 200% 100%;
+        border-radius: 2px;
+        animation: loaderSlide 1.5s ease-in-out infinite,
+                   loaderShimmer 2s linear infinite;
+      }
+      @keyframes loaderSlide {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(400%); }
+      }
+      @keyframes loaderShimmer {
+        0% { background-position: 0% 50%; }
+        100% { background-position: 200% 50%; }
+      }
+      .splash-text {
+        margin-top: 1rem;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13px;
+        color: #71717a;
+        letter-spacing: 2px;
+      }
+      .splash-subtitle {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        color: #52525b;
+        margin-top: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Splash Screen -->
+    <div id="splash">
+      <img src="/splash.png" alt="Chronos-Shadow Loading" />
+      <div class="splash-loader">
+        <div class="splash-loader-bar"></div>
+      </div>
+      <div class="splash-text">CHRONOS-SHADOW</div>
+      <div class="splash-subtitle">时空之影 · 智能桌面体正在启动...</div>
+    </div>
+
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

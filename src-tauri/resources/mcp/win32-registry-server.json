@@ -1,0 +1,43 @@
+{
+  "name": "mcp-server-win32-registry",
+  "displayName": "Win32 Registry Sensor",
+  "description": "Windows 注册表与系统环境传感器。读取注册表键值检测已安装软件版本，写入环境变量并广播 WM_SETTINGCHANGE 实现免重启生效。",
+  "transport": "stdio",
+  "command": "node",
+  "args": ["resources/mcp/win32-registry-server.js"],
+  "tools": [
+    {
+      "name": "query_registry_value",
+      "description": "读取 Windows 注册表指定路径下的键值，检测软件安装路径、版本号等系统信息。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "hive": { "type": "string", "enum": ["HKLM", "HKCU", "HKCR", "HKU"], "description": "注册表根键" },
+          "path": { "type": "string", "description": "注册表子键路径，如 'SOFTWARE\\Python\\PythonCore\\3.12\\InstallPath'" },
+          "value_name": { "type": "string", "description": "键值名称，默认读取 (Default)" }
+        },
+        "required": ["hive", "path"]
+      }
+    },
+    {
+      "name": "write_environment_variable",
+      "description": "向用户/系统环境变量注入新路径，并向操作系统广播 WM_SETTINGCHANGE 消息实现免重启即时生效。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "scope": { "type": "string", "enum": ["user", "system"], "description": "作用域" },
+          "name": { "type": "string", "description": "环境变量名，如 'JAVA_HOME'" },
+          "value": { "type": "string", "description": "环境变量值，如 'C:\\Program Files\\Java\\jdk-21'" }
+        },
+        "required": ["scope", "name", "value"]
+      }
+    },
+    {
+      "name": "list_installed_applications",
+      "description": "扫描注册表 Uninstall 键，枚举已安装的应用程序列表及版本信息。",
+      "parameters": { "type": "object", "properties": {} }
+    }
+  ],
+  "resources": [],
+  "benefits": "确定性本地探测替代模型盲目猜测，大幅节省 Token"
+}

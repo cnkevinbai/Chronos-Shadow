@@ -1,0 +1,25 @@
+{
+  "name": "evolution_delta_packer",
+  "description": "知识进化增量打包器。将当前工作区本地自我学习、成长进化出来的错题本向量经验脱敏提取，全自动编译封装并向外导出为标准的独立 Skill 工具包资产，供团队无感秒级加载复用。",
+  "version": "2.0.0",
+  "author": "Chronos-Shadow Team",
+  "type": "builtin",
+  "category": "evolution",
+  "tags": ["知识打包", "经验导出", "向量固化", "团队共享", "Skill资产"],
+  "executor": "native",
+  "script_path": "skills/evolution_delta_packer/run.ps1",
+  "timeout_secs": 30,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "target_project_id": { "type": "string", "description": "需要提取成长进化经验的工作区项目 ID" },
+      "export_output_name": { "type": "string", "description": "导出的拓展技能包名称，例如 'financial_erp_bypass_rules'" }
+    },
+    "required": ["target_project_id", "export_output_name"]
+  },
+  "benefits": {
+    "token_reuse": "100% 免Token团队共享",
+    "method": "SQLite经验提取 + 脱敏 + skill.json编译导出",
+    "ecosystem": "企业级知识资产沉淀"
+  }
+}

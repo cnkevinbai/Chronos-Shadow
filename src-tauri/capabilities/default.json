@@ -1,0 +1,17 @@
+{
+  "identifier": "default",
+  "description": "Default capability for Chronos-Shadow",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "updater:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "vssadmin", "cmd": "vssadmin", "args": true },
+        { "name": "cmd-sandbox", "cmd": "cmd", "args": true }
+      ]
+    }
+  ]
+}

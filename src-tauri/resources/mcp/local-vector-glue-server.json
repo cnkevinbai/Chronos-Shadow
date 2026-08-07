@@ -1,0 +1,38 @@
+{
+  "name": "mcp-server-local-vector-glue",
+  "displayName": "Local Vector Glue",
+  "description": "本地代码树增量向量索引库。动态映射项目树拓扑为 MCP Resources，激活端侧 ONNX Embedding 对增量代码行进行高精度向量检索，将上下文体积压缩至千分之一。",
+  "transport": "stdio",
+  "command": "node",
+  "args": ["resources/mcp/local-vector-glue-server.js"],
+  "tools": [
+    {
+      "name": "query_vector_similarity",
+      "description": "激活端侧 ONNX Runtime Embedding 引擎，对当前工作区的增量代码片段执行向量相似检索，返回最相关的几百字核心上下文。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query_text": { "type": "string", "description": "检索查询文本" },
+          "top_k": { "type": "integer", "default": 5, "description": "返回最相关的前 K 个结果" },
+          "scope": { "type": "string", "enum": ["changed", "all", "recent"], "default": "changed", "description": "检索范围" }
+        },
+        "required": ["query_text"]
+      }
+    },
+    {
+      "name": "index_workspace",
+      "description": "触发对当前项目工作区执行全量或增量向量索引重建。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "mode": { "type": "string", "enum": ["full", "incremental"], "default": "incremental" }
+        }
+      }
+    }
+  ],
+  "resources": [
+    { "uri": "resources://projects/active_tree", "description": "当前活跃项目的目录树拓扑结构" },
+    { "uri": "resources://projects/diff_snippets", "description": "当前 Git 工作区的增量代码差异片段" }
+  ],
+  "benefits": "文本体积压缩至千分之一，最大化 DeepSeek 一折 Context Caching"
+}

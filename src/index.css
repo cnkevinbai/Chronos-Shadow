@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+/* ── Chronos-Shadow Dark Theme Tokens ── */
+@theme {
+  --color-cs-bg: #09090b;
+  --color-cs-surface: #0c0c0e;
+  --color-cs-header: #121214;
+  --color-cs-border: #27272a;
+  --color-cs-muted: #71717a;
+  --color-cs-dim: #a1a1aa;
+  --color-cs-text: #fafafa;
+  --color-cs-accent: #10b981;
+  --color-cs-accent-dim: rgba(16, 185, 129, 0.2);
+  --color-cs-accent-border: rgba(16, 185, 129, 0.5);
+  --color-cs-danger: #ef4444;
+  --color-cs-warn: #f59e0b;
+  --color-cs-info: #3b82f6;
+
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", ui-monospace,
+    Consolas, monospace;
+}
+
+/* ── Base ── */
+body {
+  margin: 0;
+  background: var(--color-cs-bg);
+  color: var(--color-cs-text);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-cs-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-cs-muted);
+}
+
+/* ── Custom utilities ── */
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-cs-border) transparent;
+}
+
+/* ── ChatPanel animation ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* ── UX Enhancements ── */
+@keyframes slideLeft {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slideLeft {
+  animation: slideLeft 0.25s ease-out;
+}
+
+@keyframes coinFloat {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  50%  { opacity: 1; transform: translateY(-18px) scale(1.3); }
+  100% { opacity: 0; transform: translateY(-32px) scale(0.8); }
+}
+.animate-coinFloat {
+  animation: coinFloat 0.8s ease-out forwards;
+}
+
+/* ── Toast error shake ── */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+/* ── ChatPanel 虚拟滚动优化 ── */
+/* 当消息 >50 条时启用 content-visibility，浏览器跳过屏幕外渲染 */
+.chat-msg-virtual {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+  contain: strict;
+}
+
+/* ── 消息淡入动画 ── */
+@keyframes msgFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-msg-in {
+  animation: msgFadeIn 0.25s ease-out forwards;
+}

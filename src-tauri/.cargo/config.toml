@@ -1,0 +1,8 @@
+[registries]
+rsproxy = { index = "sparse+https://rsproxy.cn/index/" }
+
+[source.crates-io]
+replace-with = "rsproxy"
+
+[net]
+retry = 5

@@ -1,0 +1,31 @@
+{
+  "name": "vlm_diff_inspector",
+  "description": "捕获当前本地编译生成的软件/网页视窗，与原 UI 布局设计 JSON 进行像素级多模态还原度走查，返回视觉差分报告。",
+  "version": "1.0.0",
+  "author": "Chronos-Shadow Team",
+  "type": "builtin",
+  "category": "quality",
+  "tags": ["视觉走查", "像素差分", "UI还原度", "多模态", "VLM降本"],
+  "executor": "native",
+  "script_path": "skills/vlm_diff_inspector/run.ps1",
+  "timeout_secs": 30,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "target_url_or_window": {
+        "type": "string",
+        "description": "需要走查的本地运行端点或窗口句柄名称，例如 'http://localhost:5173'"
+      },
+      "design_schema_path": {
+        "type": "string",
+        "description": "UI 设计师 Agent 产出的原版布局说明书路径，例如 'src/designs/layout.json'"
+      }
+    },
+    "required": ["target_url_or_window", "design_schema_path"]
+  },
+  "benefits": {
+    "vlm_token_saved": "80%",
+    "quality_filter": "过滤90%废话微调",
+    "trigger": "仅严重走查不符时呼叫大模型"
+  }
+}
