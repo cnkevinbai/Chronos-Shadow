@@ -528,20 +528,40 @@ impl ChronosVirtualFileSystem {
             .ok_or_else(|| format!("Project not found: {}", project_id))?;
 
         let req_path = Path::new(requested_file_path);
+
+        // Reject path traversal components
+        for component in req_path.components() {
+            use std::path::Component;
+            if matches!(component, Component::ParentDir) {
+                return Err(format!(
+                    "[SHIELD SCOPE LOCK] Path traversal blocked: '..' not allowed in '{}'",
+                    requested_file_path
+                ));
+            }
+        }
+
         let absolute_target = if req_path.is_absolute() {
             req_path.to_path_buf()
         } else {
             project_root.join(req_path)
         };
 
-        if !absolute_target.starts_with(project_root) {
+        // Canonicalize both paths before comparison to defeat lexical bypass
+        let canon_target = fs::canonicalize(&absolute_target).map_err(|e| {
+            format!("[SHIELD SCOPE LOCK] Cannot resolve path: {:?}: {}", absolute_target, e)
+        })?;
+        let canon_root = fs::canonicalize(project_root).map_err(|e| {
+            format!("[SHIELD SCOPE LOCK] Cannot resolve project root: {}", e)
+        })?;
+
+        if !canon_target.starts_with(&canon_root) {
             return Err(format!(
-                "[SHIELD SCOPE LOCK] 越权写入拦截: {:?} 不在项目沙盒内",
-                absolute_target
+                "[SHIELD SCOPE LOCK] 越权写入拦截: {:?} 不在项目沙盒 {:?} 内",
+                canon_target, canon_root
             ));
         }
 
-        Ok(absolute_target)
+        Ok(canon_target)
     }
 
     /// 时空机原子备份建立

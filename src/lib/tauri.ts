@@ -443,7 +443,41 @@ export async function getBillingStats(): Promise<{
   cost_limit: number; cost_cap_active: boolean;
 }> {
   try { return await invoke("get_billing_stats"); }
-  catch { return { session_cost: 0.342, saved_cost: 1.82, saving_rate: 84, cost_limit: 5.0, cost_cap_active: true }; }
+  catch { return { session_cost: 0.0, saved_cost: 0.0, saving_rate: 0, cost_limit: 5.0, cost_cap_active: true }; }
+}
+
+// ─── Parallel Billing Dashboard (v0.2.0) ───────────────────────
+
+export interface CostSnapshot {
+  tier: string;
+  total_cost_rmb: number;
+  tokens_used: number;
+  call_count: number;
+}
+
+export interface BillingDashboard {
+  official: CostSnapshot;
+  budget: CostSnapshot;
+  router: CostSnapshot;
+  cost_cap: number;
+  cost_cap_active: boolean;
+}
+
+export async function getBillingDashboard(): Promise<BillingDashboard> {
+  try { return await invoke<BillingDashboard>("get_billing_dashboard"); }
+  catch {
+    return {
+      official: { tier: "official", total_cost_rmb: 0, tokens_used: 0, call_count: 0 },
+      budget: { tier: "budget", total_cost_rmb: 0, tokens_used: 0, call_count: 0 },
+      router: { tier: "router", total_cost_rmb: 0, tokens_used: 0, call_count: 0 },
+      cost_cap: 5.0, cost_cap_active: true,
+    };
+  }
+}
+
+export async function updateCostCap(cap: number, enabled: boolean): Promise<string> {
+  try { return await invoke<string>("update_cost_cap", { cap, enabled }); }
+  catch { return `Cost cap mock: ¥${cap.toFixed(2)}`; }
 }
 
 // ─── Agent roster ──────────────────────────────────────────────
@@ -580,13 +614,11 @@ export async function clusterRegisterServer(
   serverId: string, host: string, port: number, username: string,
   authKeyPath?: string, projectRoot?: string,
 ): Promise<string> {
-  try {
-    return await invoke<string>("cluster_register_server", {
-      serverId, host, port, username,
-      authKeyPath: authKeyPath ?? null,
-      remoteProjectRoot: projectRoot ?? "/tmp",
-    });
-  } catch (e) { throw e; }
+  return await invoke<string>("cluster_register_server", {
+    serverId, host, port, username,
+    authKeyPath: authKeyPath ?? null,
+    remoteProjectRoot: projectRoot ?? "/tmp",
+  });
 }
 
 export async function clusterUnregisterServer(serverId: string): Promise<string> {
@@ -647,12 +679,10 @@ export interface RemoteFileNode {
 }
 
 export async function remoteConnect(config: RemoteConfig): Promise<string> {
-  try {
-    return await invoke<string>("remote_connect", {
-      host: config.host, port: config.port, username: config.username,
-      authKeyPath: config.authKeyPath ?? null, remoteProjectRoot: config.remoteProjectRoot,
-    });
-  } catch (e) { throw e; }
+  return await invoke<string>("remote_connect", {
+    host: config.host, port: config.port, username: config.username,
+    authKeyPath: config.authKeyPath ?? null, remoteProjectRoot: config.remoteProjectRoot,
+  });
 }
 
 export async function remoteDisconnect(): Promise<string> {
@@ -910,6 +940,7 @@ export async function getDetectorStats(): Promise<{
 }
 
 // ─── 便捷轮询 Hook ─────────────────────────────────────────────────
+// NOTE: createPolling exported for external consumers; not used internally
 
 /**
  * 创建自动轮询的数据源

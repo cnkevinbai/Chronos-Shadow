@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useT } from "@/lib/i18n-context";
+import { updateCostCap, getBillingDashboard } from "@/lib/tauri";
 import { CoinsIcon, ShieldIcon } from "@/components/SvgIcons";
 
 interface FooterBarProps {
@@ -33,11 +34,30 @@ export default function FooterBar({
   savedCost,
   savingRate,
   routeMode,
-  buddySaved = 0.52,
+  buddySaved = 0.0,
 }: FooterBarProps) {
   const t = useT();
   const [costLimit, setCostLimit] = useState<number>(5.0);
   const [isCapActive, setIsCapActive] = useState<boolean>(true);
+
+  // Load initial cost cap from billing engine on mount
+  useEffect(() => {
+    getBillingDashboard().then((d) => {
+      setCostLimit(d.cost_cap);
+      setIsCapActive(d.cost_cap_active);
+    }).catch(() => {});
+  }, []);
+
+  // Sync cost cap changes to backend
+  const handleCostCapChange = (newLimit: number) => {
+    setCostLimit(newLimit);
+    updateCostCap(newLimit, isCapActive).catch(() => {});
+  };
+  const handleCapToggle = () => {
+    const next = !isCapActive;
+    setIsCapActive(next);
+    updateCostCap(costLimit, next).catch(() => {});
+  };
   const [coinBounce, setCoinBounce] = useState(false);
   const prevSaved = useRef(savedCost);
 
@@ -93,14 +113,6 @@ export default function FooterBar({
           ({t.efficiency} {savingRate}%)
         </span>
         <div className="w-[1px] h-3 bg-cs-border" />
-        <span className="text-[10px] text-amber-400/80">
-          {t.saved_by_evolution}: ¥ {(buddySaved * 0.3).toFixed(2)}
-        </span>
-        <div className="w-[1px] h-3 bg-cs-border" />
-        <span className="text-[10px] text-purple-400/80">
-          <ShieldIcon size={10} className="stroke-purple-400 inline mr-0.5" />探测拦截: ¥ {(buddySaved * 0.42).toFixed(2)}
-        </span>
-        <div className="w-[1px] h-3 bg-cs-border" />
         <span className="text-[10px] text-cyan-400/80">
           <ShieldIcon size={10} className="stroke-cyan-400 inline mr-0.5" />{t.buddy_saved}: ¥ {buddySaved.toFixed(2)}
         </span>
@@ -150,7 +162,7 @@ export default function FooterBar({
                 costLimit.toString(),
               );
               if (newLimit && !isNaN(Number(newLimit)))
-                setCostLimit(Number(newLimit));
+                handleCostCapChange(Number(newLimit));
             }}
           >
             ¥ {costLimit.toFixed(2)}
@@ -161,7 +173,7 @@ export default function FooterBar({
         <div className="flex items-center space-x-1">
           <span className="text-[10px] text-cs-muted">{t.healing_fuse}</span>
           <button
-            onClick={() => setIsCapActive(!isCapActive)}
+            onClick={handleCapToggle}
             className={`w-7 h-4 rounded-full p-0.5 transition-colors relative outline-none ${
               isCapActive ? "bg-cs-accent" : "bg-cs-border"
             }`}

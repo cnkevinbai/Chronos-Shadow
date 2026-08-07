@@ -187,6 +187,9 @@ export default function ChatPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const msgContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
+  const messagesRef = useRef<Message[]>(messages);
+  // Keep ref in sync for keyboard shortcuts that read stale closure
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   // ── 多模态附件挂载状态 ─────────────────────────────────────
   const [stagedAttachments, setStagedAttachments] = useState<
@@ -214,10 +217,16 @@ export default function ChatPanel({
         handleNewSession();
         return;
       }
-      // Ctrl+S → 固化保存
+      // Ctrl+S → 固化保存 (uses ref to avoid stale closure)
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "s") {
         e.preventDefault();
-        handlePersistSession();
+        persistCurrentSession(messagesRef.current);
+        setIsSaving(true);
+        setTimeout(() => {
+          setIsSaving(false);
+          toast.showToast("success", "CHUNK COMMIT SUCCESS", "💾 时空分块与缓存特征点已安全写入物理磁盘档案库。");
+          refreshManifests();
+        }, 300);
         return;
       }
       // Ctrl+Shift+E → 导出
@@ -707,17 +716,19 @@ export default function ChatPanel({
           );
         });
 
-        // 发起流式请求
-        const response = await chatApiStream(
-          endpoint,
-          apiKey,
-          selectedModel,
-          chatMessages,
-          4096,
-        );
-
-        // 清理事件监听
-        unlisten();
+        // 发起流式请求 — finally 确保监听器一定被清理
+        let response;
+        try {
+          response = await chatApiStream(
+            endpoint,
+            apiKey,
+            selectedModel,
+            chatMessages,
+            4096,
+          );
+        } finally {
+          unlisten();
+        }
 
         if (response.success) {
           // Replace stream placeholder with final message

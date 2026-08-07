@@ -9,8 +9,7 @@
     {
       "identifier": "shell:allow-execute",
       "allow": [
-        { "name": "vssadmin", "cmd": "vssadmin", "args": true },
-        { "name": "cmd-sandbox", "cmd": "cmd", "args": true }
+        { "name": "vssadmin", "cmd": "vssadmin", "args": ["create", "shadow"] }
       ]
     }
   ]

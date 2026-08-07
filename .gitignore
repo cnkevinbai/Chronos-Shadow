@@ -13,6 +13,11 @@ src-tauri/target
 dist-ssr
 *.local
 
+# App runtime data (not for version control)
+chronos_vault/
+config.json
+.chronos_tmp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

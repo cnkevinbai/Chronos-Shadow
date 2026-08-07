@@ -7,7 +7,9 @@
 [![Tauri](https://img.shields.io/badge/tauri-v2.0-purple.svg)](https://tauri.app)
 [![React](https://img.shields.io/badge/react-19.0-blue.svg)](https://react.dev)
 
-Chronos-Shadow is an industrial-grade open-source desktop agent that deeply integrates LLM capabilities with Windows system-level control. Built with a standard MCP client bus, adaptive distributed cluster management, AES-256-GCM session encryption, native Windows Credential Manager key storage, zero-token local skill detection engine, and gamified cost-saving ledger.
+Chronos-Shadow is an industrial-grade open-source desktop agent that deeply integrates LLM capabilities with Windows system-level control. Built-in MCP client bus, adaptive distributed cluster management, AES-256-GCM session encryption, native Windows Credential Manager key storage, zero-token local skill detection engine, and gamified cost-saving ledger.
+
+> 🚧 **Development Status**: ONNX privacy masking, Buddy Scan visual inspection, and vector embeddings are currently framework placeholders under active development. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ---
 
@@ -32,12 +34,14 @@ Chronos-Shadow is an industrial-grade open-source desktop agent that deeply inte
 ### 🎨 OmniDesign-Matrix
 - Natural language → cross-platform UI/UX code (PC + Mobile)
 - Vercel / Linear / Apple theme one-click switching
-- Dual-pane live preview + ONNX pixel-level fidelity inspection
+- Dual-pane live preview + ONNX pixel-level fidelity inspection 🚧
 
 ### 📊 Full-Role SDLC Pipeline
 - 7 Agent ring scheduling (PM → Designer → Architect → Planner → Coder → Auditor → Verifier)
 - Task Kanban: create/assign/complete/fail
 - Zero-Token local skill detection & interception
+- 🚧 Buddy Scan pixel-level visual inspection (in development)
+- 🚧 ONNX local privacy masking (in development)
 
 ---
 
@@ -47,7 +51,7 @@ Chronos-Shadow is an industrial-grade open-source desktop agent that deeply inte
 |-------|-----------|
 | **Desktop** | Tauri v2 (Rust) |
 | **Frontend** | React 19 + TypeScript + Tailwind CSS 4 + Vite |
-| **Backend** | Rust (22 modules, 9,500+ lines) |
+| **Backend** | Rust (23 modules, 10,600+ lines) |
 | **Crypto** | AES-256-GCM + SHA-256 + keyring (Windows FFI) |
 | **AI Routing** | reqwest + SSE streaming + Context Caching |
 | **Storage** | Chunked JSON (Chronos Vault) |
@@ -61,6 +65,7 @@ Chronos-Shadow is an industrial-grade open-source desktop agent that deeply inte
 - **Windows 10/11** (WebView2 built-in)
 - [Rust](https://rustup.rs) 1.80+
 - [Node.js](https://nodejs.org) 22+
+- [Tauri CLI](https://tauri.app) v2
 
 ### Development
 
@@ -88,11 +93,11 @@ Run `chronos-shadow.exe` directly (9.3 MB), no installation required.
 ```
 chronos-shadow/
 ├── src/                    # React frontend
-│   ├── views/              # 11 panels
-│   ├── components/         # 16 components (incl. SvgIcons)
+│   ├── views/              # 9 panels
+│   ├── components/         # 11 components (incl. SvgIcons)
 │   └── lib/                # IPC layer + types + i18n
 ├── src-tauri/              # Rust backend
-│   ├── src/agent/          # 22 core modules
+│   ├── src/agent/          # 23 core modules
 │   ├── skills/             # Skill definitions
 │   └── resources/          # ONNX models + MCP configs
 ├── .github/workflows/      # CI/CD
@@ -117,6 +122,16 @@ chronos-shadow/
 | SettingsPanel | `SettingsIcon` | API/cost/LAN/security/lang/About |
 
 ---
+
+## 💝 Support the Project
+
+Chronos-Shadow is free and open-source. If you find it useful, support us via:
+
+- ⭐ [GitHub Stars](https://github.com/cnkevinbai/Chronos-Shadow) — free encouragement
+- 💰 [GitHub Sponsors](https://github.com/sponsors/cnkevinbai) — monthly sponsorship
+- ☕ [Afdian](https://afdian.com/a/chronos-shadow) — one-time support
+
+Every contribution helps us continue developing and maintaining this project. Thank you!
 
 ## License
 

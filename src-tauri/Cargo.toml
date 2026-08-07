@@ -1,9 +1,13 @@
 [package]
 name = "chronos-shadow"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Chronos-Shadow (时空之影) - Windows 桌面智能体研发与协同工具"
 authors = ["Chronos-Shadow Team"]
+license = "Apache-2.0"
+repository = "https://github.com/cnkevinbai/Chronos-Shadow"
+homepage = "https://github.com/cnkevinbai/Chronos-Shadow"
+documentation = "https://github.com/cnkevinbai/Chronos-Shadow"
 
 [package.metadata]
 # Tauri build metadata

@@ -30,4 +30,7 @@
 
 ## 报告
 
-如遇到滥用、骚扰或其他不可接受的行为，请通过 GitHub Issue 联系项目团队。
+如遇到滥用、骚扰或其他不可接受的行为，请通过以下方式联系项目团队：
+
+- 📧 Email: cnkevinbai@gmail.com
+- 🐛 GitHub Issue: https://github.com/cnkevinbai/Chronos-Shadow/issues

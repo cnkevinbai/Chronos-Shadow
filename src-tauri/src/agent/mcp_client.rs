@@ -406,7 +406,14 @@ impl Default for McpClient {
 fn distill_value(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Number(n) => n.to_string(),
-        serde_json::Value::String(s) => if s.len() > 80 { format!("{}...", &s[..77]) } else { s.clone() },
+        serde_json::Value::String(s) => {
+            if s.chars().count() > 80 {
+                let preview: String = s.chars().take(77).collect();
+                format!("{}...", preview)
+            } else {
+                s.clone()
+            }
+        },
         serde_json::Value::Array(arr) => format!("[{} items]", arr.len()),
         serde_json::Value::Object(obj) => format!("{{{} keys}}", obj.len()),
         _ => value.to_string(),

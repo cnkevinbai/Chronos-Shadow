@@ -177,8 +177,9 @@ pub struct ExtractorStats {
 /// 剥离冗余会话废话，压缩为精炼经验
 fn strip_verbose(raw: &str) -> String {
     let trimmed = raw.trim();
-    if trimmed.len() > 500 {
-        format!("{}...", &trimmed[..497])
+    if trimmed.chars().count() > 500 {
+        let preview: String = trimmed.chars().take(497).collect();
+        format!("{}...", preview)
     } else {
         trimmed.into()
     }

@@ -32,6 +32,7 @@ use agent::session_db::{
     export_chat_session, rename_chat_session,
     import_chat_session,
 };
+use agent::billing_engine::ChronosParallelBillingEngine;
 use vision::VisionEngine;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -63,6 +64,7 @@ struct AppState {
     remote_proxy: TokioMutex<Option<RemoteProxyTunnel>>,
     cluster: TokioMutex<RemoteClusterManager>,
     cvfs: tokio::sync::Mutex<ChronosVirtualFileSystem>,
+    billing_engine: ChronosParallelBillingEngine,
 }
 
 impl AppState {
@@ -84,6 +86,7 @@ impl AppState {
             remote_proxy: TokioMutex::new(None),
             cluster: TokioMutex::new(RemoteClusterManager::new()),
             cvfs: tokio::sync::Mutex::new(ChronosVirtualFileSystem::new()),
+            billing_engine: ChronosParallelBillingEngine::new(),
         }
     }
 }
@@ -227,28 +230,24 @@ async fn chat_api(
     }
     LAST_API_CALL.store(now, std::sync::atomic::Ordering::Relaxed);
 
-    // Cost cap check
-    let settings = ensure_settings_loaded();
-    if settings.cost_cap_enabled {
-        let current = settings.accumulated_cost;
-        if current >= settings.cost_cap {
-            return Err(format!(
-                "[熔断拦截] 累计开销 ¥{:.2} 已达安全阈值 ¥{:.2}，API 调用已被阻断。请在设置中调整上限或重置。",
-                current, settings.cost_cap
-            ));
-        }
+    // Cost cap check — powered by parallel billing engine (Budget tier)
+    if state.billing_engine.is_over_cap() {
+        let budget = state.billing_engine.get_budget_total();
+        let cap = state.billing_engine.get_cost_cap();
+        return Err(format!(
+            "[熔断拦截] 累计开销 ¥{:.2} 已达安全阈值 ¥{:.2}，API 调用已被阻断。请在设置中调整上限或重置。",
+            budget, cap
+        ));
     }
 
     let mut client = state.api_client.lock().await;
     let response = client.chat(&endpoint, &api_key, &model, msgs, max_tokens).await;
 
-    // Update accumulated cost
+    // Record to parallel billing engine (Official + Budget + Router)
     if response.success {
-        let estimated = response.tokens_used as f64 * 0.0001;
-        let mut guard = SETTINGS.lock().unwrap();
-        if let Some(ref mut s) = *guard {
-            s.accumulated_cost += estimated;
-        }
+        let model_enum = parse_model_to_enum(&model);
+        let (prompt, completion) = split_tokens(response.tokens_used, &response.content);
+        state.billing_engine.record(&model_enum, prompt, completion, None);
     }
 
     Ok(response)
@@ -274,16 +273,14 @@ async fn chat_api_stream(
         })
         .collect();
 
-    // Cost cap check
-    let settings = ensure_settings_loaded();
-    if settings.cost_cap_enabled {
-        let current = settings.accumulated_cost;
-        if current >= settings.cost_cap {
-            return Err(format!(
-                "[熔断拦截] 累计开销 ¥{:.2} 已达安全阈值 ¥{:.2}，流式调用已被阻断。",
-                current, settings.cost_cap
-            ));
-        }
+    // Cost cap check — powered by parallel billing engine (Budget tier)
+    if state.billing_engine.is_over_cap() {
+        let budget = state.billing_engine.get_budget_total();
+        let cap = state.billing_engine.get_cost_cap();
+        return Err(format!(
+            "[熔断拦截] 累计开销 ¥{:.2} 已达安全阈值 ¥{:.2}，流式调用已被阻断。",
+            budget, cap
+        ));
     }
 
     let mut client = state.api_client.lock().await;
@@ -300,13 +297,11 @@ async fn chat_api_stream(
         )
         .await;
 
-    // Update accumulated cost
+    // Record to parallel billing engine (Official + Budget + Router)
     if response.success {
-        let estimated = response.tokens_used as f64 * 0.0001;
-        let mut guard = SETTINGS.lock().unwrap();
-        if let Some(ref mut s) = *guard {
-            s.accumulated_cost += estimated;
-        }
+        let model_enum = parse_model_to_enum(&model);
+        let (prompt, completion) = split_tokens(response.tokens_used, &response.content);
+        state.billing_engine.record(&model_enum, prompt, completion, None);
     }
 
     Ok(response)
@@ -434,19 +429,14 @@ fn get_sandbox_status(state: tauri::State<AppState>) -> String {
 
 #[tauri::command]
 fn get_session_cost(state: tauri::State<AppState>) -> f64 {
-    let scan = state.buddy_scan.lock().unwrap();
-    let glue = state.context_glue.lock().unwrap();
-    // Session cost = estimated costs from all saving engines
-    let saved = scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved;
-    // Invert: what would have been spent without savings
-    if saved > 0.0 { saved * 0.15 } else { 0.342 }
+    state.billing_engine.get_budget_total()
 }
 
 #[tauri::command]
 fn get_saved_cost(state: tauri::State<AppState>) -> f64 {
     let scan = state.buddy_scan.lock().unwrap();
     let glue = state.context_glue.lock().unwrap();
-    scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved + 1.82
+    scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved
 }
 
 #[tauri::command]
@@ -454,7 +444,7 @@ fn get_saving_rate(state: tauri::State<AppState>) -> u32 {
     let scan = state.buddy_scan.lock().unwrap();
     let glue = state.context_glue.lock().unwrap();
     let total_saved = scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved;
-    if total_saved > 0.0 { 84 + (total_saved * 100.0) as u32 } else { 84 }
+    if total_saved > 0.0 { (total_saved * 100.0) as u32 } else { 0 }
 }
 
 // ─── WorkBuddy: Buddy Scan ─────────────────────────────────────
@@ -492,21 +482,36 @@ fn get_buddy_saved_cost(state: tauri::State<AppState>) -> f64 {
     scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved
 }
 
-// ─── Billing stats ────────────────────────────────────────────
+// ─── Billing stats (legacy compat) ────────────────────────────
 
+/// 向后兼容旧前端 — 返回 Budget 轨道数据
 #[tauri::command]
 fn get_billing_stats(state: tauri::State<AppState>) -> serde_json::Value {
+    let budget = state.billing_engine.get_ledger(agent::billing_engine::BillingTier::Budget);
     let scan = state.buddy_scan.lock().unwrap();
     let glue = state.context_glue.lock().unwrap();
     let workbuddy_saved = scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved;
-    let settings = ensure_settings_loaded();
     serde_json::json!({
-        "session_cost": settings.accumulated_cost,
-        "saved_cost": workbuddy_saved + 1.82,
-        "saving_rate": if workbuddy_saved > 0.0 { 84 + (workbuddy_saved * 100.0) as u32 } else { 84 },
-        "cost_limit": settings.cost_cap,
-        "cost_cap_active": settings.cost_cap_enabled,
+        "session_cost": budget.total_cost_rmb,
+        "saved_cost": workbuddy_saved,
+        "saving_rate": 0,
+        "cost_limit": state.billing_engine.get_cost_cap(),
+        "cost_cap_active": !state.billing_engine.is_over_cap() || state.billing_engine.get_budget_total() < state.billing_engine.get_cost_cap(),
     })
+}
+
+/// 统一仪表盘 — 三轨并行数据一次查询
+#[tauri::command]
+fn get_billing_dashboard(state: tauri::State<AppState>) -> agent::billing_engine::BillingDashboard {
+    state.billing_engine.get_dashboard()
+}
+
+/// 更新费用上限（同步到 billing_engine）
+#[tauri::command]
+fn update_cost_cap(state: tauri::State<AppState>, cap: f64, enabled: bool) -> String {
+    state.billing_engine.set_cost_cap(cap);
+    state.billing_engine.set_cost_cap_enabled(enabled);
+    format!("Cost cap set to ¥{:.2} ({})", cap, if enabled { "ON" } else { "OFF" })
 }
 
 // ─── WorkBuddy: Context Glue ───────────────────────────────────
@@ -803,6 +808,22 @@ async fn check_lan_health() -> Result<Vec<String>, String> {
     Router::check_lan_health().await
 }
 
+// ─── Model name parser (shared by billing) ────────────────────
+
+/// 将 API 调用中的模型字符串映射到 ModelModel 枚举
+/// 委托给 billing::parse_model_string（全项目唯一权威来源）
+fn parse_model_to_enum(model: &str) -> agent::router::ModelModel {
+    agent::billing::parse_model_string(model)
+}
+
+/// Estimate prompt/completion split from total tokens and response content
+fn split_tokens(total: u32, content: &str) -> (u32, u32) {
+    let completion_est = (content.len() as f64 / 4.0).ceil() as u32;
+    let completion = completion_est.min(total);
+    let prompt = total.saturating_sub(completion);
+    (prompt, completion)
+}
+
 // ─── Settings persistence ─────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -882,7 +903,25 @@ fn ensure_settings_loaded() -> AppSettings {
 #[tauri::command]
 fn load_settings(app_handle: tauri::AppHandle) -> AppSettings {
     get_config_dir(&app_handle); // cache the dir
-    ensure_settings_loaded()
+    let mut settings = ensure_settings_loaded();
+    // Try to restore keys from Windows Credential Manager vault
+    let vault = agent::security_vault::NativeSecurityVault::new();
+    if settings.api_key_deepseek.is_empty() || settings.api_key_deepseek == "[stored in vault]" {
+        if let Ok(key) = vault.fetch_api_key_native("deepseek") {
+            if !key.is_empty() { settings.api_key_deepseek = key; }
+        }
+    }
+    if settings.api_key_kimi.is_empty() || settings.api_key_kimi == "[stored in vault]" {
+        if let Ok(key) = vault.fetch_api_key_native("kimi") {
+            if !key.is_empty() { settings.api_key_kimi = key; }
+        }
+    }
+    if settings.api_key_glm.is_empty() || settings.api_key_glm == "[stored in vault]" {
+        if let Ok(key) = vault.fetch_api_key_native("glm") {
+            if !key.is_empty() { settings.api_key_glm = key; }
+        }
+    }
+    settings
 }
 
 #[tauri::command]
@@ -890,7 +929,25 @@ fn save_settings(app_handle: tauri::AppHandle, new_settings: AppSettings) -> Res
     let dir = get_config_dir(&app_handle);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let path = dir.join("config.json");
-    let json = serde_json::to_string_pretty(&new_settings).map_err(|e| e.to_string())?;
+
+    // Security: vault API keys to Windows Credential Manager, never write plaintext to disk
+    let vault = agent::security_vault::NativeSecurityVault::new();
+    let mut disk_settings = new_settings.clone();
+    if !new_settings.api_key_deepseek.is_empty() {
+        let _ = vault.vault_api_key_native("deepseek", &new_settings.api_key_deepseek);
+    }
+    if !new_settings.api_key_kimi.is_empty() {
+        let _ = vault.vault_api_key_native("kimi", &new_settings.api_key_kimi);
+    }
+    if !new_settings.api_key_glm.is_empty() {
+        let _ = vault.vault_api_key_native("glm", &new_settings.api_key_glm);
+    }
+    // Mask keys before writing to disk — only store presence flag
+    disk_settings.api_key_deepseek = if new_settings.api_key_deepseek.is_empty() { String::new() } else { "[stored in vault]".into() };
+    disk_settings.api_key_kimi = if new_settings.api_key_kimi.is_empty() { String::new() } else { "[stored in vault]".into() };
+    disk_settings.api_key_glm = if new_settings.api_key_glm.is_empty() { String::new() } else { "[stored in vault]".into() };
+
+    let json = serde_json::to_string_pretty(&disk_settings).map_err(|e| e.to_string())?;
     std::fs::write(&path, &json).map_err(|e| e.to_string())?;
     *SETTINGS.lock().unwrap() = Some(new_settings);
     Ok(format!("Saved to {}", path.display()))
@@ -1123,6 +1180,8 @@ pub fn run() {
             toggle_buddy_scan,
             get_buddy_saved_cost,
             get_billing_stats,
+            get_billing_dashboard,
+            update_cost_cap,
             get_context_glue_status,
             add_app_binding,
             remove_app_binding,
@@ -1200,7 +1259,19 @@ pub fn run() {
                 .with_target(false)
                 .with_thread_ids(true)
                 .init();
-            tracing::info!("Chronos-Shadow v0.1.0 started — log at {:?}", log_file);
+            tracing::info!("Chronos-Shadow v0.1.1 started — log at {:?}", log_file);
+
+            // Seed billing_engine from saved settings (cost cap + legacy migration)
+            {
+                let state = _app.state::<AppState>();
+                let settings = ensure_settings_loaded();
+                state.billing_engine.set_cost_cap(settings.cost_cap);
+                state.billing_engine.set_cost_cap_enabled(settings.cost_cap_enabled);
+                if settings.accumulated_cost > 0.0 {
+                    state.billing_engine.migrate_legacy_cost(settings.accumulated_cost);
+                    tracing::info!("[BILLING] Migrated legacy cost ¥{:.2} to Budget tier", settings.accumulated_cost);
+                }
+            }
 
             // 系统托盘（可选 — 失败不阻断启动）
             let _ = (|| {

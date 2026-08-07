@@ -15,6 +15,7 @@ import RedlineGuardPanel from "@/views/RedlineGuardPanel";
 import SecurityShieldPanel from "@/components/SecurityShieldPanel";
 import FooterBar from "@/components/FooterBar";
 import FloatingBubble from "@/components/FloatingBubble";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { ToastProvider, useToast } from "@/components/ToastProvider";
 import { ChatIcon, PipelineIcon, GlueIcon, McpIcon, ChronosFolderIcon, RemoteIcon, ChronosLogo } from "@/components/SvgIcons";
 import {
@@ -72,10 +73,11 @@ function AppInner() {
   const [sandboxStatus, setSandboxStatus] = useState("Protected (Global Node.js Symlinked)");
 
   // ── 实时 IPC 数据 ───────────────────────────────────────────────
-  const [sessionCost, setSessionCost] = useState(0.342);
-  const [savedCost, setSavedCost] = useState(1.82);
-  const [savingRate, setSavingRate] = useState(84);
-  const [buddySaved, setBuddySaved] = useState(0.52);
+  // Initial values before first IPC poll (replaced within 2s)
+  const [sessionCost, setSessionCost] = useState(0.0);
+  const [savedCost, setSavedCost] = useState(0.0);
+  const [savingRate, setSavingRate] = useState(0);
+  const [buddySaved, setBuddySaved] = useState(0.0);
   const [redlineStatus, setRedlineStatus] = useState<RedlineStatus | null>(null);
   const [pipelineStats, setPipelineStats] = useState<OrchestratorStats | null>(null);
 
@@ -87,6 +89,8 @@ function AppInner() {
 
   // ── 启动时恢复持久化配置 (延迟确保 IPC 就绪) ─────────────────
   useEffect(() => {
+    let tid1: ReturnType<typeof setTimeout> | undefined;
+    let tid2: ReturnType<typeof setTimeout> | undefined;
     const load = async () => {
       try {
         const s = await loadSettings();
@@ -97,11 +101,8 @@ function AppInner() {
             glm: s.api_key_glm ?? "",
           });
         }
-        // Also restore cost settings
-        if (s.cost_cap) { /* cost loaded by SettingsPanel */ }
       } catch {
-        // Retry once after IPC ready
-        setTimeout(async () => {
+        tid2 = setTimeout(async () => {
           try {
             const s = await loadSettings();
             if (s.api_key_deepseek || s.api_key_kimi || s.api_key_glm) {
@@ -115,8 +116,8 @@ function AppInner() {
         }, 1000);
       }
     };
-    // Delay to ensure Tauri IPC bridge is ready
-    setTimeout(load, 500);
+    tid1 = setTimeout(load, 500);
+    return () => { if (tid1) clearTimeout(tid1); if (tid2) clearTimeout(tid2); };
   }, []);
 
   // ── 数据轮询 ────────────────────────────────────────────────────
@@ -305,8 +306,6 @@ function AppInner() {
       {!minimized && (
         <>
       {/* 2. Main — 双视图路由 */}
-
-      {/* 2. Main — 双视图路由 */}
       <div className="flex-1 flex overflow-hidden">
         {activeView === "workbench" ? (
           /* 工作台：左 Dock + 中央画布 + 右安全面板 */
@@ -400,7 +399,9 @@ export default function App() {
   return (
     <I18nProvider>
       <ToastProvider>
-        <AppInner />
+        <ErrorBoundary>
+          <AppInner />
+        </ErrorBoundary>
       </ToastProvider>
     </I18nProvider>
   );

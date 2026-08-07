@@ -160,23 +160,39 @@ mod tests {
     }
 }
 
-// ─── 公共费率查询（供 api_client 等模块使用） ─────────────────
+// ─── 公共工具函数（供全项目使用） ─────────────────────────────
+
+/// 统一模型字符串→枚举解析器（全项目唯一权威来源）
+/// 供 api_client、billing_engine、lib.rs 共用
+pub fn parse_model_string(model: &str) -> ModelModel {
+    if model.contains("deepseek-v4-pro") {
+        ModelModel::DeepSeekV4Pro
+    } else if model.contains("deepseek-v4-flash") {
+        ModelModel::DeepSeekV4Flash
+    } else if model.contains("kimi-k3") {
+        ModelModel::KimiK3
+    } else if model.contains("kimi-k2.7-code-highspeed") {
+        ModelModel::KimiK27CodeHighspeed
+    } else if model.contains("kimi-k2.7") {
+        ModelModel::KimiK27Code
+    } else if model.contains("glm-5v-turbo") {
+        ModelModel::Glm5vTurbo
+    } else if model.contains("glm-5.2") {
+        ModelModel::Glm52
+    } else if model.contains("glm-5.1") {
+        ModelModel::Glm51
+    } else if model.contains("ollama") || model.contains("local") {
+        ModelModel::LanOllamaR1
+    } else {
+        ModelModel::DeepSeekV4Flash // safe fallback
+    }
+}
 
 /// 根据模型字符串名称查询官方费率并估算费用
 /// 此函数是 ChronosBillingEngine 的轻量封装，统一全项目费率来源
 pub fn estimate_cost_from_model_name(model: &str, prompt_tokens: u32, completion_tokens: u32) -> f64 {
     let engine = ChronosBillingEngine::new();
-    let model_enum = match model {
-        m if m.contains("deepseek-v4-pro") => ModelModel::DeepSeekV4Pro,
-        m if m.contains("deepseek-v4-flash") => ModelModel::DeepSeekV4Flash,
-        m if m.contains("kimi-k3") => ModelModel::KimiK3,
-        m if m.contains("kimi-k2.7-code-highspeed") => ModelModel::KimiK27CodeHighspeed,
-        m if m.contains("kimi-k2.7") => ModelModel::KimiK27Code,
-        m if m.contains("glm-5v-turbo") => ModelModel::Glm5vTurbo,
-        m if m.contains("glm-5.2") => ModelModel::Glm52,
-        m if m.contains("glm-5.1") => ModelModel::Glm51,
-        _ => ModelModel::DeepSeekV4Flash,
-    };
+    let model_enum = parse_model_string(model);
     let usage = ApiUsage { prompt_tokens, completion_tokens, cached_tokens: None };
     engine.calculate_audit_ledger(&model_enum, &usage).exact_cost_rmb
 }

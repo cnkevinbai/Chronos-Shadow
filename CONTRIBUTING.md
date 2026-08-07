@@ -6,7 +6,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/chronos-shadow/chronos-shadow.git
+git clone https://github.com/cnkevinbai/Chronos-Shadow.git
 cd chronos-shadow
 
 # 安装依赖

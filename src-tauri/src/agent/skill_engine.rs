@@ -13,6 +13,7 @@ use std::collections::HashMap;
 
 /// Skill 执行器类型
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum SkillExecutor {
     /// Python 脚本
     Python,
@@ -28,23 +29,36 @@ pub enum SkillExecutor {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillManifest {
     /// 唯一 ID
+    #[serde(default)]
     pub id: String,
     /// 显示名称
     pub name: String,
     /// 功能描述
     pub description: String,
     /// 执行器类型
+    #[serde(default)]
     pub executor: SkillExecutor,
     /// 脚本文件路径
+    #[serde(default)]
     pub script_path: String,
-    /// 输入参数 JSON Schema
+    /// 输入参数 JSON Schema (backward compat: also accepts "parameters")
+    #[serde(default, alias = "parameters")]
     pub input_schema: serde_json::Value,
     /// 版本号
+    #[serde(default = "default_version")]
     pub version: String,
     /// 作者
     pub author: Option<String>,
     /// 执行超时（秒）
+    #[serde(default = "default_timeout")]
     pub timeout_secs: u32,
+}
+
+fn default_version() -> String { "0.1.0".into() }
+fn default_timeout() -> u32 { 30 }
+
+impl Default for SkillExecutor {
+    fn default() -> Self { SkillExecutor::PowerShell }
 }
 
 /// Skill 运行时状态

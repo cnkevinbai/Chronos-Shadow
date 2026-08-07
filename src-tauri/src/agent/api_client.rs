@@ -167,7 +167,7 @@ impl ApiClient {
                             model: model.into(),
                             tokens_used: 0,
                             cost_estimate: 0.0,
-                            error: Some(format!("Failed to parse response: {}", &text[..200.min(text.len())])),
+                            error: Some(format!("Failed to parse response: {}", truncate_str(&text, 200))),
                         }
                     }
                 } else {
@@ -177,7 +177,7 @@ impl ApiClient {
                         model: model.into(),
                         tokens_used: 0,
                         cost_estimate: 0.0,
-                        error: Some(format!("HTTP {}: {}", status.as_u16(), &text[..200.min(text.len())])),
+                        error: Some(format!("HTTP {}: {}", status.as_u16(), truncate_str(&text, 200))),
                     }
                 }
             }
@@ -246,7 +246,7 @@ impl ApiClient {
                         error: Some(format!(
                             "HTTP {}: {}",
                             status.as_u16(),
-                            &text[..200.min(text.len())]
+                            truncate_str(&text, 200)
                         )),
                     };
                 }
@@ -332,6 +332,15 @@ pub struct ApiStats {
     pub call_count: u64,
     pub total_tokens: u64,
     pub total_cost: f64,
+}
+
+// ─── 工具函数 ─────────────────────────────────────────────────
+
+/// UTF-8-safe string truncation for error messages
+fn truncate_str(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars { return s.to_string(); }
+    let preview: String = s.chars().take(max_chars).collect();
+    format!("{}...", preview)
 }
 
 // ─── 费用估算 ─────────────────────────────────────────────────

@@ -75,13 +75,24 @@ export default function AppGlueBinder() {
   }, []);
   useEffect(() => { refresh(); const iv = setInterval(refresh, 3000); return () => clearInterval(iv); }, [refresh]);
 
-  const toggleHijack = (id: string) => setWindows((prev) => prev.map((w) => {
-    if (w.id !== id) return w;
-    const next = !w.handleHijacked;
-    if (!next) setStreams((s) => s.map((st) => st.fromNode === id || st.toNode === id ? { ...st, isActive: false } : st));
-    else setStreams((s) => s.map((st) => st.fromNode === id && st.toNode === "win-chrome" ? { ...st, isActive: true } : st));
-    return { ...w, handleHijacked: next, status: (next ? "syncing" : "idle") as WindowNode["status"] };
-  }));
+  // Toggle hijack: flip window state + update linked streams atomically
+  const toggleHijack = (id: string) => {
+    // Determine intention from current state BEFORE any update
+    const current = windows.find((w) => w.id === id);
+    const willBeActive = current ? !current.handleHijacked : false;
+
+    setWindows((prev) => prev.map((w) => {
+      if (w.id !== id) return w;
+      return { ...w, handleHijacked: willBeActive, status: (willBeActive ? "syncing" : "idle") as WindowNode["status"] };
+    }));
+
+    // Update streams based on the intended new state
+    if (!willBeActive) {
+      setStreams((s) => s.map((st) => st.fromNode === id || st.toNode === id ? { ...st, isActive: false } : st));
+    } else {
+      setStreams((s) => s.map((st) => st.fromNode === id && st.toNode === "win-chrome" ? { ...st, isActive: true } : st));
+    }
+  };
 
   const activeWindows = windows.filter((w) => w.handleHijacked).length;
   const logs = selectedStream ? genLogs(selectedStream.isActive, t.data_link_suspended) : [];

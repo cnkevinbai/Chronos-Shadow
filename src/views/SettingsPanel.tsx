@@ -3,7 +3,7 @@
 // IDE 设置网格布局：API密钥 / 成本风控 / 局域网 / 安全红线
 // 配置持久化 + Tauri IPC 实时广播到 Rust 后端
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLang, useT } from "@/lib/i18n-context";
 import { useToast } from "@/components/ToastProvider";
 import { setModelApiKey, loadSettings, saveSettings, checkLanHealth } from "@/lib/tauri";
@@ -40,9 +40,15 @@ export default function SettingsPanel({ apiKeys, onApiKeysChange }: SettingsPane
   const [privacyBlur, setPrivacyBlur] = useState(true);
 
   const [saving, setSaving] = useState(false);
+  const savingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { lang, setLang } = useLang();
   const t = useT();
   const toast = useToast();
+
+  // Cleanup saving timer on unmount
+  useEffect(() => {
+    return () => { if (savingTimer.current) clearTimeout(savingTimer.current); };
+  }, []);
 
   // Load settings from backend on mount
   useEffect(() => {
@@ -87,7 +93,8 @@ export default function SettingsPanel({ apiKeys, onApiKeysChange }: SettingsPane
     } catch (e) {
       toast.showToast("error", "SAVE FAILED", String(e));
     }
-    setTimeout(() => setSaving(false), 600);
+    if (savingTimer.current) clearTimeout(savingTimer.current);
+    savingTimer.current = setTimeout(() => setSaving(false), 600);
   };
 
   const tabs: { id: Tab; icon: React.ReactNode; label: string }[] = [

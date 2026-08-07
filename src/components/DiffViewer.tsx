@@ -47,9 +47,13 @@ function computeDiff(oldText: string, newText: string): DiffLine[] {
         }
       }
       if (!found && j < newLines.length) {
+        // Emit removal first, then addition — don't silently drop old lines
+        if (i < oldLines.length) {
+          result.push({ type: "remove", content: oldLines[i], lineNum: i + 1 });
+          i++;
+        }
         result.push({ type: "add", content: newLines[j], lineNum: j + 1 });
         j++;
-        if (i < oldLines.length) i++;
       } else if (i < oldLines.length) {
         result.push({ type: "remove", content: oldLines[i], lineNum: i + 1 });
         i++;

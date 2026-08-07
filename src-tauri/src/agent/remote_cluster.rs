@@ -251,7 +251,7 @@ impl RemoteClusterManager {
             // Quick connectivity check via SSH echo
             let config = &_tunnel.config;
             let args = vec![
-                format!("-o"), format!("StrictHostKeyChecking=no"),
+                format!("-o"), format!("StrictHostKeyChecking=yes"),
                 format!("-o"), format!("ConnectTimeout=5"),
                 format!("-p"), format!("{}", config.port),
                 format!("{}@{}", config.username, config.host),

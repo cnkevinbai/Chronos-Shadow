@@ -25,6 +25,7 @@ pub mod remote_cluster;
 
 // ─── 财务审计引擎 ────────────────────────────────────────────────
 pub mod billing;
+pub mod billing_engine;
 
 // ─── 零 Token 技能检测 + 集群分配引擎 ───────────────────────
 pub mod detector;

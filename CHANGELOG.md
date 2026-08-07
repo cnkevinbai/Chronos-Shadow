@@ -1,6 +1,43 @@
 # Changelog
 
-## v0.1.1 (2026-08-07) — 商业发布候选版
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [Unreleased]
+
+### Added
+- Parallel billing engine (Official / Budget / Router three-tier)
+- API Key vaulting via Windows Credential Manager
+- SSH StrictHostKeyChecking enforcement
+- Session ID path traversal validation
+- Remote command injection hardening
+- CSP hardening (object-src, base-uri, frame-ancestors)
+- Rate limiting for streaming API
+- React ErrorBoundary component
+- TypeScript strict mode
+- Donation channels (GitHub Sponsors, Afdian)
+
+### Fixed
+- UTF-8 byte-slice panic in Chinese message previews
+- DiffViewer silently dropping removed lines
+- AppGlueBinder state updater side-effect
+- ChatPanel stream listener leak + stale closure
+- Remote shell command injection (10+ vectors)
+- C-VFS path traversal via canonicalize bypass
+- Missing session_id validation in import_chat_session
+- println! → tracing::info! in session_db
+
+### Changed
+- API keys no longer stored in plaintext config.json
+- chat_api/chat_api_stream cost tracking uses parallel billing engine
+- README_EN.md fully synced with CN version
+- Cargo.toml: added license/repository metadata
+- CHANGELOG format aligned with keepachangelog.com
+
+---
+
+## [0.1.1] — 2026-08-07
 
 ### 新增
 - **安全**: AES-256-GCM 会话加密 + Windows Credential Manager 原生 FFI (`keyring`)
@@ -29,7 +66,7 @@
 ### 变更
 - Rust 模块: 17 → 22
 - Tauri 命令: 55 → 88
-- 前端面板: 6 → 11
+- 前端面板: 6 → 9
 - 前端覆盖率: 66% → 91%
 - 项目评级: B+ (7.6) → A+ (9.2)
 
@@ -46,3 +83,6 @@
 - 远程 SSH 代理 + 集群管理
 - MCP JSON-RPC 2.0 协议客户端
 - 6 个前端面板
+
+[Unreleased]: https://github.com/cnkevinbai/Chronos-Shadow/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/cnkevinbai/Chronos-Shadow/releases/tag/v0.1.1

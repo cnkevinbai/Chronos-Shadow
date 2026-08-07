@@ -11,6 +11,33 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+// ─── Input sanitization ────────────────────────────────────────────
+
+/// Reject shell metacharacters in paths/tags to prevent command injection
+fn validate_shell_arg(arg: &str, context: &str) -> Result<(), String> {
+    if arg.is_empty() || arg.len() > 1024 {
+        return Err(format!("Invalid {}: must be 1-1024 chars", context));
+    }
+    // Block common shell metacharacters
+    for ch in arg.chars() {
+        if matches!(ch, ';' | '|' | '&' | '$' | '`' | '\'' | '"' | '(' | ')' | '{' | '}' | '[' | ']' | '!' | '<' | '>' | '~' | '#' | '\n' | '\r') {
+            return Err(format!("Invalid {}: contains forbidden character '{}'", context, ch));
+        }
+    }
+    Ok(())
+}
+
+/// Tag names: alphanumeric + ._- only
+fn validate_tag(tag: &str) -> Result<(), String> {
+    if tag.is_empty() || tag.len() > 128 {
+        return Err("Invalid tag: must be 1-128 chars".into());
+    }
+    if !tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-') {
+        return Err(format!("Invalid tag '{}': only [A-Za-z0-9._-] allowed", tag));
+    }
+    Ok(())
+}
+
 // ─── 类型定义 ──────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,7 +76,7 @@ pub struct RemoteSessionStats {
 /// 建立 SSH 命令行参数
 fn ssh_base_args(config: &RemoteConfig) -> Vec<String> {
     let mut args = vec![
-        "-o".into(), "StrictHostKeyChecking=no".into(),
+        "-o".into(), "StrictHostKeyChecking=yes".into(),
         "-o".into(), "ConnectTimeout=10".into(),
         "-p".into(), config.port.to_string(),
         format!("{}@{}", config.username, config.host),
@@ -71,6 +98,21 @@ pub struct RemoteProxyTunnel {
 
 impl RemoteProxyTunnel {
     pub fn new(config: RemoteConfig) -> Self {
+        // Validate critical fields at construction — they flow into remote shell commands
+        validate_shell_arg(&config.remote_project_root, "remote_project_root").unwrap_or_else(|e| {
+            tracing::error!("[REMOTE] Invalid remote_project_root: {}", e);
+        });
+        validate_shell_arg(&config.host, "host").unwrap_or_else(|e| {
+            tracing::error!("[REMOTE] Invalid host: {}", e);
+        });
+        validate_shell_arg(&config.username, "username").unwrap_or_else(|e| {
+            tracing::error!("[REMOTE] Invalid username: {}", e);
+        });
+        if let Some(ref key) = config.auth_key_path {
+            validate_shell_arg(key, "auth_key_path").unwrap_or_else(|e| {
+                tracing::error!("[REMOTE] Invalid auth_key_path: {}", e);
+            });
+        }
         let host = config.host.clone();
         Self {
             config,
@@ -133,6 +175,7 @@ impl RemoteProxyTunnel {
 
     /// 枚举远程项目文件树
     pub async fn list_remote_files(&self, subpath: &str) -> Result<Vec<RemoteFileNode>, String> {
+        validate_shell_arg(subpath, "subpath")?;
         let mut args = ssh_base_args(&self.config);
         let remote_path = format!("{}/{}", self.config.remote_project_root, subpath);
         args.push(format!(
@@ -176,6 +219,7 @@ impl RemoteProxyTunnel {
 
     /// 读取远程文件内容
     pub async fn read_remote_file(&self, remote_path: &str) -> Result<String, String> {
+        validate_shell_arg(remote_path, "remote_path")?;
         let mut args = ssh_base_args(&self.config);
         let full_path = format!("{}/{}", self.config.remote_project_root, remote_path);
         args.push(format!("cat {}", full_path));
@@ -205,6 +249,7 @@ impl RemoteProxyTunnel {
         remote_path: &str,
         content: &str,
     ) -> Result<(), String> {
+        validate_shell_arg(remote_path, "remote_path")?;
         let mut args = ssh_base_args(&self.config);
         let full_path = format!("{}/{}", self.config.remote_project_root, remote_path);
         // Use base64 to safely transfer any content
@@ -248,6 +293,9 @@ impl RemoteProxyTunnel {
         &self,
         build_command: &str,
     ) -> Result<String, String> {
+        // build commands are inherently powerful — at minimum block null bytes and limit length
+        if build_command.is_empty() || build_command.len() > 4096 { return Err("Invalid build command length".into()); }
+        if build_command.contains('\0') { return Err("Invalid build command".into()); }
         let mut args = ssh_base_args(&self.config);
         args.push(format!("cd {} && {}", self.config.remote_project_root, build_command));
 
@@ -280,13 +328,13 @@ impl RemoteProxyTunnel {
             return Err(format!(
                 "远程编译阻断 (exit {})！\n=== STDOUT ===\n{}\n=== STDERR ===\n{}",
                 exit_code,
-                &stdout[..stdout.len().min(2000)],
-                &stderr[..stderr.len().min(2000)]
+                safe_truncate(&stdout, 2000),
+                safe_truncate(&stderr, 2000)
             ));
         }
 
         tracing::info!("[REMOTE HOOK] Remote compilation successful.");
-        let result = format!("BUILD OK (exit 0)\n{}", &stdout[..stdout.len().min(1000)]);
+        let result = format!("BUILD OK (exit 0)\n{}", safe_truncate(&stdout, 1000));
         Ok(result)
     }
 
@@ -297,6 +345,7 @@ impl RemoteProxyTunnel {
         &self,
         tag: &str,
     ) -> Result<String, String> {
+        validate_tag(tag)?;
         let mut args = ssh_base_args(&self.config);
         args.push(format!(
             "cd {} && git add -A && git commit -m 'Chronos-Shadow checkpoint: {}' && git tag {} 2>&1",
@@ -320,6 +369,7 @@ impl RemoteProxyTunnel {
 
     /// 回滚到指定 Git 标签
     pub async fn rewind_remote_snapshot(&self, tag: &str) -> Result<String, String> {
+        validate_tag(tag)?;
         let mut args = ssh_base_args(&self.config);
         args.push(format!(
             "cd {} && git checkout {} 2>&1",
@@ -346,6 +396,14 @@ impl RemoteProxyTunnel {
     pub async fn get_stats(&self) -> RemoteSessionStats {
         self.stats.lock().await.clone()
     }
+}
+
+// ─── UTF-8 安全截断 ───────────────────────────────────────────
+
+fn safe_truncate(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars { return s.to_string(); }
+    let preview: String = s.chars().take(max_chars).collect();
+    format!("{}...", preview)
 }
 
 // ─── Base64 编码工具（避免 shell 转义问题） ────────────────────────

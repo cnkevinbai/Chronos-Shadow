@@ -9,6 +9,8 @@
 
 Chronos-Shadow 是一款将大模型潜能与 Windows 系统底层操控完美缝合的工业级开源桌面智能体。内置标准 MCP 客户端总线、自适应分布式集群管理、AES-256-GCM 会话加密、Windows 原生凭据保险箱、零 Token 本地技能检测引擎，以及游戏化降本对账单。
 
+> 🚧 **开发状态说明**：ONNX 隐私遮罩、Buddy Scan 视觉走查、向量嵌入等模块目前为框架占位，正在积极开发中。详见 [CHANGELOG.md](CHANGELOG.md)。
+
 ---
 
 ## 功能矩阵
@@ -32,12 +34,14 @@ Chronos-Shadow 是一款将大模型潜能与 Windows 系统底层操控完美�
 ### 🎨 OmniDesign-Matrix
 - 自然语言 → 跨端 UI/UX 代码（PC + 移动端）
 - Vercel / Linear / Apple 三主题一键切换
-- 双端视窗实时预览 + ONNX 像素级还原度走查
+- 双端视窗实时预览 + ONNX 像素级还原度走查 🚧
 
 ### 📊 全角色 SDLC 流水线
 - 7 Agent 角色环形调度（PM → Designer → Architect → Planner → Coder → Auditor → Verifier）
 - 任务 Kanban 创建/分配/完成/失败
 - 零 Token 本地技能检测拦截
+- 🚧 Buddy Scan 像素级视觉走查（开发中）
+- 🚧 ONNX 端侧隐私遮罩（开发中）
 
 ---
 
@@ -47,7 +51,7 @@ Chronos-Shadow 是一款将大模型潜能与 Windows 系统底层操控完美�
 |----|------|
 | **桌面框架** | Tauri v2 (Rust) |
 | **前端** | React 19 + TypeScript + Tailwind CSS 4 + Vite |
-| **后端** | Rust (18 模块, 9,500+ 行) |
+| **后端** | Rust (23 模块, 10,600+ 行) |
 | **加密** | AES-256-GCM + SHA-256 + keyring (Windows FFI) |
 | **AI 路由** | reqwest + SSE 流式 + Context Caching |
 | **存储** | 分块 JSON (Chronos Vault) |
@@ -89,11 +93,11 @@ npm run tauri build
 ```
 chronos-shadow/
 ├── src/                    # React 前端
-│   ├── views/              # 11 个面板
-│   ├── components/         # 16 个组件（含 SvgIcons）
+│   ├── views/              # 9 个面板
+│   ├── components/         # 11 个组件（含 SvgIcons）
 │   └── lib/                # IPC 层 + 类型 + i18n
 ├── src-tauri/              # Rust 后端
-│   ├── src/agent/          # 22 个核心模块
+│   ├── src/agent/          # 23 个核心模块
 │   ├── skills/             # 专属 Skill 定义
 │   └── resources/          # ONNX 模型 + MCP 配置
 ├── .github/workflows/      # CI/CD
@@ -118,6 +122,16 @@ chronos-shadow/
 | SettingsPanel | `SettingsIcon` | API/成本/LAN/安全/语言/About |
 
 ---
+
+## 💝 支持项目
+
+Chronos-Shadow 是免费开源软件。如果您觉得它有用，欢迎通过以下方式支持：
+
+- ⭐ [GitHub Stars](https://github.com/cnkevinbai/Chronos-Shadow) — 免费的鼓励
+- 💰 [GitHub Sponsors](https://github.com/sponsors/cnkevinbai) — 月度赞助
+- ☕ [爱发电](https://afdian.com/a/chronos-shadow) — 一次性支持
+
+每一份支持都帮助我们持续开发和维护这个项目。感谢！
 
 ## 开源协议
 

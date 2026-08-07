@@ -26,16 +26,19 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Build frontend (required for Tauri compilation)
+        run: npm run build
+
       - name: Add WiX Toolset to PATH
         run: echo "$env:WIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
         env:
           WIX: "C:\\Program Files (x86)\\WiX Toolset v3.11"
 
-      - name: Cargo check (incl. frontend build via beforeBuildCommand)
+      - name: Cargo check (Rust type-check only)
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
-      - name: Cargo build (release)
-        run: cargo build --release --manifest-path src-tauri/Cargo.toml
+      - name: Tauri build (release + MSI bundle)
+        run: npx tauri build --bundles msi
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4

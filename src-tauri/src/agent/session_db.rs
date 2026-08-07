@@ -18,6 +18,17 @@ use tauri::AppHandle;
 use tauri::Manager;
 use chrono::Utc;
 
+/// Validate session_id against path traversal attacks — alphanumeric + hyphens + underscores only
+fn validate_session_id(id: &str) -> Result<(), String> {
+    if id.is_empty() || id.len() > 128 {
+        return Err("Invalid session ID: must be 1-128 chars".into());
+    }
+    if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return Err(format!("Invalid session ID '{}': only [A-Za-z0-9_-] allowed", id));
+    }
+    Ok(())
+}
+
 /// 升级版：带缓存哈希对齐标记的消息实体
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessageEntity {
@@ -101,6 +112,7 @@ pub async fn save_chat_session_chunk(
     app_handle: AppHandle,
     mut payload: ChatSessionPayload,
 ) -> Result<(), String> {
+    validate_session_id(&payload.meta.session_id)?;
     let base_dir = get_session_base_dir(&app_handle);
 
     // 1. 动态自愈：在 Rust 端全自动重构并编译消息链的 Context 缓存哈希
@@ -119,11 +131,13 @@ pub async fn save_chat_session_chunk(
         .rev()
         .find(|m| m.sender == "User")
         .map(|m| {
-            let txt = m.content.replace('\n', " ").replace('\r', "");
-            if txt.len() > 40 {
-                format!("{}…", &txt[..40])
+            let txt: String = m.content.replace('\n', " ").replace('\r', "");
+            // Use chars().take() to avoid UTF-8 byte-boundary panic
+            let preview: String = txt.chars().take(40).collect();
+            if txt.chars().count() > 40 {
+                format!("{}…", preview)
             } else {
-                txt
+                preview
             }
         })
         .unwrap_or_default();
@@ -132,7 +146,7 @@ pub async fn save_chat_session_chunk(
     let meta_path = base_dir.join(format!("{}.meta", payload.meta.session_id));
     let chunk_path = base_dir.join(format!("{}.chunks", payload.meta.session_id));
 
-    println!(
+    tracing::info!(
         "[SESSION DB] Chunk-Writing VFS Session Archive to: {:?}",
         chunk_path
     );
@@ -158,6 +172,7 @@ pub async fn load_chat_session_chunk(
     app_handle: AppHandle,
     session_id: String,
 ) -> Result<ChatSessionPayload, String> {
+    validate_session_id(&session_id)?;
     let base_dir = get_session_base_dir(&app_handle);
     let meta_path = base_dir.join(format!("{}.meta", session_id));
     let chunk_path = base_dir.join(format!("{}.chunks", session_id));
@@ -223,6 +238,7 @@ pub async fn delete_chat_session(
     app_handle: AppHandle,
     session_id: String,
 ) -> Result<String, String> {
+    validate_session_id(&session_id)?;
     let base_dir = get_session_base_dir(&app_handle);
     let meta_path = base_dir.join(format!("{}.meta", &session_id));
     let chunk_path = base_dir.join(format!("{}.chunks", &session_id));
@@ -257,6 +273,7 @@ pub async fn rename_chat_session(
     session_id: String,
     new_title: String,
 ) -> Result<(), String> {
+    validate_session_id(&session_id)?;
     let base_dir = get_session_base_dir(&app_handle);
     let meta_path = base_dir.join(format!("{}.meta", &session_id));
 
@@ -292,6 +309,7 @@ pub async fn export_chat_session(
     app_handle: AppHandle,
     session_id: String,
 ) -> Result<String, String> {
+    validate_session_id(&session_id)?;
     let base_dir = get_session_base_dir(&app_handle);
     let meta_path = base_dir.join(format!("{}.meta", &session_id));
     let chunk_path = base_dir.join(format!("{}.chunks", &session_id));
@@ -327,6 +345,9 @@ pub async fn import_chat_session(
         serde_json::from_str(&json_str).map_err(|e| {
             format!("JSON 解析失败（文件格式不正确）: {}", e)
         })?;
+
+    // Validate session_id from untrusted JSON — same rules as other commands
+    validate_session_id(&payload.meta.session_id)?;
 
     let base_dir = get_session_base_dir(&app_handle);
 
