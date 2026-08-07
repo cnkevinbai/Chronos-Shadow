@@ -242,6 +242,9 @@ async fn chat_api(
 
     // Resolve API key from vault if frontend sent empty (key now stored server-side)
     let resolved_key = if api_key.is_empty() { resolve_key_from_vault(&model) } else { api_key };
+    if resolved_key.is_empty() && api_key.is_empty() {
+        return Err("[VAULT EMPTY] API Key 未找到。请在「⚙️ 全局配置 → API 密钥凭据」中输入并保存。".into());
+    }
     let mut client = state.api_client.lock().await;
     let response = client.chat(&endpoint, &resolved_key, &model, msgs, max_tokens).await;
 
@@ -287,6 +290,9 @@ async fn chat_api_stream(
 
     // Resolve API key from vault if frontend sent empty (key now stored server-side)
     let resolved_key = if api_key.is_empty() { resolve_key_from_vault(&model) } else { api_key };
+    if resolved_key.is_empty() && api_key.is_empty() {
+        return Err("[VAULT EMPTY] API Key 未找到。请在「⚙️ 全局配置 → API 密钥凭据」中输入并保存。".into());
+    }
     let mut client = state.api_client.lock().await;
     let response = client
         .chat_stream(
@@ -826,8 +832,24 @@ fn resolve_key_from_vault(model: &str) -> String {
     let target = if model.contains("deepseek") { "deepseek" }
         else if model.contains("kimi") { "kimi" }
         else if model.contains("glm") { "glm" }
-        else { return String::new() };
-    vault.fetch_api_key_native(target).unwrap_or_default()
+        else {
+            tracing::warn!("[VAULT] Unknown model '{}', cannot resolve key", model);
+            return String::new();
+        };
+    match vault.fetch_api_key_native(target) {
+        Ok(key) if !key.is_empty() => {
+            tracing::info!("[VAULT] Key resolved for '{}' — len={}", target, key.len());
+            key
+        }
+        Ok(_) => {
+            tracing::warn!("[VAULT] Key for '{}' is empty — re-enter in Settings", target);
+            String::new()
+        }
+        Err(e) => {
+            tracing::error!("[VAULT] Failed to read key for '{}': {}", target, e);
+            String::new()
+        }
+    }
 }
 
 /// Estimate prompt/completion split from total tokens and response content
