@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLang, useT } from "@/lib/i18n-context";
 import { useToast } from "@/components/ToastProvider";
-import { setModelApiKey, loadSettings, saveSettings, checkLanHealth } from "@/lib/tauri";
+import { loadSettings, saveSettings, checkLanHealth } from "@/lib/tauri";
 import { ChronosLogo, KeyIcon, GlobeIcon, ShieldIcon, CoinsIcon } from "@/components/SvgIcons";
 
 type Tab = "api" | "cost" | "lan" | "security" | "lang" | "about";

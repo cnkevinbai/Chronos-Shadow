@@ -191,12 +191,6 @@ function AppInner() {
   };
 
   // ── 根据模型推导 API Key ────────────────────────────────────────
-  // API key resolved server-side from Windows Credential Vault — frontend only sees presence
-  const hasActiveKey =
-    selectedLLM.startsWith("deepseek") ? hasKeys.deepseek :
-    selectedLLM.startsWith("kimi") ? hasKeys.kimi :
-    selectedLLM.startsWith("glm") ? hasKeys.glm : false;
-
   // ── 渲染 ────────────────────────────────────────────────────────
 
   return (
