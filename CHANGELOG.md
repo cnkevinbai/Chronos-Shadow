@@ -8,32 +8,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - Parallel billing engine (Official / Budget / Router three-tier)
-- API Key vaulting via Windows Credential Manager
-- SSH StrictHostKeyChecking enforcement
-- Session ID path traversal validation
-- Remote command injection hardening
-- CSP hardening (object-src, base-uri, frame-ancestors)
-- Rate limiting for streaming API
+- API Key vault: Windows Credential Manager + file persistence + memory cache
+- API Key zero-plaintext: frontend never sees keys, Rust resolves from vault
+- SSH StrictHostKeyChecking enforcement (remote_proxy + remote_cluster)
+- Session ID path traversal validation (6 functions)
+- Remote command injection hardening (validate_shell_arg + validate_tag, 16+ vectors)
+- C-VFS path traversal fix (canonicalize + reject .. )
+- CSP hardening (object-src, base-uri, frame-ancestors, form-action)
 - React ErrorBoundary component
 - TypeScript strict mode
 - Donation channels (GitHub Sponsors, Afdian)
+- .github/ISSUE_TEMPLATE (bug_report + feature_request)
+- ROADMAP.md + SECURITY.md + FUNDING.yml
+- Cargo.toml metadata (license/repository/homepage)
+- ChatPanel status bar: per-model key status + smart hints
 
 ### Fixed
-- UTF-8 byte-slice panic in Chinese message previews
+- UTF-8 byte-slice panic (7 locations: session_db, extractor, mcp_client, api_client, remote_proxy)
 - DiffViewer silently dropping removed lines
-- AppGlueBinder state updater side-effect
-- ChatPanel stream listener leak + stale closure
+- AppGlueBinder toggleHijack logic inversion
+- ChatPanel stream listener leak (try/finally) + stale closure (messagesRef)
 - Remote shell command injection (10+ vectors)
 - C-VFS path traversal via canonicalize bypass
 - Missing session_id validation in import_chat_session
 - println! → tracing::info! in session_db
+- [VAULT EMPTY] 401 error: keyring silent failure → 3-tier fallback (memory→file→WinCred)
+- FooterBar fake savings multipliers removed (buddySaved×0.3/×0.42)
+- App.tsx initial state magic numbers (0.342/1.82/84/0.52 → 0.0)
+- Cost-cap UI end-to-end wiring (FooterBar → updateCostCap → billing_engine)
+- SettingsPanel setTimeout-after-unmount tracked via useRef cleanup
+- .gitignore: added chronos_vault/, config.json, .chronos_tmp/
 
 ### Changed
 - API keys no longer stored in plaintext config.json
-- chat_api/chat_api_stream cost tracking uses parallel billing engine
-- README_EN.md fully synced with CN version
-- Cargo.toml: added license/repository metadata
-- CHANGELOG format aligned with keepachangelog.com
+- chat_api/chat_api_stream: cost tracking uses parallel billing engine
+- chat_api/chat_api_stream: key resolved server-side from vault (resolve_key_from_vault)
+- ChatPanel: apiKey prop replaced with hasKeys object for per-model status
+- README_EN.md fully synced with CN version (donations, dev status, correct counts)
+- README.md/README_EN.md: module count 18/22→23, component count 10→11
+- CHANGELOG format aligned with keepachangelog.com + compare links
+- FooterBar: cost cap synced to backend via updateCostCap IPC
+- Token billing: prompt/completion split estimated (split_tokens helper)
 
 ---
 
