@@ -73,6 +73,8 @@ interface Message {
 interface ChatPanelProps {
   selectedModel: string;
   apiKey?: string;
+  /** Whether a vault key exists for the selected model — drives welcome message */
+  hasKey?: boolean;
 }
 
 function modelDisplayName(model: string): string {
@@ -132,6 +134,7 @@ function MarkdownContent({ text }: { text: string }) {
 export default function ChatPanel({
   selectedModel,
   apiKey = "",
+  hasKey = false,
 }: ChatPanelProps) {
   const t = useT();
   const toast = useToast();
@@ -163,21 +166,21 @@ export default function ChatPanel({
       id: "msg-0",
       sender: "System",
       model: "Local System",
-      content: apiKey ? t.chat_welcome_connected : t.chat_welcome_demo,
+      content: hasKey ? t.chat_welcome_connected : t.chat_welcome_demo,
       timestamp: new Date().toLocaleTimeString(),
     },
   ]);
 
-  // React to API key becoming available after startup load or view switch
+  // React to key presence change after startup load or view switch
   useEffect(() => {
     setMessages((prev) => [
       {
         ...prev[0],
-        content: apiKey ? t.chat_welcome_connected : t.chat_welcome_demo,
+        content: hasKey ? t.chat_welcome_connected : t.chat_welcome_demo,
       },
       ...prev.slice(1),
     ]);
-  }, [apiKey, t]);
+  }, [hasKey, t]);
 
   const [isThinking, setIsThinking] = useState(false);
   const [macrosVisible, setMacrosVisible] = useState(false);
@@ -671,8 +674,9 @@ export default function ChatPanel({
     // 用户发送消息时强制滚到底部
     isNearBottomRef.current = true;
 
-    // ── 真实 API 调用 ────────────────────────────────────────────
-    if (apiKey) {
+    // ── 真实 API 调用 — key resolved server-side from vault ──
+    // Always attempt API call; Rust backend resolves key from Windows Credential Manager
+    if (true) {
       try {
         const chatMessages = messages
           .filter(

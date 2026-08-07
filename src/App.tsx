@@ -327,7 +327,7 @@ function AppInner() {
             {/* 中央画布 — 根据 Dock 切换 */}
             <section className="flex-1 bg-[#09090b] overflow-hidden flex flex-col">
               {dockView === "chat" && (
-                <div className="flex-1 overflow-hidden"><ChatPanel selectedModel={selectedLLM} apiKey="" /></div>
+                <div className="flex-1 overflow-hidden"><ChatPanel selectedModel={selectedLLM} apiKey="" hasKey={hasKeys.deepseek || hasKeys.kimi || hasKeys.glm} /></div>
               )}
               {dockView === "pipeline" && (
                 <div className="flex-1 overflow-hidden">
