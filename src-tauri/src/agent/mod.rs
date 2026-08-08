@@ -1,4 +1,4 @@
-// 多智能体角色定义与事件驱动状态机中枢
+// Chronos-Shadow Agent Module Registry
 
 pub mod orchestrator;
 pub mod router;
@@ -14,27 +14,14 @@ pub mod shadow;
 pub mod subagents;
 pub mod win_hooks;
 pub mod worktree;
-
-// WorkBuddy
 pub mod buddy_scan;
 pub mod context_glue;
-
-// Remote
 pub mod remote_proxy;
 pub mod remote_cluster;
-
-// Billing
 pub mod billing;
 pub mod billing_engine;
-
-// Detector
 pub mod detector;
-
-// Agent Scheduling
 pub mod scheduling_engine;
-
-// Vault
+pub mod hallucination_guard;
 pub mod security_vault;
-
-// Session
 pub mod session_db;
