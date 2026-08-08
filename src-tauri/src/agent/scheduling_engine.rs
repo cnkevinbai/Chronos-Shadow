@@ -26,6 +26,7 @@ pub enum IntentCategory {
     General,           // 通用对话
     Refactoring,       // 代码重构
     Testing,           // 测试编写
+    LegalCompliance,   // 法律合规
 }
 
 impl IntentCategory {
@@ -43,6 +44,7 @@ impl IntentCategory {
             IntentCategory::General => "通用对话",
             IntentCategory::Refactoring => "代码重构",
             IntentCategory::Testing => "测试编写",
+            IntentCategory::LegalCompliance => "法律合规",
         }
     }
 }
@@ -57,6 +59,7 @@ pub enum ScheduledAgent {
     Reviewer,     // 代码审查
     Tester,       // 测试编写
     Documenter,   // 文档编写
+    Compliance,   // 法律合规
     Generalist,   // 通用助手
 }
 
@@ -69,6 +72,7 @@ impl ScheduledAgent {
             ScheduledAgent::Reviewer => "Reviewer",
             ScheduledAgent::Tester => "Tester",
             ScheduledAgent::Documenter => "Documenter",
+            ScheduledAgent::Compliance => "ComplianceOfficer",
             ScheduledAgent::Generalist => "Generalist",
         }
     }
@@ -81,6 +85,7 @@ impl ScheduledAgent {
             ScheduledAgent::Reviewer => "🔍",
             ScheduledAgent::Tester => "🧪",
             ScheduledAgent::Documenter => "📝",
+            ScheduledAgent::Compliance => "⚖️",
             ScheduledAgent::Generalist => "🤖",
         }
     }
@@ -146,7 +151,8 @@ impl AgentSchedulingEngine {
 
         let suggest_subagent = matches!(intent,
             IntentCategory::CodeReview | IntentCategory::Security |
-            IntentCategory::Architecture | IntentCategory::Debugging
+            IntentCategory::Architecture | IntentCategory::Debugging |
+            IntentCategory::LegalCompliance
         ) && len > 200;
 
         SchedulingResult {
@@ -164,6 +170,15 @@ impl AgentSchedulingEngine {
     // ── 意图检测算法 ────────────────────────────────────────────
 
     fn detect_intent(&self, text: &str, len: usize) -> (IntentCategory, f32) {
+        // Legal/Compliance patterns (highest priority)
+        if self.match_any(text, &["gdpr", "ccpa", "pipl", "compliance", "license", "gpl", "agpl",
+            "apache", "mit license", "copyright", "patent", "trademark", "数据保护",
+            "隐私法", "合规", "许可协议", "知识产权", "法律风险", "个人信息保护",
+            "terms of service", "privacy policy", "nda", "confidential",
+            "regulatory", "audit trail", "data residency"]) {
+            return (IntentCategory::LegalCompliance, 0.93);
+        }
+
         // Security patterns (highest priority)
         if self.match_any(text, &["security", "vulnerability", "xss", "sql injection",
             "authentication", "authorization", "encrypt", "decrypt", "penetration",
@@ -248,6 +263,7 @@ impl AgentSchedulingEngine {
             IntentCategory::Documentation => ScheduledAgent::Documenter,
             IntentCategory::ApiDesign => ScheduledAgent::Architect,
             IntentCategory::UiUx => ScheduledAgent::Coder,
+            IntentCategory::LegalCompliance => ScheduledAgent::Compliance,
             _ => ScheduledAgent::Generalist,
         }
     }
@@ -256,6 +272,11 @@ impl AgentSchedulingEngine {
 
     fn recommend_model(&self, intent: &IntentCategory, msg_len: usize) -> (String, String) {
         match intent {
+            // Legal/Compliance → Kimi K3 (256K window for full document review)
+            IntentCategory::LegalCompliance => (
+                "kimi-k3".into(),
+                "法律合规审查需要完整阅读协议全文，Kimi K3 的 256K 上下文窗口确保不遗漏条款".into(),
+            ),
             // Deep reasoning tasks → Pro model
             IntentCategory::Architecture | IntentCategory::Security => (
                 "deepseek-v4-pro".into(),

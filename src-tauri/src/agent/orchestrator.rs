@@ -24,8 +24,9 @@ pub enum AgentRole {
     Architect,   // 架构设计师 — 分析代码库拓扑，更新 CLAUDE.md
     Planner,     // 任务拆解与路由 — 拆解原子 Kanban 任务
     Coder,       // 编码子智能体集群 — 物理隔离增量写码
-    Auditor,     // 安全与合规审查 — AST 增量审计
-    Verifier,    // 自动化 CI/CD 纠错 — 本地编译 + 自愈
+    Auditor,           // 安全审计 — AST 增量审计
+    ComplianceOfficer, // 法律合规专家 — GDPR/PIPL/开源协议审查
+    Verifier,          // 自动化 CI/CD 纠错 — 本地编译 + 自愈
 }
 
 impl AgentRole {
@@ -38,7 +39,8 @@ impl AgentRole {
             AgentRole::Planner => 3,
             AgentRole::Coder => 4,
             AgentRole::Auditor => 5,
-            AgentRole::Verifier => 6,
+            AgentRole::ComplianceOfficer => 6,
+            AgentRole::Verifier => 7,
         }
     }
 
@@ -50,7 +52,8 @@ impl AgentRole {
             AgentRole::Architect => "架构设计师",
             AgentRole::Planner => "任务拆解与路由",
             AgentRole::Coder => "编码子智能体集群",
-            AgentRole::Auditor => "安全与合规审查",
+            AgentRole::Auditor => "安全审计",
+            AgentRole::ComplianceOfficer => "法律合规专家",
             AgentRole::Verifier => "CI/CD 纠错",
         }
     }
@@ -361,7 +364,8 @@ impl Orchestrator {
             AgentRole::Architect => AgentRole::Planner,
             AgentRole::Planner => AgentRole::Coder,
             AgentRole::Coder => AgentRole::Auditor,
-            AgentRole::Auditor => AgentRole::Verifier,
+            AgentRole::Auditor => AgentRole::ComplianceOfficer,
+            AgentRole::ComplianceOfficer => AgentRole::Verifier,
             AgentRole::Verifier => AgentRole::PM,
         };
         self.publish(
@@ -718,6 +722,7 @@ mod tests {
             AgentRole::Planner,
             AgentRole::Coder,
             AgentRole::Auditor,
+            AgentRole::ComplianceOfficer,
             AgentRole::Verifier,
             AgentRole::PM, // back to start
         ];
