@@ -516,6 +516,21 @@ fn get_billing_dashboard(state: tauri::State<AppState>) -> agent::billing_engine
     state.billing_engine.get_dashboard()
 }
 
+/// 模型降本推荐 — 根据消息长度推荐最优模型
+#[tauri::command]
+fn get_model_recommendation(message_length: usize) -> agent::billing_engine::ModelRecommendation {
+    let engine = agent::billing_engine::ChronosParallelBillingEngine::new();
+    engine.recommend_for_length(message_length)
+}
+
+/// 上下文健康检查 — 当前 Token 使用占比与优化建议
+#[tauri::command]
+fn check_context_health(model: String, current_tokens: u32) -> agent::billing_engine::ContextHealth {
+    let model_enum = agent::billing::parse_model_string(&model);
+    let engine = agent::billing_engine::ChronosParallelBillingEngine::new();
+    engine.check_context_health(&model_enum, current_tokens)
+}
+
 /// 更新费用上限（同步到 billing_engine）
 #[tauri::command]
 fn update_cost_cap(state: tauri::State<AppState>, cap: f64, enabled: bool) -> String {
@@ -1323,6 +1338,8 @@ pub fn run() {
             get_billing_stats,
             get_billing_dashboard,
             update_cost_cap,
+            get_model_recommendation,
+            check_context_health,
             get_context_glue_status,
             add_app_binding,
             remove_app_binding,

@@ -55,6 +55,71 @@ pub struct BillingDashboard {
     pub cost_cap_active: bool,
 }
 
+// ─── 模型特性矩阵 ──────────────────────────────────────────────────
+
+/// Per-model optimization characteristics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelProfile {
+    pub model_key: String,
+    pub display: String,
+    pub context_window: u32,
+    pub supports_cache: bool,
+    pub cost_tier: &'static str, // "budget" | "standard" | "premium"
+    pub best_for: &'static str,
+}
+
+impl ModelModel {
+    pub fn profile(&self) -> ModelProfile {
+        match self {
+            ModelModel::DeepSeekV4Pro => ModelProfile {
+                model_key: "deepseek-v4-pro".into(), display: "DeepSeek V4-Pro".into(),
+                context_window: 128000, supports_cache: true, cost_tier: "standard",
+                best_for: "深度推理 · 架构设计 · 代码审查",
+            },
+            ModelModel::DeepSeekV4Flash => ModelProfile {
+                model_key: "deepseek-v4-flash".into(), display: "DeepSeek V4-Flash".into(),
+                context_window: 128000, supports_cache: true, cost_tier: "budget",
+                best_for: "代码生成 · 日常对话 · 批量任务 (1折缓存)",
+            },
+            ModelModel::KimiK3 => ModelProfile {
+                model_key: "kimi-k3".into(), display: "Kimi K3".into(),
+                context_window: 256000, supports_cache: false, cost_tier: "premium",
+                best_for: "超长文档分析 · 项目全局理解",
+            },
+            ModelModel::KimiK27Code => ModelProfile {
+                model_key: "kimi-k2.7-code".into(), display: "Kimi K2.7-Code".into(),
+                context_window: 128000, supports_cache: false, cost_tier: "standard",
+                best_for: "代码专用 · 算法实现",
+            },
+            ModelModel::KimiK27CodeHighspeed => ModelProfile {
+                model_key: "kimi-k2.7-code-highspeed".into(), display: "Kimi K2.7-Code-HS".into(),
+                context_window: 128000, supports_cache: false, cost_tier: "standard",
+                best_for: "极速编程 · 低延迟场景",
+            },
+            ModelModel::Glm52 => ModelProfile {
+                model_key: "glm-5.2".into(), display: "GLM-5.2".into(),
+                context_window: 128000, supports_cache: false, cost_tier: "standard",
+                best_for: "原生Agent规划 · 工具调用",
+            },
+            ModelModel::Glm5vTurbo => ModelProfile {
+                model_key: "glm-5v-turbo".into(), display: "GLM-5V-Turbo".into(),
+                context_window: 32000, supports_cache: false, cost_tier: "premium",
+                best_for: "视觉理解 · 多模态分析",
+            },
+            ModelModel::Glm51 => ModelProfile {
+                model_key: "glm-5.1".into(), display: "GLM-5.1".into(),
+                context_window: 128000, supports_cache: false, cost_tier: "standard",
+                best_for: "稳定推理 · 生产环境",
+            },
+            ModelModel::LanOllamaR1 => ModelProfile {
+                model_key: "ollama-local".into(), display: "Ollama Local".into(),
+                context_window: 8192, supports_cache: false, cost_tier: "budget",
+                best_for: "离线场景 · 零资费 · 隐私优先",
+            },
+        }
+    }
+}
+
 // ─── 单轨累加器 ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
@@ -187,6 +252,105 @@ impl ChronosParallelBillingEngine {
     pub fn migrate_legacy_cost(&self, legacy_cost: f64) {
         self.budget_accum.lock().unwrap().total_cost_rmb = legacy_cost;
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // 降本增效算法 — 模型特性驱动的优化引擎
+    // ══════════════════════════════════════════════════════════════
+
+    /// 预估单次调用成本（未发送前使用）
+    pub fn estimate_cost(&self, model: &ModelModel, est_prompt_tokens: u32, est_completion_tokens: u32) -> f64 {
+        let usage = ApiUsage { prompt_tokens: est_prompt_tokens, completion_tokens: est_completion_tokens, cached_tokens: None };
+        self.official_rates.calculate_audit_ledger(model, &usage).exact_cost_rmb
+    }
+
+    /// 深度推理模型：DeepSeek V4-Pro / Kimi K3
+    pub fn is_deep_reasoning(model: &ModelModel) -> bool {
+        matches!(model, ModelModel::DeepSeekV4Pro | ModelModel::KimiK3)
+    }
+
+    /// 缓存友好模型：DeepSeek 系列 (90% discount on cache hit)
+    pub fn supports_context_cache(model: &ModelModel) -> bool {
+        matches!(model, ModelModel::DeepSeekV4Pro | ModelModel::DeepSeekV4Flash)
+    }
+
+    /// 按消息长度推荐最优模型，返回节省比例
+    pub fn recommend_for_length(&self, message_chars: usize) -> ModelRecommendation {
+        let est_tokens = (message_chars as f64 / 3.5) as u32; // Chinese: ~3.5 chars/token
+
+        let budget = self.estimate_cost(&ModelModel::DeepSeekV4Flash, est_tokens, est_tokens / 2);
+        let standard = self.estimate_cost(&ModelModel::DeepSeekV4Pro, est_tokens, est_tokens / 2);
+        let cheap = self.estimate_cost(&ModelModel::Glm51, est_tokens, est_tokens / 2);
+
+        let (model, cost, savings_pct) = if est_tokens < 4000 {
+            (&ModelModel::DeepSeekV4Flash, budget, 0.0)
+        } else if est_tokens > 32000 {
+            (&ModelModel::KimiK3, self.estimate_cost(&ModelModel::KimiK3, est_tokens, est_tokens / 2), 0.0)
+        } else if budget < standard && budget < cheap {
+            (&ModelModel::DeepSeekV4Flash, budget,
+                ((standard - budget) / standard * 100.0).max(0.0))
+        } else if cheap < standard {
+            (&ModelModel::Glm51, cheap,
+                ((standard - cheap) / standard * 100.0).max(0.0))
+        } else {
+            (&ModelModel::DeepSeekV4Pro, standard, 0.0)
+        };
+
+        ModelRecommendation {
+            model_key: model.profile().model_key,
+            display: model.profile().display,
+            estimated_cost_rmb: cost,
+            estimated_tokens: est_tokens,
+            savings_vs_pro: savings_pct,
+            context_remaining: model.profile().context_window.saturating_sub(est_tokens),
+        }
+    }
+
+    /// 上下文窗口余量检查
+    pub fn check_context_health(&self, model: &ModelModel, current_tokens: u32) -> ContextHealth {
+        let profile = model.profile();
+        let usage_pct = (current_tokens as f64 / profile.context_window as f64 * 100.0) as u32;
+        let status = if usage_pct > 90 { "critical" }
+            else if usage_pct > 70 { "warning" }
+            else if usage_pct > 50 { "moderate" }
+            else { "healthy" };
+
+        let cache_tip = if profile.supports_cache && usage_pct < 50 {
+            Some("💡 固定系统提示前置可触发 DeepSeek 一折缓存，后续调用节省 90% 输入费用")
+        } else if profile.cost_tier == "premium" && usage_pct > 50 {
+            Some("⚠️ 当前使用高价模型，建议压缩上下文或切换至 DeepSeek Flash")
+        } else {
+            None
+        };
+
+        ContextHealth {
+            status: status.into(),
+            usage_pct,
+            remaining: profile.context_window.saturating_sub(current_tokens),
+            total: profile.context_window,
+            tip: cache_tip.map(|s| s.into()),
+        }
+    }
+}
+
+/// 模型推荐结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelRecommendation {
+    pub model_key: String,
+    pub display: String,
+    pub estimated_cost_rmb: f64,
+    pub estimated_tokens: u32,
+    pub savings_vs_pro: f64,
+    pub context_remaining: u32,
+}
+
+/// 上下文健康检查
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextHealth {
+    pub status: String,
+    pub usage_pct: u32,
+    pub remaining: u32,
+    pub total: u32,
+    pub tip: Option<String>,
 
     // ══════════════════════════════════════════════════════════════
     // 内部：Budget = Official × 1.2（派生自 billing.rs，无重复）
