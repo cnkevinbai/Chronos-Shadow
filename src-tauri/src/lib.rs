@@ -523,6 +523,13 @@ fn get_model_recommendation(message_length: usize) -> agent::billing_engine::Mod
     engine.recommend_for_length(message_length)
 }
 
+/// 全自动Agent调度 — 分析用户输入，输出最优Agent+模型+技能建议
+#[tauri::command]
+fn analyze_task(user_message: String) -> agent::scheduling_engine::SchedulingResult {
+    let engine = agent::scheduling_engine::AgentSchedulingEngine::new();
+    engine.analyze(&user_message)
+}
+
 /// 上下文健康检查 — 当前 Token 使用占比与优化建议
 #[tauri::command]
 fn check_context_health(model: String, current_tokens: u32) -> agent::billing_engine::ContextHealth {
@@ -1340,6 +1347,7 @@ pub fn run() {
             update_cost_cap,
             get_model_recommendation,
             check_context_health,
+            analyze_task,
             get_context_glue_status,
             add_app_binding,
             remove_app_binding,
