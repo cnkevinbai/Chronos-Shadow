@@ -15,23 +15,26 @@ pub mod subagents;
 pub mod win_hooks;
 pub mod worktree;
 
-// ─── WorkBuddy 泛办公协同底座 ──────────────────────────────────────
+// WorkBuddy
 pub mod buddy_scan;
 pub mod context_glue;
 
-// ─── 远程服务器研发协同 ──────────────────────────────────────────
+// Remote
 pub mod remote_proxy;
 pub mod remote_cluster;
 
-// ─── 财务审计引擎 ────────────────────────────────────────────────
+// Billing
 pub mod billing;
 pub mod billing_engine;
 
-// ─── 零 Token 技能检测 + 集群分配引擎 ───────────────────────
+// Detector
 pub mod detector;
 
-// ─── 金融级安全保险箱 ──────────────────────────────────────
+// Agent Scheduling
+pub mod scheduling_engine;
+
+// Vault
 pub mod security_vault;
 
-// ─── 会话持久化引擎 ──────────────────────────────────────────
+// Session
 pub mod session_db;
