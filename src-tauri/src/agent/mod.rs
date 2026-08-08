@@ -33,6 +33,9 @@ pub mod detector;
 // ─── Agent 调度 + 技能匹配引擎 ──────────────────────────────
 pub mod scheduling_engine;
 
+// ─── 防幻觉深度检测引擎 ────────────────────────────────────
+pub mod hallucination_guard;
+
 // ─── 金融级安全保险箱 ──────────────────────────────────────
 pub mod security_vault;
 

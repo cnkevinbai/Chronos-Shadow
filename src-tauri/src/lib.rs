@@ -523,6 +523,13 @@ fn get_model_recommendation(message_length: usize) -> agent::billing_engine::Mod
     engine.recommend_for_length(message_length)
 }
 
+/// 防幻觉审计 — 分析 LLM 输出，生成信任评分 + 问题清单 + 纠偏建议
+#[tauri::command]
+fn audit_hallucination(response: String) -> agent::hallucination_guard::HallucinationReport {
+    let guard = agent::hallucination_guard::HallucinationGuard::new();
+    guard.audit(&response)
+}
+
 /// 全自动Agent调度 — 分析用户输入，输出最优Agent+模型+技能建议
 #[tauri::command]
 fn analyze_task(user_message: String) -> agent::scheduling_engine::SchedulingResult {
@@ -1348,6 +1355,7 @@ pub fn run() {
             get_model_recommendation,
             check_context_health,
             analyze_task,
+            audit_hallucination,
             get_context_glue_status,
             add_app_binding,
             remove_app_binding,
