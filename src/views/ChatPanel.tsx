@@ -187,7 +187,21 @@ export default function ChatPanel({
   }, [anyKey, t]);
 
   const [isThinking, setIsThinking] = useState(false);
+  const [flowStage, setFlowStage] = useState<"idle"|"connecting"|"thinking"|"streaming">("idle");
+  const [flowStartMs, setFlowStartMs] = useState(0);
+  const [flowTick, setFlowTick] = useState(0);
   const [macrosVisible, setMacrosVisible] = useState(false);
+
+  // Flow stage animation timer
+  useEffect(() => {
+    if (!isThinking) return;
+    const iv = setInterval(() => setFlowTick(t => t + 1), 200);
+    return () => clearInterval(iv);
+  }, [isThinking]);
+
+  const flowDots = ".".repeat((flowTick % 3) + 1);
+  const flowElapsed = isThinking ? ((Date.now() - flowStartMs) / 1000).toFixed(1) : "0.0";
+  const stageLabel = { idle:"", connecting:"连接中", thinking:"推理中", streaming:"流式接收" }[flowStage];
   const [lastUserInput, setLastUserInput] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -675,6 +689,8 @@ export default function ChatPanel({
     const updatedAfterUser = [...messages, userMsg];
     setMessages(updatedAfterUser);
     setIsThinking(true);
+    setFlowStage("connecting");
+    setFlowStartMs(Date.now());
     // 用户发送消息时强制滚到底部
     isNearBottomRef.current = true;
 
@@ -697,6 +713,7 @@ export default function ChatPanel({
 
         const endpoint = await getModelEndpoint(selectedModel);
 
+        setFlowStage("thinking");
         // ── 流式调用：先插入占位消息，逐 chunk 更新 ──────────
         const streamMsgId = `stream-${Date.now()}`;
         const streamPlaceholder: Message = {
@@ -714,6 +731,7 @@ export default function ChatPanel({
 
         // 监听流式 chunk 事件
         const unlisten = await onChatStreamChunk((chunk) => {
+          if (flowStage !== "streaming") setFlowStage("streaming");
           streamedContent += chunk;
           setMessages((prev) =>
             prev.map((m) =>
@@ -829,6 +847,7 @@ export default function ChatPanel({
     }
 
     setIsThinking(false);
+    setFlowStage("idle");
     // 自动聚焦输入框
     setTimeout(() => inputRef.current?.focus(), 50);
   };
@@ -1143,13 +1162,17 @@ export default function ChatPanel({
             </span>
             <span className="text-[10px] text-zinc-500">
               |{" "}
-              {currentHasKey
-                ? modelDisplayName(selectedModel)
-                : anyKey
-                  ? `${t.agent_listening.replace("...", "")} — ${availableProvider} 可用`
-                  : t.agent_listening}
+              {isThinking
+                ? `${stageLabel}${flowDots} ${flowElapsed}s`
+                : currentHasKey
+                  ? modelDisplayName(selectedModel)
+                  : anyKey
+                    ? `${t.agent_listening.replace("...", "")} — ${availableProvider} 可用`
+                    : t.agent_listening}
             </span>
-            {!currentHasKey && (
+            {isThinking ? (
+              <span className="text-[9px] text-cyan-400 animate-pulse">● 心流激活</span>
+            ) : !currentHasKey && (
               <span className={anyKey ? "text-[9px] text-cyan-400" : "text-[9px] text-amber-500"}>
                 {anyKey ? `(切换至 ${availableProvider})` : "(Demo)"}
               </span>
