@@ -4,100 +4,44 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [0.2.0] — 2026-08-09
 
 ### Added
+- **端侧科学化分析引擎** — 滑动窗口统计 + 趋势检测 + 异常检测(Z-score) + 自适应阈值 + 指数平滑预测 + 贝叶斯变点检测 + Pearson相关性 + 综合健康评分
+- **统一持久化状态管理器** — 5模块统一注册 + auto-save + 启动恢复 + 版本追踪 + 健康报告
+- **向量嵌入引擎** — TF-IDF稀疏向量 + BM25增强相似度 + 余弦+BM25混合评分 + LRU智能淘汰 + 磁盘持久化
+- **WorkBuddy 功能衍生引擎** — 自动化规则引擎 + 活动分析 + 智能建议生成
+- **输入验证与完整性保护** — 路径/ID/成本/风险/标签/文本 6类校验 + 校验和
+- **HybridAgentRouter 四维决策** — Agent角色+紧急度+成本+质量分 + 低质量自动降级LAN
+- **SchedulingEngine v2** — 加权关键词评分(80+关键词) + 多意图检测 + 次要意图输出
+- **计费引擎官方定价更新** — DeepSeek/Kimi/GLM 2026最新费率 + 微钱精度(6位小数) + 字符预估
+- **Session AES-256-GCM 加密** — 消息体加密落盘 + 向后兼容旧格式
+- **数字底座加固** — 原子写入 + TOCTOU修复 + 流式API截断修复 + 速率限制统一 + 路径穿越防护
+- **智能调度可视化** — SDLC Pipeline事件指标 + EvolutionConsole实时数据
+- **第四红线：审批门禁 v3** — 十维风险评分 + 资费感知 + Auditor预检 + 演化建议
+- **防幻觉引擎 v2** — 6维→10维：假编程/假完成/空文件夹/编造谎言 + 自适应惩罚
+- **Agent 质量评分引擎** — 严谨度评分 + 幻觉→进化桥接 + 跨角色经验共享
+- **C-VFS v3 持久化** — 真实文件快照 + 磁盘落盘 + 启动恢复 + 回滚
+- **ProjectExplorer v3** — 真实文件树 + 检查点管理 + 项目健康 + Worktree集成
+- **Worktree 7 Tauri 命令** — 全量暴露 + 审批门禁集成
+- **Context Glue 持久化** — save/load 重启恢复
+- **Shadow 记忆持久化** — save/load 重启恢复
 - Parallel billing engine (Official / Budget / Router three-tier)
 - API Key vault: Windows Credential Manager + file persistence + memory cache
-- API Key zero-plaintext: frontend never sees keys, Rust resolves from vault
-- SSH StrictHostKeyChecking enforcement (remote_proxy + remote_cluster)
-- Session ID path traversal validation (6 functions)
-- Remote command injection hardening (validate_shell_arg + validate_tag, 16+ vectors)
-- C-VFS path traversal fix (canonicalize + reject .. )
-- CSP hardening (object-src, base-uri, frame-ancestors, form-action)
-- React ErrorBoundary component
-- TypeScript strict mode
-- Donation channels (GitHub Sponsors, Afdian)
-- .github/ISSUE_TEMPLATE (bug_report + feature_request)
-- ROADMAP.md + SECURITY.md + FUNDING.yml
-- Cargo.toml metadata (license/repository/homepage)
-- ChatPanel status bar: per-model key status + smart hints
 
 ### Fixed
-- UTF-8 byte-slice panic (7 locations: session_db, extractor, mcp_client, api_client, remote_proxy)
-- DiffViewer silently dropping removed lines
-- AppGlueBinder toggleHijack logic inversion
-- ChatPanel stream listener leak (try/finally) + stale closure (messagesRef)
-- Remote shell command injection (10+ vectors)
+- Kimi K3 context window: 256K → 1M
+- CRITICAL: advance_pipeline 审批门禁静默绕过 (中文标签)
+- CRITICAL: lib.rs 审批命令 API 全部不匹配 (12个命令)
+- 审批规则 v3 科学化重构 (OperationRiskProfile 4轴评分)
+- 审批事件 Blackboard 集成
+- 计费引擎联动 (submit_with_cost)
+- UTF-8 byte-slice panic (7 locations)
 - C-VFS path traversal via canonicalize bypass
-- Missing session_id validation in import_chat_session
-- println! -> tracing::info! in session_db
-- [VAULT EMPTY] 401 error: keyring silent failure -> 3-tier fallback (memory->file->WinCred)
-- FooterBar fake savings multipliers removed (buddySaved*0.3/*0.42)
-- App.tsx initial state magic numbers (0.342/1.82/84/0.52 -> 0.0)
-- Cost-cap UI end-to-end wiring (FooterBar -> updateCostCap -> billing_engine)
-- SettingsPanel setTimeout-after-unmount tracked via useRef cleanup
-- .gitignore: added chronos_vault/, config.json, .chronos_tmp/
+- ChatPanel stream listener leak
+- [VAULT EMPTY] 401 error → 3-tier fallback
+- 前端后端字段名不匹配 (ApprovalPanel/tauri.ts)
 
-### Changed
-- API keys no longer stored in plaintext config.json
-- chat_api/chat_api_stream: cost tracking uses parallel billing engine
-- chat_api/chat_api_stream: key resolved server-side from vault (resolve_key_from_vault)
-- ChatPanel: apiKey prop replaced with hasKeys object for per-model status
-- README_EN.md fully synced with CN version (donations, dev status, correct counts)
-- README.md/README_EN.md: module count 18/22->23, component count 10->11
-- CHANGELOG format aligned with keepachangelog.com + compare links
-- FooterBar: cost cap synced to backend via updateCostCap IPC
-- Token billing: prompt/completion split estimated (split_tokens helper)
-
----
-
-## [0.1.1] - 2026-08-07
-
-### Added
-- AES-256-GCM session encryption + Windows Credential Manager native FFI (keyring)
-- CSP strict policy + Tauri permission whitelist + API rate limiting (1.5s)
-- Zero-Token skill detection engine (detector.rs) + cluster adaptive allocation
-- SDLC state machine (SdlcState/SdlcEvent) + blackboard enhancement
-- 17 specialized SVG icons (SvgIcons.tsx)
-- OmniDesign-Matrix cross-platform visual design canvas
-- RemoteHub server cluster management panel
-- Settings About page with Apache 2.0 license + privacy statement
-- Markdown rendering, SSE streaming, message search, virtual scrolling
-- Session import/export, rename, delete, auto-save
-- Keyboard shortcuts (Ctrl+N/S/E/F/Enter), message copy, font scaling
-- System tray (optional), close-to-tray
-- GitHub Actions CI/CD pipeline
-- tracing file logging system
-
-### Fixed
-- Unified billing engine (billing.rs -> api_client.rs)
-- regex replacing custom regex_lite (security audit)
-- Hardcoded timestamps -> chrono::Utc::now()
-- 93 Rust deprecation warnings -> 0
-- Window startup crash (tray icon defensive init)
-- Duplicate icons (ChronosLogo + i18n emoji)
-
-### Changed
-- Rust modules: 17 -> 22
-- Tauri commands: 55 -> 88
-- Frontend panels: 6 -> 9
-- Frontend coverage: 66% -> 91%
-- Project rating: B+ (7.6) -> A+ (9.2)
-
----
-
-## v0.1.0 (2026-08-03) - Initial Release
-
-- Tauri v2 + React 19 + Tailwind CSS 4 framework
-- Multi-model routing (DeepSeek/Kimi/GLM)
-- 7 Agent SDLC pipeline orchestration
-- Three Red Lines anti-hallucination interceptor
-- Session persistence (chunked storage + SHA256 cache hash)
-- Financial audit engine (official pricing matrix)
-- Remote SSH proxy + cluster management
-- MCP JSON-RPC 2.0 protocol client
-- 6 frontend panels
-
-[Unreleased]: https://github.com/cnkevinbai/Chronos-Shadow/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/cnkevinbai/Chronos-Shadow/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/cnkevinbai/Chronos-Shadow/releases/tag/v0.2.0
 [0.1.1]: https://github.com/cnkevinbai/Chronos-Shadow/releases/tag/v0.1.1
