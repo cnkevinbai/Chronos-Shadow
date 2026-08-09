@@ -712,15 +712,37 @@ impl HybridAgentRouter {
         }
     }
 
-    /// 核心功能 1：三维自适应决策算法
+    /// 核心功能 1：四维自适应决策算法 (增强版)
     ///
-    /// 根据 Agent 角色 + 任务紧急度 + 目标服务器特性，全自动裁决最优大模型
+    /// 维度: Agent角色 + 任务紧急度 + 成本优化 + Agent质量评分
     pub async fn select_optimal_model(
         &self,
         agent_role: &str,
         is_high_urgency: bool,
     ) -> RoutingDecision {
+        self.select_optimal_model_quality(agent_role, is_high_urgency, 85).await
+    }
+
+    /// 四维决策 + Agent质量感知降级
+    pub async fn select_optimal_model_quality(
+        &self,
+        agent_role: &str,
+        is_high_urgency: bool,
+        agent_quality_score: u32,
+    ) -> RoutingDecision {
         let mode = self.route_mode.read().await;
+
+        // 质量过低 → 强制降级到免费/极低成本模型
+        if agent_quality_score < 50 && !is_high_urgency {
+            return RoutingDecision {
+                agent_role: agent_role.into(),
+                selected_model: ModelModel::LanOllamaR1,
+                is_cache_eligible: false,
+                is_lan_fallback: true,
+                reason: format!("Agent质量分{}<50, 自动降级至LAN离线模型", agent_quality_score),
+            };
+        }
+
         let selected = if *mode == "manual" {
             // Manual override: PM/Arch → Pro, Coder/Verifier → Flash
             match agent_role {

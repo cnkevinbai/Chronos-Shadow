@@ -8,7 +8,7 @@
 // - SSE 事件流：通过标准 Server-Sent Events 向外推送任务状态
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
@@ -254,6 +254,9 @@ pub struct OrchestratorStats {
 
 // ─── 编排引擎（主结构） ────────────────────────────────────────────
 
+/// 事件回调类型
+pub type EventCallback = Box<dyn Fn(&BlackboardEvent) + Send + Sync>;
+
 /// 编排引擎 — 核心状态机
 pub struct Orchestrator {
     /// 事件总线发送端
@@ -262,7 +265,14 @@ pub struct Orchestrator {
     pub blackboard: Blackboard,
     /// 当前活跃的 Agent 角色
     pub active_role: AgentRole,
-    /// Kanban 任务队列
+    /// 事件回调注册表 (event_code → Vec<callback>)
+    pub event_callbacks: HashMap<String, Vec<EventCallback>>,
+    /// Dead Letter Queue — 未被任何模块处理的事件
+    pub dead_letter_queue: VecDeque<BlackboardEvent>,
+    /// 最大死信队列长度
+    pub max_dead_letters: usize,
+    /// 检查点数量上限
+    pub max_checkpoints: usize,
     pub tasks: Vec<KanbanTask>,
     /// 流水线是否运行中
     pub running: bool,
@@ -286,12 +296,66 @@ impl Orchestrator {
             event_counter: 0,
             task_counter: 0,
             app_handle: None,
+            event_callbacks: HashMap::new(),
+            dead_letter_queue: VecDeque::with_capacity(64),
+            max_dead_letters: 100,
+            max_checkpoints: 50,
         }
     }
 
     /// 设置 Tauri AppHandle 用于前端事件推送
     pub fn set_app_handle(&mut self, handle: tauri::AppHandle) {
         self.app_handle = Some(handle);
+    }
+
+    // ── 事件回调注册 ────────────────────────────────────────────
+
+    /// 注册事件回调 — 当指定 event_code 的事件发布时触发
+    pub fn on_event<F>(&mut self, event_code: &str, callback: F)
+    where F: Fn(&BlackboardEvent) + Send + Sync + 'static {
+        self.event_callbacks
+            .entry(event_code.to_string())
+            .or_default()
+            .push(Box::new(callback));
+    }
+
+    /// 处理死信队列 — 将超限的事件写入日志
+    pub fn flush_dead_letters(&mut self) -> Vec<BlackboardEvent> {
+        let drained: Vec<_> = self.dead_letter_queue.drain(..).collect();
+        for event in &drained {
+            tracing::warn!(
+                "[ORCHESTRATOR] Dead letter: id={} type={:?} source={:?}",
+                event.id, event.event_type, event.source
+            );
+        }
+        drained
+    }
+
+    // ── 事件指标 ────────────────────────────────────────────
+
+    /// 获取事件发布统计
+    pub fn event_metrics(&self) -> serde_json::Value {
+        let dlq_len = self.dead_letter_queue.len();
+        let cb_count = self.event_callbacks.values().map(|v| v.len()).sum::<usize>();
+        serde_json::json!({
+            "total_events": self.event_counter,
+            "registered_callbacks": cb_count,
+            "dead_letter_queue_size": dlq_len,
+            "max_dead_letters": self.max_dead_letters,
+            "checkpoint_limit": self.max_checkpoints,
+            "active_tasks": self.tasks.len(),
+        })
+    }
+
+    // ── 内存管理 ────────────────────────────────────────────────
+
+    /// 清理超限的旧任务
+    pub fn prune_old_tasks(&mut self, keep: usize) {
+        if self.tasks.len() > keep {
+            let removed = self.tasks.len() - keep;
+            self.tasks.drain(0..removed);
+            tracing::info!("[ORCHESTRATOR] Pruned {} old tasks (kept {})", removed, keep);
+        }
     }
 
     // ── 事件发布 ──────────────────────────────────────────────────
@@ -302,17 +366,63 @@ impl Orchestrator {
         format!("evt-{:04}", self.event_counter)
     }
 
-    /// 发布事件到事件总线（广播）
+    /// 发布事件到事件总线（广播 + 回调触发 + 死信队列）
     pub fn publish(&mut self, source: AgentRole, event_type: EventType) {
         let event = BlackboardEvent {
             id: self.next_event_id(),
             timestamp: chrono_now(),
             source: source.clone(),
             target: None,
-            event_type,
+            event_type: event_type.clone(),
             payload: serde_json::json!({}),
         };
-        let _ = self.event_tx.send(event);
+
+        // 1. 广播到 broadcast channel
+        let _ = self.event_tx.send(event.clone());
+
+        // 2. 触发已注册的回调
+        let event_code = Self::event_code(&event_type);
+        let mut handled = false;
+        if let Some(callbacks) = self.event_callbacks.get(&event_code) {
+            for cb in callbacks {
+                cb(&event);
+            }
+            handled = true;
+        }
+        // 也触发通配回调 (*)
+        if let Some(callbacks) = self.event_callbacks.get("*") {
+            for cb in callbacks {
+                cb(&event);
+            }
+            handled = true;
+        }
+
+        // 3. 未被任何模块处理 → 入死信队列
+        if !handled {
+            self.dead_letter_queue.push_back(event);
+            while self.dead_letter_queue.len() > self.max_dead_letters {
+                self.dead_letter_queue.pop_front();
+            }
+        }
+    }
+
+    /// 从 EventType 提取事件代码（用于回调匹配）
+    fn event_code(event_type: &EventType) -> String {
+        match event_type {
+            EventType::PipelineStarted => "pipeline_started".into(),
+            EventType::PipelinePaused => "pipeline_paused".into(),
+            EventType::PipelineResumed => "pipeline_resumed".into(),
+            EventType::PipelineCompleted => "pipeline_completed".into(),
+            EventType::PipelineFailed { .. } => "pipeline_failed".into(),
+            EventType::TaskCreated { .. } => "task_created".into(),
+            EventType::TaskCompleted { .. } => "task_completed".into(),
+            EventType::TaskFailed { .. } => "task_failed".into(),
+            EventType::TaskFused { .. } => "task_fused".into(),
+            EventType::RedlineViolation { .. } => "redline_violation".into(),
+            EventType::CircuitBreakerTriggered { .. } => "circuit_breaker".into(),
+            EventType::Heartbeat => "heartbeat".into(),
+            _ => "unknown".into(),
+        }
     }
 
     /// 发布定向事件

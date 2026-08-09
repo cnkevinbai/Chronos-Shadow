@@ -255,6 +255,18 @@ export async function toggleShadow(enabled: boolean): Promise<string> {
   }
 }
 
+/** 持久化 Shadow 影子记忆到磁盘（重启恢复） */
+export async function saveShadowState(): Promise<string> {
+  try { return await invoke<string>("save_shadow_state"); }
+  catch { return "Save failed (mock)"; }
+}
+
+/** 从磁盘恢复 Shadow 影子记忆 */
+export async function loadShadowState(): Promise<string> {
+  try { return await invoke<string>("load_shadow_state"); }
+  catch { return "Load failed (mock)"; }
+}
+
 // ─── Sandbox Commands ──────────────────────────────────────────────
 
 export async function initSandbox(tools: string[]): Promise<string> {
@@ -540,6 +552,18 @@ export async function evoInterceptContext(contextHash: string): Promise<boolean>
   catch { return false; }
 }
 
+/** 获取 Agent 质量评分 */
+export async function getAgentQualityScores(): Promise<{ agent_role: string; rigor_score: number }[]> {
+  try { return await invoke("get_agent_quality_scores"); }
+  catch { return []; }
+}
+
+/** 获取事件总线指标 */
+export async function getEventMetrics(): Promise<Record<string, unknown>> {
+  try { return await invoke<Record<string, unknown>>("get_event_metrics"); }
+  catch { return {}; }
+}
+
 // ─── WorkBuddy: Context Glue ────────────────────────────────────
 
 export async function getContextGlueStatus(): Promise<ContextGlueStats> {
@@ -592,6 +616,18 @@ export async function toggleContextGlue(enabled: boolean): Promise<string> {
   catch { return `Context Glue: ${enabled ? "ON" : "OFF"} (mock)`; }
 }
 
+/** 持久化 Context Glue 绑定到磁盘（重启恢复） */
+export async function saveContextGlueBindings(): Promise<string> {
+  try { return await invoke<string>("save_context_glue_bindings"); }
+  catch { return "Save failed (mock)"; }
+}
+
+/** 从磁盘恢复 Context Glue 绑定 */
+export async function loadContextGlueBindings(): Promise<string> {
+  try { return await invoke<string>("load_context_glue_bindings"); }
+  catch { return "Load failed (mock)"; }
+}
+
 // ─── Remote Cluster Manager ────────────────────────────────────
 
 export interface ClusterNodeInfo {
@@ -614,11 +650,13 @@ export async function clusterRegisterServer(
   serverId: string, host: string, port: number, username: string,
   authKeyPath?: string, projectRoot?: string,
 ): Promise<string> {
-  return await invoke<string>("cluster_register_server", {
-    serverId, host, port, username,
-    authKeyPath: authKeyPath ?? null,
-    remoteProjectRoot: projectRoot ?? "/tmp",
-  });
+  try {
+    return await invoke<string>("cluster_register_server", {
+      serverId, host, port, username,
+      authKeyPath: authKeyPath ?? null,
+      remoteProjectRoot: projectRoot ?? "/tmp",
+    });
+  } catch { return `Server '${serverId}' registered (mock)`; }
 }
 
 export async function clusterUnregisterServer(serverId: string): Promise<string> {
@@ -679,10 +717,12 @@ export interface RemoteFileNode {
 }
 
 export async function remoteConnect(config: RemoteConfig): Promise<string> {
-  return await invoke<string>("remote_connect", {
-    host: config.host, port: config.port, username: config.username,
-    authKeyPath: config.authKeyPath ?? null, remoteProjectRoot: config.remoteProjectRoot,
-  });
+  try {
+    return await invoke<string>("remote_connect", {
+      host: config.host, port: config.port, username: config.username,
+      authKeyPath: config.authKeyPath ?? null, remoteProjectRoot: config.remoteProjectRoot,
+    });
+  } catch { return `Connected to ${config.host}:${config.port} (mock)`; }
 }
 
 export async function remoteDisconnect(): Promise<string> {
@@ -862,6 +902,20 @@ export async function listHistoricalMetaManifests(): Promise<
   }
 }
 
+/** 按项目名过滤历史会话 —— 切换项目时自动刷新关联列表 */
+export async function listSessionsByProject(
+  projectName: string,
+): Promise<SessionMetaManifest[]> {
+  try {
+    return await invoke<SessionMetaManifest[]>(
+      "list_sessions_by_project",
+      { projectName },
+    );
+  } catch {
+    return [];
+  }
+}
+
 export async function deleteChatSession(
   sessionId: string,
 ): Promise<string> {
@@ -984,4 +1038,248 @@ export async function cvfsGetCheckpoints(): Promise<SystemSnapshot[]> {
 export async function cvfsGetProjects(): Promise<{ id: string; name: string; path: string }[]> {
   try { return await invoke<{ id: string; name: string; path: string }[]>("cvfs_get_projects"); }
   catch { return []; }
+}
+
+/** V2 检查点捕获 — 带真实文件内容快照 */
+export async function cvfsCaptureCheckpointV2(
+  projectId: string, label: string, description: string,
+): Promise<{ id: string; timestamp: string; label: string; files_changed: number; snapshot_type: string }> {
+  return await invoke("cvfs_capture_checkpoint_v2", { projectId, label, description });
+}
+
+/** 恢复检查点 — 还原文件到快照状态 */
+export async function cvfsRestoreCheckpoint(projectId: string, checkpointId: string): Promise<string> {
+  return await invoke<string>("cvfs_restore_checkpoint", { projectId, checkpointId });
+}
+
+/** 删除检查点 */
+export async function cvfsDeleteCheckpoint(projectId: string, checkpointId: string): Promise<string> {
+  return await invoke<string>("cvfs_delete_checkpoint", { projectId, checkpointId });
+}
+
+/** 删除项目 */
+export async function cvfsDeleteProject(projectId: string): Promise<string> {
+  return await invoke<string>("cvfs_delete_project", { projectId });
+}
+
+/** 列出项目真实文件树 */
+export async function cvfsListProjectFiles(projectId: string): Promise<
+  { name: string; is_dir: boolean; relative_path: string; is_locked: boolean }[]
+> {
+  try { return await invoke("cvfs_list_project_files", { projectId }); }
+  catch { return []; }
+}
+
+/** 项目健康状态 */
+export async function cvfsGetProjectHealth(projectId: string): Promise<{
+  project_id: string; path: string; file_count: number;
+  total_size_bytes: number; has_git: boolean; checkpoint_count: number;
+  last_checkpoint: string | null; status: string;
+}> {
+  try { return await invoke("cvfs_get_project_health", { projectId }); }
+  catch { return { project_id: projectId, path: "", file_count: 0, total_size_bytes: 0, has_git: false, checkpoint_count: 0, last_checkpoint: null, status: "offline" }; }
+}
+
+// ─── Worktree Commands ─────────────────────────────────────────
+
+export async function createWorktree(
+  taskId: string,
+  files: string[],
+  baseBranch: string,
+): Promise<string> {
+  return await invoke<string>("create_worktree", {
+    taskId,
+    files,
+    baseBranch,
+  });
+}
+
+export async function activateWorktree(
+  worktreeId: string,
+  taskId: string,
+  agentId: string,
+): Promise<void> {
+  return await invoke<void>("activate_worktree", {
+    worktreeId,
+    taskId,
+    agentId,
+  });
+}
+
+export async function completeWorktree(worktreeId: string): Promise<void> {
+  return await invoke<void>("complete_worktree", { worktreeId });
+}
+
+export async function mergeWorktree(
+  worktreeId: string,
+): Promise<import("@/lib/types").MergeResult> {
+  return await invoke<import("@/lib/types").MergeResult>(
+    "merge_worktree",
+    { worktreeId },
+  );
+}
+
+export async function pruneWorktree(worktreeId: string): Promise<void> {
+  return await invoke<void>("prune_worktree", { worktreeId });
+}
+
+export async function listWorktrees(): Promise<
+  import("@/lib/types").WorktreeInstance[]
+> {
+  try {
+    return await invoke<import("@/lib/types").WorktreeInstance[]>(
+      "list_worktrees",
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function getWorktreeStats(): Promise<
+  import("@/lib/types").WorktreeStats
+> {
+  try {
+    return await invoke<import("@/lib/types").WorktreeStats>(
+      "get_worktree_stats",
+    );
+  } catch {
+    return { total: 0, active: 0, completed: 0, merged: 0, errors: 0 };
+  }
+}
+
+// ─── Approval Gate Commands (第四红线) ─────────────────────────
+
+export async function submitForApproval(
+  actionType: string,
+  targetId: string,
+  description: string,
+  metadata?: string,
+): Promise<import("@/lib/types").ApprovalRequest> {
+  return await invoke<import("@/lib/types").ApprovalRequest>(
+    "submit_for_approval",
+    { actionType, targetId, description, metadata: metadata ?? "" },
+  );
+}
+
+/** 资费感知审批 — 根据预估费用动态升级风险 */
+export async function submitForApprovalWithCost(
+  actionType: string,
+  targetId: string,
+  description: string,
+  metadata: string,
+  estimatedCostRmb: number,
+): Promise<import("@/lib/types").ApprovalRequest> {
+  return await invoke<import("@/lib/types").ApprovalRequest>(
+    "submit_for_approval_with_cost",
+    { actionType, targetId, description, metadata, estimatedCostRmb },
+  );
+}
+
+/** Auditor 预筛查 — 高风险操作附带审计结果 */
+export async function auditorPreScreenApproval(
+  actionType: string,
+  targetId: string,
+  description: string,
+  metadata: string,
+  auditorFindings: string,
+  auditorPassed: boolean,
+): Promise<import("@/lib/types").ApprovalRequest> {
+  return await invoke<import("@/lib/types").ApprovalRequest>(
+    "auditor_pre_screen_approval",
+    { actionType, targetId, description, metadata, auditorFindings, auditorPassed },
+  );
+}
+
+export async function decideApproval(
+  requestId: string,
+  decision: string,
+  reviewer: string,
+  comment: string,
+): Promise<import("@/lib/types").ApprovalRequest> {
+  return await invoke<import("@/lib/types").ApprovalRequest>(
+    "decide_approval",
+    { requestId, decision, reviewer, comment },
+  );
+}
+
+export async function listPendingApprovals(): Promise<
+  import("@/lib/types").ApprovalRequest[]
+> {
+  try {
+    return await invoke<import("@/lib/types").ApprovalRequest[]>(
+      "list_pending_approvals",
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function getApprovalAuditLog(
+  limit?: number,
+): Promise<import("@/lib/types").ApprovalRequest[]> {
+  try {
+    return await invoke<import("@/lib/types").ApprovalRequest[]>(
+      "get_approval_audit_log",
+      { limit: limit ?? 50 },
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function addApprovalRule(
+  actionType: string,
+  riskLevel: number,
+  autoApproveBelowRisk: number,
+  description: string,
+): Promise<string> {
+  return await invoke<string>("add_approval_rule", {
+    actionType,
+    riskLevel,
+    autoApproveBelowRisk,
+    description,
+  });
+}
+
+export async function removeApprovalRule(ruleId: string): Promise<void> {
+  return await invoke<void>("remove_approval_rule", { ruleId });
+}
+
+export async function getApprovalRules(): Promise<
+  import("@/lib/types").ApprovalRule[]
+> {
+  try {
+    return await invoke<import("@/lib/types").ApprovalRule[]>(
+      "get_approval_rules",
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function getApprovalSuggestions(): Promise<
+  import("@/lib/types").ApprovalSuggestion[]
+> {
+  try {
+    return await invoke<import("@/lib/types").ApprovalSuggestion[]>(
+      "get_approval_suggestions",
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function expireStaleApprovals(): Promise<string[]> {
+  try { return await invoke<string[]>("expire_stale_approvals"); }
+  catch { return []; }
+}
+
+export async function saveApprovalState(): Promise<string> {
+  try { return await invoke<string>("save_approval_state"); }
+  catch { return "Save failed (mock)"; }
+}
+
+export async function loadApprovalState(): Promise<string> {
+  try { return await invoke<string>("load_approval_state"); }
+  catch { return "Load failed (mock)"; }
 }

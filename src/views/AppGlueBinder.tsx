@@ -9,6 +9,7 @@ import {
   getBuddyScanStats,
   toggleBuddyScan,
   toggleContextGlue,
+  saveContextGlueBindings,
 } from "@/lib/tauri";
 import type { AppBinding, ContextGlueStats, BuddyScanStats } from "@/lib/types";
 import { Link2, Monitor, GitGraph, Activity, Palette, Smartphone, Monitor as PcIcon, Zap } from "lucide-react";
@@ -116,7 +117,7 @@ export default function AppGlueBinder() {
             className={`text-[8px] px-1 py-0.5 rounded border transition-colors ${buddyOn ? "bg-cyan-950/40 border-cyan-500/50 text-cyan-400" : "bg-black border-[#27272a] text-zinc-500 hover:border-zinc-500"}`}>
             {buddyOn ? "👁️ Scan ON" : "🔍 Scan OFF"}
           </button>
-          <button onClick={async () => { const n = !glueOn; setGlueOn(n); try { await toggleContextGlue(n); } catch {} }}
+          <button onClick={async () => { const n = !glueOn; setGlueOn(n); try { await toggleContextGlue(n); await saveContextGlueBindings(); } catch {} }}
             className={`text-[8px] px-1 py-0.5 rounded border transition-colors ${glueOn ? "bg-purple-950/40 border-purple-500/50 text-purple-400" : "bg-black border-[#27272a] text-zinc-500 hover:border-zinc-500"}`}>
             {glueOn ? "🔗 Glue ON" : "🧩 Glue OFF"}
           </button>

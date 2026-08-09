@@ -287,6 +287,29 @@ impl BuddyScanner {
         location
     }
 
+    // ── 像素级比对 ──────────────────────────────────────────────
+
+    /// 端侧像素哈希比对 — 比较两个像素缓冲区
+    pub fn compare_pixels(&self, a: &[u8], b: &[u8]) -> f32 {
+        if a.is_empty() || b.is_empty() { return 0.0; }
+        let len = a.len().min(b.len());
+        if len == 0 { return 0.0; }
+        let matching = a.iter().zip(b.iter()).take(len)
+            .filter(|(x, y)| (x.abs_diff(**y) as u32) < 32)
+            .count();
+        matching as f32 / len as f32
+    }
+
+    /// 像素哈希 — 快速生成区域指纹用于去重比较
+    pub fn pixel_hash(&self, pixels: &[u8]) -> u64 {
+        let mut hash: u64 = 0xABCD_EF01;
+        for (i, &b) in pixels.iter().enumerate() {
+            hash = hash.wrapping_mul(31).wrapping_add(b as u64);
+            if i > 256 { break; }
+        }
+        hash
+    }
+
     // ── 文案复核 ──────────────────────────────────────────────────
 
     /// 文案 OCR 复核

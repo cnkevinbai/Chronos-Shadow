@@ -1,12 +1,16 @@
-// 大模型防幻觉深度检测引擎 (Chronos Anti-Hallucination Guard)
+// 大模型防幻觉深度检测引擎 (Chronos Anti-Hallucination Guard) v2
 //
-// 六维检测体系：
-//   1. 置信度模式检测 — 捕获 "I think" / "probably" 等不确定性语言
-//   2. 虚构 API 检测 — 识别编造的库函数和不存在的方法
-//   3. 代码一致性校验 — 检测无意义的代码拼接
-//   4. 内部矛盾检测 — 同一回复内的自相矛盾
-//   5. 幻觉评分系统 — 综合评分 0-100
-//   6. 自动纠偏建议 — 针对检测到的幻觉给出修正提示
+// 十维检测体系：
+//   1. 置信度模式检测    — 捕获 "I think" / "probably" 等不确定性语言
+//   2. 虚构 API 检测      — 识别编造的库函数和不存在的方法
+//   3. 代码一致性校验    — 检测无意义的代码拼接
+//   4. 内部矛盾检测      — 同一回复内的自相矛盾
+//   5. 不可执行命令检测  — 危险的系统命令
+//   6. 过时版本检测      — 已废弃的技术栈引用
+//   7. 🆕 假编程检测     — 占位符代码/TODO桩/空函数体/伪代码
+//   8. 🆕 假完成检测     — 虚报完成/无实质输出/承诺未兑现
+//   9. 🆕 空文件夹检测   — mkdir无文件创建/空脚手架
+//  10. 🆕 编造谎言检测   — 虚构数据/假基准测试/虚假版本号
 //
 // 全部端侧计算，0 Token 消耗
 
@@ -50,10 +54,48 @@ pub struct HallucinationFinding {
 // HallucinationGuard
 // ═══════════════════════════════════════════════════════════════════
 
-pub struct HallucinationGuard;
+/// 自适应阈值配置
+pub struct GuardConfig {
+    /// 最小置信度扣分 (避免过敏感)
+    pub min_penalty: u32,
+    /// 最大总扣分上限
+    pub max_total_penalty: u32,
+    /// 历史误报率 (用于校准)
+    pub false_positive_rate: f32,
+    /// 模型行为画像: 该模型的历史幻觉倾向 (0.0-1.0)
+    pub model_hallucination_profile: f32,
+}
+
+impl Default for GuardConfig {
+    fn default() -> Self {
+        Self { min_penalty: 2, max_total_penalty: 80, false_positive_rate: 0.1, model_hallucination_profile: 0.5 }
+    }
+}
+
+pub struct HallucinationGuard {
+    config: GuardConfig,
+    /// 历史检测统计: (总检测次数, 确认幻觉次数)
+    #[allow(dead_code)]
+    detection_history: (u32, u32),
+}
 
 impl HallucinationGuard {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self { Self { config: GuardConfig::default(), detection_history: (0, 0) } }
+
+    /// 创建带模型画像的检测器
+    pub fn with_profile(model_hallucination_rate: f32) -> Self {
+        Self { config: GuardConfig { model_hallucination_profile: model_hallucination_rate, ..Default::default() }, detection_history: (0, 0) }
+    }
+
+    /// 自适应惩罚: 基于模型历史画像动态调整扣分力度
+    fn adaptive_penalty(&self, base: u32, severity: &str) -> u32 {
+        let profile_mult = if self.config.model_hallucination_profile > 0.7 { 1.5 }
+            else if self.config.model_hallucination_profile < 0.3 { 0.7 }
+            else { 1.0 };
+        let severity_mult = match severity { "high" => 1.2, "medium" => 1.0, _ => 0.8 };
+        let adjusted = (base as f32 * profile_mult * severity_mult) as u32;
+        adjusted.max(self.config.min_penalty)
+    }
 
     /// 核心：分析 LLM 输出，生成幻觉报告
     pub fn audit(&self, response: &str) -> HallucinationReport {
@@ -78,6 +120,18 @@ impl HallucinationGuard {
 
         // ── 6. 过时版本检测 ───────────────────────────────────
         self.check_outdated_references(response, &mut findings, &mut penalty_total, &mut corrections);
+
+        // ── 7. 假编程检测 ─────────────────────────────────────
+        self.check_fake_programming(response, &mut findings, &mut penalty_total, &mut corrections);
+
+        // ── 8. 假完成检测 ─────────────────────────────────────
+        self.check_fake_completion(response, &mut findings, &mut penalty_total, &mut corrections);
+
+        // ── 9. 空文件夹检测 ───────────────────────────────────
+        self.check_empty_scaffold(response, &mut findings, &mut penalty_total, &mut corrections);
+
+        // ── 10. 编造谎言检测 ──────────────────────────────────
+        self.check_fabricated_facts(response, &mut findings, &mut penalty_total, &mut corrections);
 
         // ── 综合评分 ──────────────────────────────────────────
         let trust_score = 100u32.saturating_sub(penalty_total);
@@ -120,7 +174,8 @@ impl HallucinationGuard {
         for (marker, desc, p, suggestion) in &markers {
             if lower.contains(&marker.to_lowercase()) {
                 let count = lower.matches(&marker.to_lowercase()).count();
-                let total_p = (*p as usize * count).min(15) as u32;
+                let base_p = (*p as usize * count).min(15) as u32;
+                let total_p = self.adaptive_penalty(base_p, if *p >= 8 { "high" } else { "medium" });
                 findings.push(HallucinationFinding {
                     category: "置信度".into(),
                     severity: if *p >= 8 { "high" } else { "medium" }.into(),
@@ -334,6 +389,318 @@ impl HallucinationGuard {
             }
         }
     }
+
+    // ── 7. 假编程检测 ─────────────────────────────────────────
+
+    fn check_fake_programming(
+        &self, text: &str, findings: &mut Vec<HallucinationFinding>,
+        penalty: &mut u32, corrections: &mut Vec<String>,
+    ) {
+        let lower = text.to_lowercase();
+
+        // 占位符代码模式: // TODO, // FIXME, // implement later, # stub, pass
+        let placeholders = [
+            ("// todo", "TODO 占位符", 8),
+            ("// fixme", "FIXME 未修复标记", 10),
+            ("// implement later", "延后实现的占位", 12),
+            ("// stub", "桩代码占位", 12),
+            ("# stub", "Python 桩代码", 12),
+            ("pass  # TODO", "空实现占位", 10),
+            ("unimplemented!()", "Rust 未实现宏", 15),
+            ("todo!()", "Rust 未完成宏", 12),
+            ("throw new Error(\"Not implemented\")", "未实现异常", 12),
+            ("raise NotImplementedError", "Python 未实现异常", 12),
+        ];
+
+        for (pattern, desc, p) in &placeholders {
+            if lower.contains(pattern) {
+                let count = lower.matches(pattern).count();
+                let total_p = (*p as usize * count).min(20) as u32;
+                findings.push(HallucinationFinding {
+                    category: "假编程".into(),
+                    severity: if *p >= 12 { "high" } else { "medium" }.into(),
+                    pattern: format!("{} ({}处)", desc, count),
+                    snippet: text.chars().take(120).collect(),
+                    penalty: total_p,
+                    suggestion: "检测到占位符代码，模型可能未真正完成编程任务。请要求提供完整可运行代码".into(),
+                });
+                *penalty += total_p;
+                corrections.push(format!("⚠️ 假编程风险: 发现 {} 处 {}，代码可能无法运行", count, desc));
+            }
+        }
+
+        // 伪代码模式: 用自然语言描述代替真实代码
+        let pseudocode_markers = [
+            "pseudocode", "pseudo code", "// ... rest of implementation",
+            "// similar to above", "// same pattern continues",
+            "/* ... */", "<-- insert logic here -->",
+        ];
+        for marker in &pseudocode_markers {
+            if lower.contains(&marker.to_lowercase()) {
+                findings.push(HallucinationFinding {
+                    category: "假编程".into(),
+                    severity: "high".into(),
+                    pattern: format!("伪代码标记: {}", marker),
+                    snippet: text.chars().take(120).collect(),
+                    penalty: 14,
+                    suggestion: "检测到伪代码标记，模型用自然语言替代了真实代码实现".into(),
+                });
+                *penalty += 14;
+                corrections.push(format!("⚠️ 伪代码风险: 发现 '{}' 标记，请要求提供真实可运行的代码", marker));
+                break; // 一处伪代码标记即可
+            }
+        }
+
+        // 空函数体 / 空类: fn name() { } 或 def name(): pass
+        let empty_fn_patterns = [
+            ("fn ", "{ }", "Rust 空函数体"),
+            ("fn ", "{}", "Rust 空函数体(无空格)"),
+            (":\n    pass", "", "Python 空函数 pass"),
+            ("function ", "{}", "JavaScript 空函数"),
+            ("=> {}", "", "箭头函数空体"),
+        ];
+        for (prefix, suffix, desc) in &empty_fn_patterns {
+            if lower.contains(&prefix.to_lowercase()) && lower.contains(&suffix.to_lowercase()) {
+                findings.push(HallucinationFinding {
+                    category: "假编程".into(),
+                    severity: "high".into(),
+                    pattern: format!("空函数体: {}", desc),
+                    snippet: text.chars().take(120).collect(),
+                    penalty: 15,
+                    suggestion: "检测到空函数体，模型声称编写了代码但实际为空实现".into(),
+                });
+                *penalty += 15;
+                corrections.push(format!("⚠️ 空函数体: {}", desc));
+                break;
+            }
+        }
+    }
+
+    // ── 8. 假完成检测 ─────────────────────────────────────────
+
+    fn check_fake_completion(
+        &self, text: &str, findings: &mut Vec<HallucinationFinding>,
+        penalty: &mut u32, corrections: &mut Vec<String>,
+    ) {
+        let lower = text.to_lowercase();
+
+        // 虚报完成模式: "Done!" 但无代码/无实质输出
+        let done_patterns = [
+            "done!", "all done!", "completed!", "finished!",
+            "task completed", "everything is set up",
+            "已完成", "全部完成", "大功告成",
+        ];
+
+        let has_code = text.contains("```") || text.contains("fn ") || text.contains("def ")
+            || text.contains("function ") || text.contains("class ") || text.contains("import ");
+        let has_file_list = text.contains(".rs") || text.contains(".ts") || text.contains(".py")
+            || text.contains(".js") || text.contains(".tsx");
+
+        let has_substance = has_code || has_file_list || text.len() > 500;
+
+        for pattern in &done_patterns {
+            if lower.contains(pattern) && !has_substance {
+                findings.push(HallucinationFinding {
+                    category: "假完成".into(),
+                    severity: "high".into(),
+                    pattern: format!("虚报完成: '{}' 但无实质代码/文件输出", pattern),
+                    snippet: text.chars().take(120).collect(),
+                    penalty: 18,
+                    suggestion: "模型声称任务完成但未提供任何代码或文件，这是典型的假完成幻觉".into(),
+                });
+                *penalty += 18;
+                corrections.push(format!("🚨 假完成风险: 模型回复 '{}' 但无实质输出，请要求提供具体代码/文件", pattern));
+                break;
+            }
+        }
+
+        // 过度承诺但无内容: "I will create..." / "Let me implement..." 后面无代码
+        let promise_prefixes = [
+            "i will create", "i will implement", "i'll write", "let me build",
+            "i'm going to code", "我将创建", "我来实现", "我为你编写",
+        ];
+        for prefix in &promise_prefixes {
+            if lower.contains(prefix) && !has_code && text.len() < 300 {
+                findings.push(HallucinationFinding {
+                    category: "假完成".into(),
+                    severity: "medium".into(),
+                    pattern: format!("空头承诺: '{}' 后无实际代码", prefix),
+                    snippet: text.chars().take(120).collect(),
+                    penalty: 10,
+                    suggestion: "模型做出承诺但未交付代码，可能是假完成幻觉".into(),
+                });
+                *penalty += 10;
+                corrections.push(format!("⚠️ 空头承诺: 声称 '{}' 但未提供代码", prefix));
+                break;
+            }
+        }
+    }
+
+    // ── 9. 空文件夹检测 ───────────────────────────────────────
+
+    fn check_empty_scaffold(
+        &self, text: &str, findings: &mut Vec<HallucinationFinding>,
+        penalty: &mut u32, corrections: &mut Vec<String>,
+    ) {
+        let lower = text.to_lowercase();
+
+        // mkdir 创建目录但无对应的文件创建
+        let has_mkdir = lower.contains("mkdir ") || lower.contains("create_dir")
+            || lower.contains("fs::create_dir") || lower.contains("os.makedirs");
+        let has_file_create = lower.contains("touch ") || lower.contains("write")
+            || lower.contains("fs::write") || lower.contains("echo ") && lower.contains("> ");
+
+        if has_mkdir && !has_file_create {
+            findings.push(HallucinationFinding {
+                category: "空文件夹".into(),
+                severity: "high".into(),
+                pattern: "仅创建目录但无文件写入".into(),
+                snippet: text.chars().take(120).collect(),
+                penalty: 16,
+                suggestion: "检测到 mkdir 但无对应文件创建，模型可能在构建空脚手架而非真实项目".into(),
+            });
+            *penalty += 16;
+            corrections.push("🚨 空文件夹风险: 只创建了目录结构但没有任何文件内容，这是典型的空壳交付".into());
+        }
+
+        // 脚手架生成但全是空文件
+        let scaffold_markers = ["create the following structure", "project structure:",
+            "file tree:", "目录结构:", "项目结构:"];
+        for marker in &scaffold_markers {
+            if lower.contains(&marker.to_lowercase()) && !has_file_create && text.len() < 400 {
+                findings.push(HallucinationFinding {
+                    category: "空文件夹".into(),
+                    severity: "medium".into(),
+                    pattern: format!("空脚手架: 描述了 '{}' 但无文件内容", marker),
+                    snippet: text.chars().take(120).collect(),
+                    penalty: 10,
+                    suggestion: "模型描述了目录结构但所有文件为空，这是空壳项目".into(),
+                });
+                *penalty += 10;
+                corrections.push("⚠️ 空壳交付: 描述了项目结构但未提供文件内容".into());
+                break;
+            }
+        }
+    }
+
+    // ── 10. 编造谎言检测 ─────────────────────────────────────
+
+    fn check_fabricated_facts(
+        &self, text: &str, findings: &mut Vec<HallucinationFinding>,
+        penalty: &mut u32, corrections: &mut Vec<String>,
+    ) {
+        let lower = text.to_lowercase();
+
+        // 虚构基准测试数据: "benchmark shows", "performance improved by X%", "X% faster"
+        let bench_patterns = [
+            ("benchmark shows", "虚构基准测试"),
+            ("performance improved by", "虚假性能数据"),
+            ("reduces latency by", "虚假延迟数据"),
+            ("improves throughput by", "虚假吞吐量数据"),
+            ("% faster than", "虚假速度对比"),
+            ("% reduction in", "虚假指标改善"),
+            ("测试显示性能提升", "中文虚假性能声明"),
+        ];
+        for (pattern, desc) in &bench_patterns {
+            if lower.contains(pattern) {
+                // 检查是否有实际数据来源引用
+                let has_source = lower.contains("according to") || lower.contains("based on")
+                    || lower.contains("来源") || lower.contains("参考") || lower.contains("https://");
+                if !has_source {
+                    findings.push(HallucinationFinding {
+                        category: "编造谎言".into(),
+                        severity: "high".into(),
+                        pattern: format!("{}: 无来源引用的性能声明", desc),
+                        snippet: text.chars().take(120).collect(),
+                        penalty: 15,
+                        suggestion: "模型声称有性能数据但未提供来源，可能是编造的基准测试结果".into(),
+                    });
+                    *penalty += 15;
+                    corrections.push(format!("🚨 虚构数据: '{}' 无引用来源，可能是编造的性能数据", desc));
+                    break;
+                }
+            }
+        }
+
+        // 编造版本号: "version 5.0" 但实际不存在
+        let fake_version_patterns = [
+            "react 20", "react 21", "vue 4", "vue 5", "angular 20",
+            "rust 2.0", "python 4", "python 5",
+            "typescript 6", "typescript 7",
+            "node 25", "node 30",
+            "webpack 6", "vite 6",
+        ];
+        for pattern in &fake_version_patterns {
+            if lower.contains(pattern) {
+                findings.push(HallucinationFinding {
+                    category: "编造谎言".into(),
+                    severity: "high".into(),
+                    pattern: format!("虚构版本号: {}", pattern),
+                    snippet: text.chars().take(120).collect(),
+                    penalty: 18,
+                    suggestion: format!("'{}' 版本不存在，模型编造了不存在的技术版本", pattern).into(),
+                });
+                *penalty += 18;
+                corrections.push(format!("🚨 虚构版本: '{}' 不存在，请查阅官方版本发布记录", pattern));
+                break;
+            }
+        }
+
+        // 虚假声明检测: "it is proven", "studies show", "research indicates"
+        let fake_authority = [
+            ("it is proven that", "虚假权威声明"),
+            ("studies show that", "无引用研究声称"),
+            ("research indicates", "无来源研究引用"),
+            ("according to experts", "虚假专家背书"),
+            ("业界公认", "无来源共识声称"),
+            ("实践证明", "无证据实践声明"),
+            ("大量研究表明", "虚假文献引用"),
+        ];
+        for (pattern, desc) in &fake_authority {
+            if lower.contains(pattern) {
+                let has_citation = text.contains("http") || text.contains("doi:")
+                    || text.contains("arXiv") || text.contains("(") && text.contains(")")
+                    && text.contains("20"); // 年份引用
+                if !has_citation {
+                    findings.push(HallucinationFinding {
+                        category: "编造谎言".into(),
+                        severity: "medium".into(),
+                        pattern: format!("{}: '{}'", desc, pattern),
+                        snippet: text.chars().take(120).collect(),
+                        penalty: 12,
+                        suggestion: "模型使用了权威性语言但未提供引用来源，可能是编造的背书".into(),
+                    });
+                    *penalty += 12;
+                    corrections.push(format!("⚠️ 虚假背书: 使用了 '{}' 但无引用来源", pattern));
+                    break;
+                }
+            }
+        }
+
+        // 编造具体数字: 精确到小数点的统计数字但无来源
+        let mut fake_stats_count = 0u32;
+        for word in text.split_whitespace() {
+            let trimmed = word.trim_end_matches(&['.', ',', ';', ':', ')', '】', '）']);
+            if let Some(pct_pos) = trimmed.find('%') {
+                let before_pct = &trimmed[..pct_pos];
+                if before_pct.contains('.') && before_pct.chars().filter(|c| c.is_ascii_digit()).count() >= 2 {
+                    fake_stats_count += 1;
+                }
+            }
+        }
+        if fake_stats_count >= 3 {
+            findings.push(HallucinationFinding {
+                category: "编造谎言".into(),
+                severity: "medium".into(),
+                pattern: format!("疑似编造统计数据: 多处精确百分比({}处)", fake_stats_count),
+                snippet: text.chars().take(120).collect(),
+                penalty: 10,
+                suggestion: "多处精确统计数据未注明来源，可能是模型编造的幻觉数据".into(),
+            });
+            *penalty += 10;
+            corrections.push("⚠️ 可疑数据: 多处精确百分比无来源引用，可能为编造".into());
+        }
+    }
 }
 
 impl Default for HallucinationGuard {
@@ -425,5 +792,94 @@ mod tests {
 
         let safe = guard.audit("Use serde::Deserialize for JSON parsing.");
         assert!(!safe.needs_review);
+    }
+
+    // ── 假编程检测测试 ──────────────────────────────────────────
+
+    #[test]
+    fn test_fake_programming_todo() {
+        let guard = HallucinationGuard::new();
+        let report = guard.audit("fn main() {\n    // TODO: implement this later\n    unimplemented!();\n}");
+        assert!(report.findings.iter().any(|f| f.category == "假编程"));
+        assert!(report.trust_score < 80);
+    }
+
+    #[test]
+    fn test_fake_programming_pseudocode() {
+        let guard = HallucinationGuard::new();
+        let report = guard.audit("Here is the pseudocode for the algorithm:\n// similar to above pattern");
+        assert!(report.findings.iter().any(|f| f.category == "假编程"));
+    }
+
+    #[test]
+    fn test_fake_programming_empty_fn() {
+        let guard = HallucinationGuard::new();
+        let report = guard.audit("fn process_data() { }");
+        assert!(report.findings.iter().any(|f| f.category == "假编程"));
+    }
+
+    // ── 假完成检测测试 ──────────────────────────────────────────
+
+    #[test]
+    fn test_fake_completion() {
+        let guard = HallucinationGuard::new();
+        let report = guard.audit("Done! Everything is set up.");
+        assert!(report.findings.iter().any(|f| f.category == "假完成"));
+        assert!(report.trust_score < 85);
+    }
+
+    #[test]
+    fn test_real_completion_with_code() {
+        let guard = HallucinationGuard::new();
+        let report = guard.audit("Done! Here is the code:\n```rust\nfn main() {}\n```");
+        // 有实质代码输出，不应被标记为假完成
+        assert!(!report.findings.iter().any(|f| f.category == "假完成"));
+    }
+
+    // ── 空文件夹检测测试 ────────────────────────────────────────
+
+    #[test]
+    fn test_empty_scaffold() {
+        let guard = HallucinationGuard::new();
+        let report = guard.audit("Create the directories:\nmkdir src\nmkdir tests\nThat's it!");
+        assert!(report.findings.iter().any(|f| f.category == "空文件夹"));
+    }
+
+    #[test]
+    fn test_scaffold_with_files() {
+        let guard = HallucinationGuard::new();
+        let report = guard.audit("mkdir src && echo 'fn main() {}' > src/main.rs");
+        // 有文件创建，不应标记为空文件夹
+        assert!(!report.findings.iter().any(|f| f.category == "空文件夹"));
+    }
+
+    // ── 编造谎言检测测试 ────────────────────────────────────────
+
+    #[test]
+    fn test_fake_benchmark() {
+        let guard = HallucinationGuard::new();
+        let report = guard.audit("Our benchmark shows a 45.2% performance improvement over the previous version.");
+        assert!(report.findings.iter().any(|f| f.category == "编造谎言"));
+    }
+
+    #[test]
+    fn test_fake_version() {
+        let guard = HallucinationGuard::new();
+        let report = guard.audit("You should upgrade to React 21 for the best experience.");
+        assert!(report.findings.iter().any(|f| f.category == "编造谎言"));
+    }
+
+    #[test]
+    fn test_fake_authority() {
+        let guard = HallucinationGuard::new();
+        let report = guard.audit("Studies show that this approach is the best. According to experts, you should use it.");
+        assert!(report.findings.iter().any(|f| f.category == "编造谎言"));
+    }
+
+    #[test]
+    fn test_fake_stats_percentage() {
+        let guard = HallucinationGuard::new();
+        let report = guard.audit("The results show: 45.2% faster, 33.7% less memory, 21.5% fewer bugs.");
+        assert!(report.findings.iter().any(|f| f.category == "编造谎言"));
     }
 }

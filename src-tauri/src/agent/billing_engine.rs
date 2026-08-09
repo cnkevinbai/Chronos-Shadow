@@ -83,8 +83,8 @@ impl ModelModel {
             },
             ModelModel::KimiK3 => ModelProfile {
                 model_key: "kimi-k3".into(), display: "Kimi K3".into(),
-                context_window: 256000, supports_cache: false, cost_tier: "premium",
-                best_for: "超长文档分析 · 项目全局理解",
+                context_window: 1000000, supports_cache: false, cost_tier: "premium",
+                best_for: "1M 超长文档分析 · 合同审查 · 项目全局理解",
             },
             ModelModel::KimiK27Code => ModelProfile {
                 model_key: "kimi-k2.7-code".into(), display: "Kimi K2.7-Code".into(),
@@ -193,6 +193,33 @@ impl ChronosParallelBillingEngine {
         self.router_accum.lock().unwrap().add(router_cost, total_tokens);
     }
 
+    // ─── 内部计算 ────────────────────────────────────────────────
+
+    fn compute_budget_cost(&self, model: &ModelModel, prompt_tokens: u32,
+        completion_tokens: u32, cached_tokens: Option<u32>,
+    ) -> f64 {
+        let usage = ApiUsage { prompt_tokens, completion_tokens, cached_tokens };
+        let official = self.official_rates.calculate_audit_ledger(model, &usage);
+        official.exact_cost_rmb * 1.2
+    }
+
+    fn compute_router_cost(&self, model: &ModelModel, prompt_tokens: u32,
+        completion_tokens: u32,
+    ) -> f64 {
+        let rate = match model {
+            ModelModel::DeepSeekV4Pro   => 0.0045,
+            ModelModel::DeepSeekV4Flash => 0.0015,
+            ModelModel::KimiK3               => 0.004,
+            ModelModel::KimiK27Code          => 0.002,
+            ModelModel::KimiK27CodeHighspeed => 0.001,
+            ModelModel::Glm52       => 0.004,
+            ModelModel::Glm5vTurbo  => 0.005,
+            ModelModel::Glm51       => 0.002,
+            ModelModel::LanOllamaR1 => 0.0,
+        };
+        (prompt_tokens + completion_tokens) as f64 * rate / 1000.0
+    }
+
     // ─── 查询单轨 ────────────────────────────────────────────────
 
     pub fn get_ledger(&self, tier: BillingTier) -> CostSnapshot {
@@ -228,6 +255,28 @@ impl ChronosParallelBillingEngine {
             return false;
         }
         self.budget_accum.lock().unwrap().total_cost_rmb >= *self.cost_cap.lock().unwrap()
+    }
+
+    /// 原子化预占 + 检查：预留预估费用，防止并发调用超额
+    /// 返回 true 表示可以继续，false 表示已超限
+    pub fn try_reserve(&self, estimated_cost: f64) -> bool {
+        if !*self.cost_cap_enabled.lock().unwrap() {
+            return true; // 未启用上限，直接放行
+        }
+        let mut budget = self.budget_accum.lock().unwrap();
+        let cap = *self.cost_cap.lock().unwrap();
+        if budget.total_cost_rmb + estimated_cost > cap {
+            return false;
+        }
+        budget.total_cost_rmb += estimated_cost;
+        budget.call_count += 1;
+        true
+    }
+
+    /// 结算：用实际费用替换预估费用
+    pub fn settle(&self, estimated_cost: f64, actual_cost: f64) {
+        let mut budget = self.budget_accum.lock().unwrap();
+        budget.total_cost_rmb = budget.total_cost_rmb - estimated_cost + actual_cost;
     }
 
     pub fn get_budget_total(&self) -> f64 {
@@ -283,7 +332,8 @@ impl ChronosParallelBillingEngine {
 
         let (model, cost, savings_pct) = if est_tokens < 4000 {
             (&ModelModel::DeepSeekV4Flash, budget, 0.0)
-        } else if est_tokens > 32000 {
+        } else if est_tokens > 100000 {
+            // 超过 DeepSeek 128K 窗口上限，仅 Kimi K3 (1M) 可承载
             (&ModelModel::KimiK3, self.estimate_cost(&ModelModel::KimiK3, est_tokens, est_tokens / 2), 0.0)
         } else if budget < standard && budget < cheap {
             (&ModelModel::DeepSeekV4Flash, budget,
@@ -351,44 +401,19 @@ pub struct ContextHealth {
     pub remaining: u32,
     pub total: u32,
     pub tip: Option<String>,
+}
 
-    // ══════════════════════════════════════════════════════════════
-    // 内部：Budget = Official × 1.2（派生自 billing.rs，无重复）
-    // ══════════════════════════════════════════════════════════════
-
+impl ContextHealth {
+    #[allow(dead_code)]
     fn compute_budget_cost(
         &self,
-        model: &ModelModel,
+        _model: &ModelModel,
         prompt_tokens: u32,
         completion_tokens: u32,
         cached_tokens: Option<u32>,
     ) -> f64 {
-        let usage = ApiUsage { prompt_tokens, completion_tokens, cached_tokens };
-        let official = self.official_rates.calculate_audit_ledger(model, &usage);
-        official.exact_cost_rmb * 1.2
-    }
-
-    fn router_rate(&self, model: &ModelModel) -> f64 {
-        match model {
-            ModelModel::DeepSeekV4Pro   => 0.0045,
-            ModelModel::DeepSeekV4Flash => 0.0015,
-            ModelModel::KimiK3               => 0.004,
-            ModelModel::KimiK27Code          => 0.002,
-            ModelModel::KimiK27CodeHighspeed => 0.001,
-            ModelModel::Glm52       => 0.004,
-            ModelModel::Glm5vTurbo  => 0.005,
-            ModelModel::Glm51       => 0.002,
-            ModelModel::LanOllamaR1 => 0.0,
-        }
-    }
-
-    fn compute_router_cost(
-        &self,
-        model: &ModelModel,
-        prompt_tokens: u32,
-        completion_tokens: u32,
-    ) -> f64 {
-        (prompt_tokens + completion_tokens) as f64 * self.router_rate(model) / 1000.0
+        let _usage = ApiUsage { prompt_tokens, completion_tokens, cached_tokens };
+        0.0
     }
 }
 

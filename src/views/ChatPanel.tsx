@@ -16,6 +16,7 @@ import {
   saveChatSessionChunk,
   loadChatSessionChunk,
   listHistoricalMetaManifests,
+  listSessionsByProject,
   deleteChatSession,
   exportChatSession,
   renameChatSession,
@@ -75,6 +76,8 @@ interface ChatPanelProps {
   apiKey?: string;
   /** Per-provider key presence — drives welcome message + status bar */
   hasKeys?: { deepseek: boolean; kimi: boolean; glm: boolean };
+  /** Current project name — binds sessions to real project for scoped recall */
+  currentProject?: string;
 }
 
 function modelDisplayName(model: string): string {
@@ -135,6 +138,7 @@ export default function ChatPanel({
   selectedModel,
   apiKey = "",
   hasKeys = { deepseek: false, kimi: false, glm: false },
+  currentProject = "default",
 }: ChatPanelProps) {
   const keyForModel = (m: string) => m.startsWith("deepseek") ? hasKeys.deepseek : m.startsWith("kimi") ? hasKeys.kimi : m.startsWith("glm") ? hasKeys.glm : false;
   const currentHasKey = keyForModel(selectedModel);
@@ -162,6 +166,18 @@ export default function ChatPanel({
   useEffect(() => {
     refreshManifests();
   }, [refreshManifests]);
+
+  // 当项目切换时，自动刷新该项目关联的会话列表
+  useEffect(() => {
+    if (currentProject && currentProject !== "default") {
+      listSessionsByProject(currentProject)
+        .then((res) => {
+          if (res && res.length > 0) setManifests(res);
+          else refreshManifests(); // 无项目会话时回退到全量列表
+        })
+        .catch(() => refreshManifests());
+    }
+  }, [currentProject, refreshManifests]);
 
   // ── 聊天状态 ─────────────────────────────────────────────────
   const [input, setInput] = useState("");
@@ -509,7 +525,7 @@ export default function ChatPanel({
         meta: {
           session_id: activeSessionId,
           title: deriveTitle(msgs),
-          bound_project: "Chronos-V4-Demo",
+          bound_project: currentProject,
           last_updated: new Date().toISOString(),
           total_messages_count: msgs.length,
           total_accumulated_cost: accumulatedCost,
@@ -1177,6 +1193,13 @@ export default function ChatPanel({
                 {anyKey ? `(切换至 ${availableProvider})` : "(Demo)"}
               </span>
             )}
+            {/* 项目绑定指示 */}
+            {currentProject && currentProject !== "default" && (
+              <span className="text-[9px] text-cyan-500 border border-cyan-500/20 bg-cyan-950/20 px-1 rounded"
+                title={`会话自动绑定到项目: ${currentProject}`}>
+                📁 {currentProject}
+              </span>
+            )}
           </div>
           <div className="flex items-center space-x-1.5">
             <button
@@ -1283,12 +1306,15 @@ export default function ChatPanel({
                 </span>
                 {msg.costTokens != null && msg.costTokens > 0 && (
                   <span className="text-zinc-600">
-                    (Used: {msg.costTokens}t{" "}
+                    ({msg.costTokens}t
                     {msg.isCached && (
-                      <span className="text-emerald-500/80 font-bold">
+                      <span className="text-emerald-500/80 font-bold ml-0.5">
                         [Cache Hit]
                       </span>
                     )}
+                    <span className="text-emerald-600 ml-0.5">
+                      ¥{(msg.costTokens * 0.000001).toFixed(4)}
+                    </span>
                     )
                   </span>
                 )}
@@ -1593,6 +1619,25 @@ export default function ChatPanel({
               </span>
             </button>
           </form>
+
+          {/* 状态栏：会话统计 + 审批指示 */}
+          <div className="flex items-center justify-between px-4 py-1 border-t border-[#1a1a1e] bg-[#0c0c0e] text-[9px] text-zinc-600 select-none">
+            <div className="flex items-center space-x-3">
+              <span>💬 {messages.length} 条</span>
+              <span>|</span>
+              <span>💰 ¥{messages.reduce((a, m) => a + (m.costTokens ?? 0) * 0.000001, 0).toFixed(4)}</span>
+              {currentProject && currentProject !== "default" && (
+                <>
+                  <span>|</span>
+                  <span className="text-cyan-500">📁 {currentProject}</span>
+                </>
+              )}
+            </div>
+            {/* 审批门禁状态指示 */}
+            <span className="text-red-400" title="审批门禁已激活，请通过左侧 Dock 的 🛡️ 图标访问审批面板">
+              🛡️ 第四红线: 审批门禁已激活
+            </span>
+          </div>
 
           {/* 键盘快捷提示 + Token 计数器 */}
           <div className="flex items-center justify-between px-4 pb-2 text-[9px] text-zinc-700 select-none">

@@ -6,13 +6,16 @@ pub mod vision;
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
+use tauri::AppHandle;
 use tauri::Emitter;
 use tauri::WindowEvent;
 use agent::api_client::{ApiClient, ApiResponse, ChatMessage};
 use agent::orchestrator::{AgentRole, Orchestrator, OrchestratorStats};
 use agent::redline::{RedlineGuard, RedlineStatus};
 #[allow(deprecated)]
+#[allow(deprecated)]
 use agent::router::{ModelConfig, RouteMode, Router};
+use agent::router::HybridAgentRouter;
 use agent::sandbox::{Sandbox, ChronosVirtualFileSystem};
 use agent::detector::SkillAndMcpDetector;
 use agent::shadow::{ShadowEngine, ShadowStats};
@@ -28,10 +31,17 @@ use agent::remote_proxy::{RemoteProxyTunnel, RemoteConfig, RemoteSessionStats};
 use agent::remote_cluster::{RemoteClusterManager, ClusterStats};
 use agent::session_db::{
     save_chat_session_chunk, load_chat_session_chunk,
-    list_historical_meta_manifests, delete_chat_session,
-    export_chat_session, rename_chat_session,
+    list_historical_meta_manifests, list_sessions_by_project,
+    delete_chat_session, export_chat_session, rename_chat_session,
     import_chat_session,
 };
+use agent::worktree::WorktreeManager;
+use agent::approval_gate::ApprovalGate;
+use agent::evolving::agent_quality::AgentQualityEngine;
+use agent::evolving::embedding::EmbeddingEngine;
+use agent::local_analytics::LocalAnalytics;
+use agent::state_manager::StateManager;
+use agent::workbuddy_engine::WorkBuddyEngine;
 use agent::billing_engine::ChronosParallelBillingEngine;
 use vision::VisionEngine;
 use std::collections::HashMap;
@@ -65,6 +75,14 @@ struct AppState {
     cluster: TokioMutex<RemoteClusterManager>,
     cvfs: tokio::sync::Mutex<ChronosVirtualFileSystem>,
     billing_engine: ChronosParallelBillingEngine,
+    worktree: Mutex<WorktreeManager>,
+    approval_gate: Mutex<ApprovalGate>,
+    agent_quality: Mutex<AgentQualityEngine>,
+    embedding: Mutex<EmbeddingEngine>,
+    hybrid_router: HybridAgentRouter,
+    analytics: Mutex<LocalAnalytics>,
+    state_mgr: Mutex<StateManager>,
+    workbuddy: Mutex<WorkBuddyEngine>,
 }
 
 impl AppState {
@@ -87,6 +105,14 @@ impl AppState {
             cluster: TokioMutex::new(RemoteClusterManager::new()),
             cvfs: tokio::sync::Mutex::new(ChronosVirtualFileSystem::new()),
             billing_engine: ChronosParallelBillingEngine::new(),
+            worktree: Mutex::new(WorktreeManager::new(PathBuf::from("."))),
+            approval_gate: Mutex::new(ApprovalGate::new()),
+            agent_quality: Mutex::new(AgentQualityEngine::new()),
+            embedding: Mutex::new(EmbeddingEngine::new()),
+            hybrid_router: HybridAgentRouter::new(),
+            analytics: Mutex::new(LocalAnalytics::new()),
+            state_mgr: Mutex::new(StateManager::new()),
+            workbuddy: Mutex::new(WorkBuddyEngine::new()),
         }
     }
 }
@@ -138,9 +164,48 @@ fn resume_pipeline(state: tauri::State<AppState>) -> String {
 }
 
 #[tauri::command]
-fn advance_pipeline(state: tauri::State<AppState>) -> String {
+fn advance_pipeline(state: tauri::State<AppState>) -> Result<String, String> {
+    // 第四红线：关键阶段跃迁前检查审批状态
+    // 使用 AgentRole 枚举直接匹配，避免中文标签与英文常量比较的静默绕过
+    let (from_stage, to_stage, needs_approval) = {
+        let orch = state.orchestrator.lock().unwrap();
+        let current = &orch.active_role;
+        let next = match current {
+            AgentRole::PM => AgentRole::UIDesigner,
+            AgentRole::UIDesigner => AgentRole::Architect,
+            AgentRole::Architect => AgentRole::Planner,
+            AgentRole::Planner => AgentRole::Coder,
+            AgentRole::Coder => AgentRole::Auditor,
+            AgentRole::Auditor => AgentRole::ComplianceOfficer,
+            AgentRole::ComplianceOfficer => AgentRole::Verifier,
+            AgentRole::Verifier => AgentRole::PM,
+        };
+        // 枚举匹配 — 不受 label() 语言影响
+        let needs = matches!(current, AgentRole::Coder | AgentRole::Auditor);
+        // 用稳定英文标识符给审批门禁
+        let from_id = match current {
+            AgentRole::PM => "PM", AgentRole::UIDesigner => "UIDesigner",
+            AgentRole::Architect => "Architect", AgentRole::Planner => "Planner",
+            AgentRole::Coder => "Coder", AgentRole::Auditor => "Auditor",
+            AgentRole::ComplianceOfficer => "ComplianceOfficer",
+            AgentRole::Verifier => "Verifier",
+        };
+        let to_id = match &next {
+            AgentRole::PM => "PM", AgentRole::UIDesigner => "UIDesigner",
+            AgentRole::Architect => "Architect", AgentRole::Planner => "Planner",
+            AgentRole::Coder => "Coder", AgentRole::Auditor => "Auditor",
+            AgentRole::ComplianceOfficer => "ComplianceOfficer",
+            AgentRole::Verifier => "Verifier",
+        };
+        (from_id.to_string(), to_id.to_string(), needs)
+    };
+
+    if needs_approval {
+        state.approval_gate.lock().unwrap().check_pipeline_advance(&from_stage, &to_stage)?;
+    }
+
     let role = state.orchestrator.lock().unwrap().advance_pipeline();
-    role.label().into()
+    Ok(role.label().into())
 }
 
 #[tauri::command]
@@ -230,12 +295,13 @@ async fn chat_api(
     }
     LAST_API_CALL.store(now, std::sync::atomic::Ordering::Relaxed);
 
-    // Cost cap check — powered by parallel billing engine (Budget tier)
-    if state.billing_engine.is_over_cap() {
+    // 原子化预占: 防止并发调用超额 (TOCTOU 修复)
+    let estimated_cost = 0.05; // 预估单次调用 ¥0.05
+    if !state.billing_engine.try_reserve(estimated_cost) {
         let budget = state.billing_engine.get_budget_total();
         let cap = state.billing_engine.get_cost_cap();
         return Err(format!(
-            "[熔断拦截] 累计开销 ¥{:.2} 已达安全阈值 ¥{:.2}，API 调用已被阻断。请在设置中调整上限或重置。",
+            "[熔断拦截] 累计开销 ¥{:.2} 已达安全阈值 ¥{:.2}，API 调用已被阻断。",
             budget, cap
         ));
     }
@@ -243,17 +309,21 @@ async fn chat_api(
     // Resolve API key from vault if frontend sent empty (key now stored server-side)
     let resolved_key = if api_key.is_empty() { resolve_key_from_vault(&model) } else { api_key };
     if resolved_key.is_empty() {
-        return Err("[VAULT EMPTY] API Key 未找到。请在「⚙️ 全局配置 → API 密钥凭据」中输入并保存。".into());
+        state.billing_engine.settle(estimated_cost, 0.0); // 释放预留
+        return Err("[VAULT EMPTY] API Key 未找到。".into());
     }
     let mut client = state.api_client.lock().await;
     let response = client.chat(&endpoint, &resolved_key, &model, msgs, max_tokens).await;
 
-    // Record to parallel billing engine (Official + Budget + Router)
-    if response.success {
+    // 结算实际费用
+    let actual_cost = if response.success {
         let model_enum = parse_model_to_enum(&model);
         let (prompt, completion) = split_tokens(response.tokens_used, &response.content);
+        let cost = state.billing_engine.estimate_cost(&model_enum, prompt, completion);
         state.billing_engine.record(&model_enum, prompt, completion, None);
-    }
+        cost
+    } else { 0.0 };
+    state.billing_engine.settle(estimated_cost, actual_cost);
 
     Ok(response)
 }
@@ -278,8 +348,26 @@ async fn chat_api_stream(
         })
         .collect();
 
-    // Cost cap check — powered by parallel billing engine (Budget tier)
-    if state.billing_engine.is_over_cap() {
+    // Rate limit — same 1.5s gate as chat_api
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    let last = LAST_API_CALL.load(std::sync::atomic::Ordering::Relaxed);
+    if last > 0 {
+        let elapsed_ms = (now - last) as u64;
+        if elapsed_ms < 1500 {
+            return Err(format!(
+                "[RATE LIMIT] 请求过于频繁，请等待 {}ms",
+                1500 - elapsed_ms
+            ));
+        }
+    }
+    LAST_API_CALL.store(now, std::sync::atomic::Ordering::Relaxed);
+
+    // 原子化预占: 防止并发调用超额
+    let estimated_cost = 0.05;
+    if !state.billing_engine.try_reserve(estimated_cost) {
         let budget = state.billing_engine.get_budget_total();
         let cap = state.billing_engine.get_cost_cap();
         return Err(format!(
@@ -288,31 +376,27 @@ async fn chat_api_stream(
         ));
     }
 
-    // Resolve API key from vault if frontend sent empty (key now stored server-side)
+    // Resolve API key from vault
     let resolved_key = if api_key.is_empty() { resolve_key_from_vault(&model) } else { api_key };
     if resolved_key.is_empty() {
-        return Err("[VAULT EMPTY] API Key 未找到。请在「⚙️ 全局配置 → API 密钥凭据」中输入并保存。".into());
+        state.billing_engine.settle(estimated_cost, 0.0);
+        return Err("[VAULT EMPTY] API Key 未找到。".into());
     }
     let mut client = state.api_client.lock().await;
     let response = client
-        .chat_stream(
-            &endpoint,
-            &resolved_key,
-            &model,
-            msgs,
-            max_tokens,
-            |chunk| {
-                let _ = app_handle.emit("chat-stream-chunk", chunk);
-            },
-        )
-        .await;
+        .chat_stream(&endpoint, &resolved_key, &model, msgs, max_tokens,
+            |chunk| { let _ = app_handle.emit("chat-stream-chunk", chunk); },
+        ).await;
 
-    // Record to parallel billing engine (Official + Budget + Router)
-    if response.success {
+    // 结算实际费用
+    let actual_cost = if response.success {
         let model_enum = parse_model_to_enum(&model);
         let (prompt, completion) = split_tokens(response.tokens_used, &response.content);
+        let cost = state.billing_engine.estimate_cost(&model_enum, prompt, completion);
         state.billing_engine.record(&model_enum, prompt, completion, None);
-    }
+        cost
+    } else { 0.0 };
+    state.billing_engine.settle(estimated_cost, actual_cost);
 
     Ok(response)
 }
@@ -395,6 +479,38 @@ fn route_for_role(state: tauri::State<AppState>, role: String) -> String {
     router.route_text_model(&role).into()
 }
 
+// ─── HybridAgentRouter Commands ──────────────────────────────
+
+#[tauri::command]
+async fn hrouter_select_model(
+    state: tauri::State<'_, AppState>,
+    agent_role: String,
+    is_high_urgency: bool,
+) -> Result<serde_json::Value, String> {
+    let decision = state.hybrid_router.select_optimal_model(&agent_role, is_high_urgency).await;
+    Ok(serde_json::json!({
+        "agent_role": decision.agent_role,
+        "selected_model": decision.selected_model.display(),
+        "is_cache_eligible": decision.is_cache_eligible,
+        "is_lan_fallback": decision.is_lan_fallback,
+        "reason": decision.reason,
+    }))
+}
+
+#[tauri::command]
+async fn hrouter_get_cluster_status(
+    state: tauri::State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let nodes = state.hybrid_router.cluster_nodes.read().await;
+    let status: Vec<_> = nodes.iter().map(|(model, node)| {
+        serde_json::json!({
+            "model": model.display(), "api_url": node.api_url,
+            "timeout_ms": node.timeout_ms, "cost_per_1k": node.cost_per_1k_tokens,
+        })
+    }).collect();
+    Ok(serde_json::json!({ "nodes": status }))
+}
+
 #[tauri::command]
 fn get_model_endpoint(state: tauri::State<AppState>, model_key: String) -> Result<String, String> {
     let router = state.router.lock().unwrap();
@@ -427,6 +543,21 @@ fn toggle_shadow(state: tauri::State<AppState>, enabled: bool) -> String {
 fn dismiss_shadow_suggestion(state: tauri::State<AppState>, id: String) -> String {
     state.shadow.lock().unwrap().dismiss_suggestion(&id);
     format!("Suggestion {} dismissed", id)
+}
+
+#[tauri::command]
+fn save_shadow_state(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    state.shadow.lock().unwrap().save_state(&dir)?;
+    Ok("Shadow state saved".into())
+}
+
+#[tauri::command]
+fn load_shadow_state(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    state.shadow.lock().unwrap().load_state(&dir)?;
+    Ok("Shadow state loaded".into())
 }
 
 // ─── General Commands ──────────────────────────────────────────────
@@ -547,10 +678,11 @@ fn check_context_health(model: String, current_tokens: u32) -> agent::billing_en
 
 /// 更新费用上限（同步到 billing_engine）
 #[tauri::command]
-fn update_cost_cap(state: tauri::State<AppState>, cap: f64, enabled: bool) -> String {
+fn update_cost_cap(state: tauri::State<AppState>, cap: f64, enabled: bool) -> Result<String, String> {
+    agent::input_guard::validate_cost(cap)?;
     state.billing_engine.set_cost_cap(cap);
     state.billing_engine.set_cost_cap_enabled(enabled);
-    format!("Cost cap set to ¥{:.2} ({})", cap, if enabled { "ON" } else { "OFF" })
+    Ok(format!("Cost cap set to ¥{:.2} ({})", cap, if enabled { "ON" } else { "OFF" }))
 }
 
 // ─── WorkBuddy: Context Glue ───────────────────────────────────
@@ -586,6 +718,21 @@ fn get_app_bindings(state: tauri::State<AppState>) -> Vec<AppBinding> {
 fn toggle_context_glue(state: tauri::State<AppState>, enabled: bool) -> String {
     state.context_glue.lock().unwrap().toggle(enabled);
     format!("Context Glue: {}", if enabled { "ON" } else { "OFF" })
+}
+
+#[tauri::command]
+fn save_context_glue_bindings(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    state.context_glue.lock().unwrap().save_bindings(&dir)?;
+    Ok("Context Glue bindings saved".into())
+}
+
+#[tauri::command]
+fn load_context_glue_bindings(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    state.context_glue.lock().unwrap().load_bindings(&dir)?;
+    Ok("Context Glue bindings loaded".into())
 }
 
 // ─── Remote Cluster Manager ──────────────────────────────────
@@ -773,6 +920,83 @@ async fn cvfs_capture_checkpoint(
     Ok(format!("Checkpoint '{}' created", checkpoint_id))
 }
 
+/// V2 检查点捕获 — 带真实文件内容快照
+#[tauri::command]
+async fn cvfs_capture_checkpoint_v2(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    project_id: String, label: String, description: String,
+) -> Result<serde_json::Value, String> {
+    let cvfs = state.cvfs.lock().await;
+    let cp = cvfs.capture_checkpoint_v2(&project_id, &label, &description).await?;
+    // 持久化 C-VFS 状态到 app_data_dir
+    if let Ok(dir) = app_handle.path().app_data_dir() {
+        let _ = cvfs.save_state_to(&dir).await;
+    }
+    Ok(serde_json::json!({
+        "id": cp.checkpoint_id, "timestamp": cp.timestamp,
+        "label": cp.desc, "files_changed": cp.changed_files_diff.len(),
+        "snapshot_type": "Manual",
+    }))
+}
+
+/// 恢复检查点 — 还原文件到快照状态
+#[tauri::command]
+async fn cvfs_restore_checkpoint(
+    state: tauri::State<'_, AppState>,
+    project_id: String, checkpoint_id: String,
+) -> Result<String, String> {
+    let cvfs = state.cvfs.lock().await;
+    cvfs.restore_checkpoint(&project_id, &checkpoint_id).await?;
+    Ok(format!("Checkpoint {} restored", checkpoint_id))
+}
+
+/// 删除检查点
+#[tauri::command]
+async fn cvfs_delete_checkpoint(
+    state: tauri::State<'_, AppState>,
+    project_id: String, checkpoint_id: String,
+) -> Result<String, String> {
+    let cvfs = state.cvfs.lock().await;
+    cvfs.delete_checkpoint(&project_id, &checkpoint_id).await?;
+    Ok(format!("Checkpoint {} deleted", checkpoint_id))
+}
+
+/// 删除项目
+#[tauri::command]
+async fn cvfs_delete_project(
+    state: tauri::State<'_, AppState>,
+    project_id: String,
+) -> Result<String, String> {
+    let cvfs = state.cvfs.lock().await;
+    cvfs.delete_project(&project_id).await?;
+    Ok(format!("Project {} deleted", project_id))
+}
+
+/// 列出项目真实文件树
+#[tauri::command]
+async fn cvfs_list_project_files(
+    state: tauri::State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    let cvfs = state.cvfs.lock().await;
+    let nodes = cvfs.list_project_files(&project_id).await?;
+    Ok(nodes.iter().map(|n| serde_json::json!({
+        "name": n.name, "is_dir": n.is_dir, "relative_path": n.relative_path,
+        "is_locked": n.is_locked,
+    })).collect())
+}
+
+/// 项目健康状态
+#[tauri::command]
+async fn cvfs_get_project_health(
+    state: tauri::State<'_, AppState>,
+    project_id: String,
+) -> Result<serde_json::Value, String> {
+    let cvfs = state.cvfs.lock().await;
+    cvfs.get_project_health(&project_id).await
+}
+
 #[tauri::command]
 async fn cvfs_get_checkpoints(
     state: tauri::State<'_, AppState>,
@@ -850,6 +1074,440 @@ async fn check_lan_health() -> Result<Vec<String>, String> {
     Router::check_lan_health().await
 }
 
+// ─── Worktree Commands ─────────────────────────────────────────────
+
+#[tauri::command]
+fn create_worktree(
+    state: tauri::State<AppState>,
+    task_id: String,
+    files: Vec<String>,
+    base_branch: String,
+) -> Result<String, String> {
+    let config = agent::worktree::WorktreeConfig { task_id, files, base_branch };
+    state.worktree.lock().unwrap().create_worktree(&config)
+}
+
+#[tauri::command]
+fn activate_worktree(
+    state: tauri::State<AppState>,
+    worktree_id: String,
+    task_id: String,
+    agent_id: String,
+) -> Result<(), String> {
+    state.worktree.lock().unwrap().activate(&worktree_id, &task_id, &agent_id)
+}
+
+#[tauri::command]
+fn complete_worktree(
+    state: tauri::State<AppState>,
+    worktree_id: String,
+) -> Result<(), String> {
+    state.worktree.lock().unwrap().complete(&worktree_id)
+}
+
+#[tauri::command]
+fn merge_worktree(
+    state: tauri::State<AppState>,
+    worktree_id: String,
+) -> Result<agent::worktree::MergeResult, String> {
+    // 第四红线：Worktree 合并前检查审批状态
+    state.approval_gate.lock().unwrap().check_worktree_merge(&worktree_id)?;
+    state.worktree.lock().unwrap().merge_worktree(&worktree_id)
+}
+
+#[tauri::command]
+fn prune_worktree(
+    state: tauri::State<AppState>,
+    worktree_id: String,
+) -> Result<(), String> {
+    state.worktree.lock().unwrap().prune_worktree(&worktree_id)
+}
+
+#[tauri::command]
+fn list_worktrees(
+    state: tauri::State<AppState>,
+) -> Vec<agent::worktree::WorktreeInstance> {
+    state.worktree.lock().unwrap().worktrees.clone()
+}
+
+#[tauri::command]
+fn get_worktree_stats(
+    state: tauri::State<AppState>,
+) -> agent::worktree::WorktreeStats {
+    state.worktree.lock().unwrap().stats()
+}
+
+// ─── Approval Gate Commands (第四红线) ────────────────────────────
+
+#[tauri::command]
+fn submit_for_approval(
+    state: tauri::State<AppState>,
+    action_type: String,
+    target_id: String,
+    description: String,
+    metadata: String, // JSON string for context (project, branch, etc.)
+) -> Result<agent::approval_gate::ApprovalRequest, String> {
+    state.approval_gate.lock().unwrap().submit(&action_type, &target_id, &description, &metadata)
+}
+
+/// 资费感知审批 — 结合计费引擎实时预算状态动态升级风险
+#[tauri::command]
+fn submit_for_approval_with_cost(
+    state: tauri::State<AppState>,
+    action_type: String,
+    target_id: String,
+    description: String,
+    metadata: String,
+    estimated_cost_rmb: f64,
+) -> Result<agent::approval_gate::ApprovalRequest, String> {
+    // 从计费引擎提取实时预算数据
+    let budget_used = state.billing_engine.get_budget_total();
+    let cost_cap = state.billing_engine.get_cost_cap();
+    let current_budget = Some(budget_used);
+    let current_cap = if cost_cap > 0.0 { Some(cost_cap) } else { None };
+
+    let result = state.approval_gate.lock().unwrap().submit_with_cost(
+        &action_type, &target_id, &description, &metadata,
+        estimated_cost_rmb, current_budget, current_cap,
+    );
+    // 如果审批提交成功且需要审批，发布 Blackboard 事件
+    if let Ok(ref req) = result {
+        if req.status == "Pending" {
+            let mut orch = state.orchestrator.lock().unwrap();
+            orch.publish(AgentRole::Auditor, agent::orchestrator::EventType::RedlineViolation {
+                code: "APPROVAL_REQUIRED".into(),
+                message: format!("第四红线：{} 需要人工审批 (风险:{})", req.description, req.risk_level),
+            });
+        }
+    }
+    result
+}
+
+/// Auditor 预筛查 — 高风险操作先经代码审计再提交审批
+#[tauri::command]
+fn auditor_pre_screen_approval(
+    state: tauri::State<AppState>,
+    action_type: String,
+    target_id: String,
+    description: String,
+    metadata: String,
+    auditor_findings: String,
+    auditor_passed: bool,
+) -> Result<agent::approval_gate::ApprovalRequest, String> {
+    // 统计发现项数量
+    let finding_lines = auditor_findings.lines().filter(|l| !l.trim().is_empty()).count() as u32;
+    let prescreen = agent::approval_gate::AuditorPrescreenResult {
+        passed: auditor_passed,
+        findings_count: finding_lines.max(1),
+        critical_count: if auditor_passed { 0 } else { 1 },
+        summary: auditor_findings,
+    };
+    state.approval_gate.lock().unwrap().submit_with_auditor(
+        &action_type, &target_id, &description, &metadata, prescreen,
+    )
+}
+
+#[tauri::command]
+fn decide_approval(
+    state: tauri::State<AppState>,
+    request_id: String,
+    decision: String,
+    reviewer: String,
+    comment: String,
+) -> Result<agent::approval_gate::ApprovalRequest, String> {
+    let result = state.approval_gate.lock().unwrap().decide(&request_id, &decision, &reviewer, &comment)?;
+    // 发布审批决策事件到 Blackboard
+    let event_code = if result.status == "Approved" { "APPROVAL_GRANTED" } else { "APPROVAL_REJECTED" };
+    let mut orch = state.orchestrator.lock().unwrap();
+    orch.publish(AgentRole::Auditor, agent::orchestrator::EventType::RedlineViolation {
+        code: event_code.into(),
+        message: format!("审批 {}: {} — {} 决定: {}",
+            result.id, result.description,
+            if result.status == "Approved" { "✅ 通过" } else { "❌ 驳回" },
+            comment),
+    });
+    Ok(result)
+}
+
+#[tauri::command]
+fn list_pending_approvals(
+    state: tauri::State<AppState>,
+) -> Vec<agent::approval_gate::ApprovalRequest> {
+    state.approval_gate.lock().unwrap().list_pending()
+}
+
+#[tauri::command]
+fn get_approval_audit_log(
+    state: tauri::State<AppState>,
+    limit: Option<usize>,
+) -> Vec<agent::approval_gate::ApprovalRequest> {
+    state.approval_gate.lock().unwrap().get_audit_log(limit.unwrap_or(50))
+}
+
+#[tauri::command]
+fn add_approval_rule(
+    state: tauri::State<AppState>,
+    action_type: String,
+    risk_level: u32,
+    auto_approve_below_risk: u32,
+    description: String,
+) -> Result<String, String> {
+    state.approval_gate.lock().unwrap().add_rule(&action_type, risk_level, auto_approve_below_risk, &description)
+}
+
+#[tauri::command]
+fn remove_approval_rule(
+    state: tauri::State<AppState>,
+    rule_id: String,
+) -> Result<(), String> {
+    state.approval_gate.lock().unwrap().remove_rule(&rule_id)
+}
+
+#[tauri::command]
+fn get_approval_rules(
+    state: tauri::State<AppState>,
+) -> Vec<agent::approval_gate::ApprovalRule> {
+    state.approval_gate.lock().unwrap().get_rules()
+}
+
+// ─── Embedding Engine Commands ─────────────────────────────────────
+
+#[tauri::command]
+fn embedding_search(
+    state: tauri::State<AppState>,
+    query: String,
+    k: usize,
+) -> Vec<serde_json::Value> {
+    let mut engine = state.embedding.lock().unwrap();
+    engine.search(&query, k.max(1).min(20))
+        .into_iter()
+        .map(|(score, entry)| serde_json::json!({
+            "id": entry.id, "text": entry.text,
+            "tags": entry.tags, "score": score,
+            "source": entry.source,
+        }))
+        .collect()
+}
+
+#[tauri::command]
+fn embedding_add(
+    state: tauri::State<AppState>,
+    id: String, text: String, tags: Vec<String>, source: String,
+) -> String {
+    let mut engine = state.embedding.lock().unwrap();
+    engine.add(&id, &text, tags, &source);
+    format!("Added embedding entry: {}", id)
+}
+
+#[tauri::command]
+fn embedding_stats(
+    state: tauri::State<AppState>,
+) -> serde_json::Value {
+    state.embedding.lock().unwrap().stats()
+}
+
+/// 审批模式演化建议 — 基于历史数据自动推荐规则阈值调优
+#[tauri::command]
+fn get_approval_suggestions(
+    state: tauri::State<AppState>,
+) -> Vec<agent::approval_gate::RuleSuggestion> {
+    state.approval_gate.lock().unwrap().suggest_rule_optimizations()
+}
+
+#[tauri::command]
+fn expire_stale_approvals(
+    state: tauri::State<AppState>,
+) -> Vec<String> {
+    state.approval_gate.lock().unwrap().expire_stale()
+}
+
+#[tauri::command]
+fn save_approval_state(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    state.approval_gate.lock().unwrap().save_state(&dir)?;
+    Ok("Approval state saved".into())
+}
+
+#[tauri::command]
+fn load_approval_state(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    state.approval_gate.lock().unwrap().load_state(&dir)?;
+    Ok("Approval state loaded".into())
+}
+
+// ─── Local Analytics Commands ─────────────────────────────────────
+
+#[tauri::command]
+fn analytics_record(state: tauri::State<AppState>, metric: String, value: f64) -> String {
+    let mut a = state.analytics.lock().unwrap();
+    a.record(&metric, value);
+    format!("Recorded {}={:.4}", metric, value)
+}
+
+#[tauri::command]
+fn analytics_snapshot(state: tauri::State<AppState>, metric: String) -> serde_json::Value {
+    let a = state.analytics.lock().unwrap();
+    let snap = a.snapshot(&metric);
+    serde_json::json!({
+        "metric": metric, "count": snap.count, "mean": snap.mean,
+        "std_dev": snap.std_dev, "min": snap.min, "max": snap.max, "latest": snap.latest,
+    })
+}
+
+#[tauri::command]
+fn analytics_window_metrics(state: tauri::State<AppState>, metric: String) -> serde_json::Value {
+    let a = state.analytics.lock().unwrap();
+    let wm = a.window_metrics(&metric);
+    serde_json::json!({
+        "metric": metric,
+        "trend": wm.trend.emoji(),
+        "mean": wm.current.mean,
+        "std_dev": wm.current.std_dev,
+        "anomaly_count": wm.anomalies.len(),
+        "adaptive_threshold": wm.adaptive_threshold,
+        "prediction_next": wm.prediction_next,
+    })
+}
+
+#[tauri::command]
+fn analytics_detect_anomalies(state: tauri::State<AppState>, metric: String) -> Vec<serde_json::Value> {
+    let a = state.analytics.lock().unwrap();
+    a.detect_anomalies(&metric).iter().map(|anom| serde_json::json!({
+        "value": anom.value, "z_score": anom.z_score,
+        "severity": anom.severity, "description": anom.description,
+    })).collect()
+}
+
+#[tauri::command]
+fn analytics_correlation(state: tauri::State<AppState>, a: String, b: String) -> serde_json::Value {
+    let analytics = state.analytics.lock().unwrap();
+    let r = analytics.pearson_correlation(&a, &b);
+    let (ci_lo, ci_hi) = analytics.confidence_interval(&a);
+    let roc = analytics.rate_of_change(&a, 5);
+    serde_json::json!({
+        "correlation": r, "strength": if r.abs() > 0.7 { "strong" } else if r.abs() > 0.4 { "moderate" } else { "weak" },
+        "ci_95": [ci_lo, ci_hi], "rate_of_change_5": roc,
+    })
+}
+
+#[tauri::command]
+fn analytics_health_score(state: tauri::State<AppState>) -> serde_json::Value {
+    state.analytics.lock().unwrap().health_score()
+}
+
+#[tauri::command]
+fn analytics_change_point(state: tauri::State<AppState>, metric: String) -> serde_json::Value {
+    let a = state.analytics.lock().unwrap();
+    match a.detect_change_point(&metric) {
+        Some((idx, magnitude, direction)) => serde_json::json!({
+            "detected": true, "index": idx, "magnitude": magnitude, "direction": direction,
+        }),
+        None => serde_json::json!({ "detected": false }),
+    }
+}
+
+// ─── WorkBuddy Engine Commands ──────────────────────────────────
+
+#[tauri::command]
+fn wb_add_rule(state: tauri::State<AppState>, name: String, trigger: String, target: String, delay_ms: u64, priority: u8) -> String {
+    state.workbuddy.lock().unwrap().add_rule(&name, &trigger, &target, delay_ms, priority)
+}
+
+#[tauri::command]
+fn wb_record_activity(state: tauri::State<AppState>, app_id: String, app_name: String, event_type: String, duration_ms: Option<u64>, bytes: Option<u64>) -> String {
+    state.workbuddy.lock().unwrap().record_activity(&app_id, &app_name, &event_type, duration_ms, bytes);
+    format!("Activity recorded for {}", app_name)
+}
+
+#[tauri::command]
+fn wb_generate_report(state: tauri::State<AppState>) -> serde_json::Value {
+    let report = state.workbuddy.lock().unwrap().generate_report();
+    serde_json::json!(report)
+}
+
+#[tauri::command]
+fn wb_generate_suggestions(state: tauri::State<AppState>) -> Vec<serde_json::Value> {
+    let mut wb = state.workbuddy.lock().unwrap();
+    wb.generate_suggestions();
+    wb.suggestions.iter().map(|s| serde_json::json!({
+        "id": s.id, "type": s.suggestion_type, "title": s.title,
+        "description": s.description, "confidence": s.confidence,
+    })).collect()
+}
+
+// ─── State Manager Commands ─────────────────────────────────────
+
+#[tauri::command]
+fn state_save_all(app_handle: tauri::AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
+    let _dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let mut sm = state.state_mgr.lock().unwrap();
+    sm.save_all()?;
+    Ok("All state saved".into())
+}
+
+#[tauri::command]
+fn state_health_report(state: tauri::State<AppState>) -> serde_json::Value {
+    state.state_mgr.lock().unwrap().health_report()
+}
+
+// ─── Agent Quality Commands ───────────────────────────────────────
+
+#[tauri::command]
+fn get_agent_quality_scores(
+    state: tauri::State<AppState>,
+) -> Vec<agent::evolving::agent_quality::AgentQualityScore> {
+    let engine = state.agent_quality.lock().unwrap();
+    engine.get_all_scores().into_iter().cloned().collect()
+}
+
+#[tauri::command]
+async fn record_agent_task_quality(
+    state: tauri::State<'_, AppState>,
+    agent_role: String,
+    success: bool,
+    hallucination_categories: Vec<String>,
+) -> Result<String, String> {
+    // 第一阶段：同步更新 Agent 质量评分
+    let bridge_entries: Vec<_> = {
+        let mut engine = state.agent_quality.lock().unwrap();
+        engine.record_agent_task(&agent_role, success, &hallucination_categories);
+
+        hallucination_categories.iter().filter_map(|cat| {
+            engine.bridge_hallucination_to_evolution(
+                &agent_role, cat, &format!("{} by {}", cat, agent_role),
+                "请查阅防幻觉报告获取修正建议", "medium",
+            )
+        }).collect()
+    };
+
+    // 第二阶段：异步写入 EvolutionEngine
+    for entry in bridge_entries {
+        let evo = state.evolution.lock().await;
+        let delta = agent::evolving::consolidator::EvoDelta {
+            experience_id: format!("hbridge-{}", chrono::Utc::now().timestamp()),
+            context_trigger_hash: entry.error_pattern.clone(),
+            failed_llm_action: entry.error_pattern,
+            correct_human_action: entry.correction,
+            token_sunk_cost_saved: 50,
+            accuracy_weight: 0.7,
+        };
+        let _ = evo.local_consolidator.validate_and_commit_experience(delta).await;
+    }
+
+    let engine = state.agent_quality.lock().unwrap();
+    let score = engine.get_score(&agent_role)
+        .map(|s| s.rigor_score).unwrap_or(85);
+    Ok(format!("Agent '{}' rigor score: {}/100", agent_role, score))
+}
+
+#[tauri::command]
+fn get_global_quality_report(
+    state: tauri::State<AppState>,
+) -> serde_json::Value {
+    state.agent_quality.lock().unwrap().global_quality_report()
+}
+
 // ─── Model name parser (shared by billing) ────────────────────
 
 /// 将 API 调用中的模型字符串映射到 ModelModel 枚举
@@ -899,11 +1557,16 @@ fn load_key_file(provider: &str) -> Option<String> {
 }
 
 fn simple_encode(s: &str) -> String {
-    s.to_string()
+    // Base64 encode for basic obfuscation — keys are also in WinCred vault
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(s.as_bytes())
 }
 
 fn simple_decode(s: &str) -> String {
-    s.to_string()
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.decode(s)
+        .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
+        .unwrap_or_default()
 }
 
 /// Resolve API key: memory cache → Windows Credential Manager vault
@@ -1118,7 +1781,10 @@ fn save_settings(app_handle: tauri::AppHandle, new_settings: AppSettings) -> Res
     disk_settings.api_key_glm = if new_settings.api_key_glm.is_empty() { String::new() } else { "[stored in vault]".into() };
 
     let json = serde_json::to_string_pretty(&disk_settings).map_err(|e| e.to_string())?;
-    std::fs::write(&path, &json).map_err(|e| e.to_string())?;
+    // 原子化写入: temp + rename, 防止崩溃时配置文件损坏
+    let tmp_path = path.with_extension("tmp");
+    std::fs::write(&tmp_path, &json).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp_path, &path).map_err(|e| e.to_string())?;
     *SETTINGS.lock().unwrap() = Some(new_settings);
     Ok(format!("Saved to {}", path.display()))
 }
@@ -1251,6 +1917,49 @@ fn list_mcp_servers(state: tauri::State<AppState>) -> Vec<McpServer> {
     state.mcp_client.blocking_lock().connected_servers().into_iter().cloned().collect()
 }
 
+// ─── Orchestrator Management ─────────────────────────────────────
+
+#[tauri::command]
+fn prune_orchestrator_tasks(state: tauri::State<AppState>, keep: usize) -> String {
+    let mut orch = state.orchestrator.lock().unwrap();
+    let before = orch.tasks.len();
+    orch.prune_old_tasks(keep);
+    format!("Pruned {} tasks ({} → {})", before - orch.tasks.len(), before, orch.tasks.len())
+}
+
+#[tauri::command]
+fn get_event_metrics(state: tauri::State<AppState>) -> serde_json::Value {
+    state.orchestrator.lock().unwrap().event_metrics()
+}
+
+#[tauri::command]
+fn flush_dead_letters(state: tauri::State<AppState>) -> Vec<serde_json::Value> {
+    let mut orch = state.orchestrator.lock().unwrap();
+    orch.flush_dead_letters()
+        .into_iter()
+        .map(|e| serde_json::json!({
+            "id": e.id, "timestamp": e.timestamp,
+            "source": format!("{:?}", e.source),
+            "event_type": format!("{:?}", e.event_type),
+        }))
+        .collect()
+}
+
+// ─── MCP Management ─────────────────────────────────────────────
+
+#[tauri::command]
+fn mcp_disconnect(state: tauri::State<AppState>, server_id: String) -> Result<String, String> {
+    state.mcp_client.blocking_lock().disconnect(&server_id)
+        .map(|_| format!("Disconnected {}", server_id))
+}
+
+#[tauri::command]
+fn mcp_cleanup_stale(state: tauri::State<AppState>) -> String {
+    let mcp = state.mcp_client.blocking_lock();
+    let count = mcp.connected_servers().len();
+    format!("MCP cleanup check: {} active servers (zombie detection pending)", count)
+}
+
 // ─── Helper ────────────────────────────────────────────────────────
 
 fn parse_role(s: &str) -> Result<AgentRole, String> {
@@ -1297,6 +2006,12 @@ pub fn run() {
             // mcp
             mcp_connect_and_init,
             mcp_fetch_tools,
+            mcp_disconnect,
+            mcp_cleanup_stale,
+            // orchestrator management
+            prune_orchestrator_tasks,
+            flush_dead_letters,
+            get_event_metrics,
             // router
             get_route_mode,
             set_route_mode,
@@ -1304,16 +2019,45 @@ pub fn run() {
             set_model_api_key,
             route_for_role,
             get_model_endpoint,
+            // hybrid router
+            hrouter_select_model,
+            hrouter_get_cluster_status,
+            // local analytics
+            analytics_record,
+            analytics_snapshot,
+            analytics_window_metrics,
+            analytics_detect_anomalies,
+            analytics_correlation,
+            analytics_health_score,
+            analytics_change_point,
+            // state manager
+            state_save_all,
+            state_health_report,
+            // workbuddy engine
+            wb_add_rule,
+            wb_record_activity,
+            wb_generate_report,
+            wb_generate_suggestions,
             // shadow
             get_shadow_stats,
             toggle_shadow,
             dismiss_shadow_suggestion,
+            save_shadow_state,
+            load_shadow_state,
             // agent roster + live windows + evolution
             get_agent_roster,
             list_live_windows,
             get_evolution_stats,
             evo_validate_experience,
             evo_intercept_context,
+            // agent quality
+            get_agent_quality_scores,
+            record_agent_task_quality,
+            get_global_quality_report,
+            // embedding engine
+            embedding_search,
+            embedding_add,
+            embedding_stats,
             // settings persistence
             load_settings,
             save_settings,
@@ -1334,6 +2078,12 @@ pub fn run() {
             cvfs_capture_checkpoint,
             cvfs_get_checkpoints,
             cvfs_get_projects,
+            cvfs_delete_project,
+            cvfs_list_project_files,
+            cvfs_capture_checkpoint_v2,
+            cvfs_restore_checkpoint,
+            cvfs_delete_checkpoint,
+            cvfs_get_project_health,
             // remote proxy
             remote_connect,
             remote_disconnect,
@@ -1361,6 +2111,8 @@ pub fn run() {
             remove_app_binding,
             get_app_bindings,
             toggle_context_glue,
+            save_context_glue_bindings,
+            load_context_glue_bindings,
             // general
             get_sandbox_status,
             get_session_cost,
@@ -1374,10 +2126,33 @@ pub fn run() {
             get_detector_stats,
             // lan health
             check_lan_health,
+            // worktree commands
+            create_worktree,
+            activate_worktree,
+            complete_worktree,
+            merge_worktree,
+            prune_worktree,
+            list_worktrees,
+            get_worktree_stats,
+            // approval gate (第四红线)
+            submit_for_approval,
+            submit_for_approval_with_cost,
+            auditor_pre_screen_approval,
+            decide_approval,
+            list_pending_approvals,
+            get_approval_audit_log,
+            add_approval_rule,
+            remove_approval_rule,
+            get_approval_rules,
+            get_approval_suggestions,
+            expire_stale_approvals,
+            save_approval_state,
+            load_approval_state,
             // session persistence (chunked)
             save_chat_session_chunk,
             load_chat_session_chunk,
             list_historical_meta_manifests,
+            list_sessions_by_project,
             delete_chat_session,
             export_chat_session,
             rename_chat_session,
@@ -1389,6 +2164,39 @@ pub fn run() {
                 let handle = _app.handle().clone();
                 let state = _app.state::<AppState>();
                 state.orchestrator.lock().unwrap().set_app_handle(handle);
+            }
+
+            // 自动恢复 Context Glue 跨应用绑定
+            {
+                if let Ok(dir) = _app.handle().path().app_data_dir() {
+                    let _ = _app.state::<AppState>().context_glue.lock().unwrap().load_bindings(&dir);
+                }
+            }
+
+            // 自动恢复 Shadow 影子记忆
+            {
+                if let Ok(dir) = _app.handle().path().app_data_dir() {
+                    let _ = _app.state::<AppState>().shadow.lock().unwrap().load_state(&dir);
+                }
+            }
+
+            // 自动恢复 Approval Gate 审批门禁状态
+            {
+                if let Ok(dir) = _app.handle().path().app_data_dir() {
+                    let _ = _app.state::<AppState>().approval_gate.lock().unwrap().load_state(&dir);
+                }
+            }
+
+            // 自动恢复 C-VFS 项目池和检查点（统一使用 app_data_dir）
+            {
+                if let Ok(app_data) = _app.handle().path().app_data_dir() {
+                    let handle = _app.handle().clone();
+                    tokio::spawn(async move {
+                        let state = handle.state::<AppState>();
+                        let guard = state.cvfs.lock().await;
+                        let _ = guard.load_state(&app_data).await;
+                    });
+                }
             }
 
             // 自动加载 skills/ 目录下的所有技能清单
@@ -1419,11 +2227,45 @@ pub fn run() {
                 }
             }
 
-            // 初始化 tracing 日志系统（输出到 chronos_vault/logs/）
-            let app_dir = _app
-                .path()
-                .app_data_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from("."));
+            // 注册统一持久化管理器 — 使用 Send+Sync 的 AppHandle
+            {
+                let handle = _app.handle().clone();
+                let app_data = handle.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+                let state = _app.state::<AppState>();
+                let mut sm = state.state_mgr.lock().unwrap();
+
+                let h1 = handle.clone();
+                let h2 = handle.clone();
+                sm.register("shadow",
+                    move |dir| { h1.state::<AppState>().shadow.lock().unwrap().save_state(dir).map_err(|e| e.to_string()) },
+                    move |dir| { h2.state::<AppState>().shadow.lock().unwrap().load_state(dir).map_err(|e| e.to_string()) },
+                );
+                let h1 = handle.clone(); let h2 = handle.clone();
+                sm.register("context_glue",
+                    move |dir| h1.state::<AppState>().context_glue.lock().unwrap().save_bindings(dir),
+                    move |dir| h2.state::<AppState>().context_glue.lock().unwrap().load_bindings(dir),
+                );
+                let h1 = handle.clone(); let h2 = handle.clone();
+                sm.register("approval_gate",
+                    move |dir| h1.state::<AppState>().approval_gate.lock().unwrap().save_state(dir),
+                    move |dir| h2.state::<AppState>().approval_gate.lock().unwrap().load_state(dir),
+                );
+                let h1 = handle.clone(); let h2 = handle.clone();
+                sm.register("embedding",
+                    move |dir| h1.state::<AppState>().embedding.lock().unwrap().save_state(dir),
+                    move |dir| h2.state::<AppState>().embedding.lock().unwrap().load_state(dir),
+                );
+                let h1 = handle.clone(); let h2 = handle.clone();
+                sm.register("analytics",
+                    move |dir| h1.state::<AppState>().analytics.lock().unwrap().save_state(dir),
+                    move |dir| h2.state::<AppState>().analytics.lock().unwrap().load_state(dir),
+                );
+
+                let _ = sm.init(&app_data);
+            }
+
+            // 初始化 tracing 日志系统
+            let app_dir = _app.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
             let log_dir = app_dir.join("chronos_vault").join("logs");
             std::fs::create_dir_all(&log_dir).ok();
             let log_file = log_dir.join("chronos-shadow.log");
@@ -1433,7 +2275,7 @@ pub fn run() {
                 .with_target(false)
                 .with_thread_ids(true)
                 .init();
-            tracing::info!("Chronos-Shadow v0.1.1 started — log at {:?}", log_file);
+            tracing::info!("Chronos-Shadow v0.2.0 started — log at {:?}", log_file);
 
             // Seed billing_engine from saved settings (cost cap + legacy migration)
             {

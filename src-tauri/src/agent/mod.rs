@@ -14,10 +14,12 @@ pub mod shadow;
 pub mod subagents;
 pub mod win_hooks;
 pub mod worktree;
+pub mod agent_evolution;
 
 // ─── WorkBuddy 泛办公协同底座 ──────────────────────────────────────
 pub mod buddy_scan;
 pub mod context_glue;
+pub mod workbuddy_engine;
 
 // ─── 远程服务器研发协同 ──────────────────────────────────────────
 pub mod remote_proxy;
@@ -38,6 +40,18 @@ pub mod hallucination_guard;
 
 // ─── 金融级安全保险箱 ──────────────────────────────────────
 pub mod security_vault;
+
+// ─── 第四红线：人类审批门禁 ──────────────────────────────────
+pub mod approval_gate;
+
+// ─── 输入验证与完整性保护 ──────────────────────────────────
+pub mod input_guard;
+
+// ─── 端侧科学化分析引擎 ────────────────────────────────────
+pub mod local_analytics;
+
+// ─── 统一持久化状态管理器 ────────────────────────────────────
+pub mod state_manager;
 
 // ─── 会话持久化引擎 ──────────────────────────────────────────
 pub mod session_db;

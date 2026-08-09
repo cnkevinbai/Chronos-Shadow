@@ -5,6 +5,8 @@
 pub mod extractor;
 pub mod consolidator;
 pub mod regulator;
+pub mod agent_quality;
+pub mod embedding;
 
 use extractor::{ExtractorStats, ShadowExtractor};
 use consolidator::{ConsolidatedSkill, Consolidator, ConsolidatorStats, LocalConsolidator, EvoDelta};

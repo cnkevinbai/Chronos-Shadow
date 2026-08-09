@@ -13,6 +13,7 @@ import SkillMcpHub from "@/views/SkillMcpHub";
 import RemoteHub from "@/views/RemoteHub";
 import RedlineGuardPanel from "@/views/RedlineGuardPanel";
 import SecurityShieldPanel from "@/components/SecurityShieldPanel";
+import ApprovalPanel from "@/views/ApprovalPanel";
 import FooterBar from "@/components/FooterBar";
 import FloatingBubble from "@/components/FloatingBubble";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -34,6 +35,7 @@ import {
   onPipelineEvent,
   getAvailableModels,
   setRouteMode as setRouteModeIpc,
+  submitForApproval,
 } from "@/lib/tauri";
 import type { RedlineStatus, OrchestratorStats } from "@/lib/types";
 
@@ -59,7 +61,7 @@ function AppInner() {
   // ── 全局视图路由 ────────────────────────────────────────────────
   const [activeView, setActiveView] = useState<"workbench" | "settings" | "evolution">("workbench");
   // Dock 导航
-  const [dockView, setDockView] = useState<"chat" | "pipeline" | "glue" | "skills" | "remote" | "explorer">("chat");
+  const [dockView, setDockView] = useState<"chat" | "pipeline" | "glue" | "skills" | "remote" | "explorer" | "approval">("chat");
 
   // ── 模型配置 ────────────────────────────────────────────────────
   const [routeMode, setRouteMode] = useState<"auto" | "manual">("auto");
@@ -187,7 +189,30 @@ function AppInner() {
     start: async () => { await startPipeline(); refreshStatus(); toast.showToast("info", "PIPELINE", t.toast_pipeline_start); },
     pause: async () => { await pausePipeline(); refreshStatus(); toast.showToast("warning", "PIPELINE", t.toast_pipeline_pause); },
     resume: async () => { await resumePipeline(); refreshStatus(); toast.showToast("success", "PIPELINE", t.toast_pipeline_resume); },
-    advance: async () => { await advancePipeline(); refreshStatus(); toast.showToast("info", "PIPELINE", t.toast_pipeline_advance); },
+    advance: async () => {
+      try {
+        await advancePipeline();
+        refreshStatus();
+        toast.showToast("info", "PIPELINE", t.toast_pipeline_advance);
+      } catch (e: unknown) {
+        const msg = String(e);
+        if (msg.includes("第四红线")) {
+          // 从错误消息中提取 target_id 并自动提交审批
+          const targetMatch = msg.match(/target=([^)]+)/);
+          const targetId = targetMatch ? targetMatch[1] : "pipeline:unknown";
+          try {
+            await submitForApproval("pipeline_advance", targetId,
+              `SDLC 流水线跃迁: ${targetId}`, "{}");
+            toast.showToast("warning", "⛔ 审批门禁",
+              `已自动提交审批 (${targetId})。请切换到审批面板审核后重试推进。`);
+          } catch {
+            toast.showToast("error", "⛔ 审批门禁", msg);
+          }
+        } else {
+          toast.showToast("error", "PIPELINE ERROR", msg);
+        }
+      }
+    },
   };
 
   // ── 渲染 ────────────────────────────────────────────────────────
@@ -321,12 +346,18 @@ function AppInner() {
               <DockButton active={dockView === "explorer"} tip="项目时光机" onClick={() => setDockView("explorer")}>
                 <ChronosFolderIcon size={18} className={dockView === "explorer" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
+              <DockButton active={dockView === "approval"} tip="审批门禁" onClick={() => setDockView("approval")}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={dockView === "approval" ? "stroke-red-400" : "stroke-zinc-500"}>
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <path d="M9 12l2 2 4-4"/>
+                </svg>
+              </DockButton>
             </nav>
 
             {/* 中央画布 — 根据 Dock 切换 */}
             <section className="flex-1 bg-[#09090b] overflow-hidden flex flex-col">
               {dockView === "chat" && (
-                <div className="flex-1 overflow-hidden"><ChatPanel selectedModel={selectedLLM} apiKey="" hasKeys={hasKeys} /></div>
+                <div className="flex-1 overflow-hidden"><ChatPanel selectedModel={selectedLLM} apiKey="" hasKeys={hasKeys} currentProject={currentProject} /></div>
               )}
               {dockView === "pipeline" && (
                 <div className="flex-1 overflow-hidden">
@@ -352,6 +383,9 @@ function AppInner() {
                 <div className="flex-1 overflow-hidden">
                   <ProjectExplorer currentProject={currentProject} onProjectChange={setCurrentProject} />
                 </div>
+              )}
+              {dockView === "approval" && (
+                <div className="flex-1 overflow-hidden"><ApprovalPanel /></div>
               )}
             </section>
 

@@ -152,16 +152,26 @@ export default function SkillMcpHub() {
               <span>{t.import_skill}</span>
             </button>
 
-            {/* Skill cards grid */}
+            {/* Skill cards grid — 实时数据优先，mock 兜底 */}
             <div className="grid grid-cols-2 gap-2">
-              {skills.map((skill) => (
+              {(liveSkills.length > 0 ? liveSkills.map(s => ({
+                id: s.manifest.id, name: s.manifest.name, description: s.manifest.description || "",
+                type: (s.state === "subagent" ? "subagent" : "skill") as "skill" | "subagent",
+                enabled: true, synced: true,
+                badge: s.state === "subagent" ? "🤖 Agent" : "⚡ Skill",
+                category: s.state || "general",
+              })) : skills).map((skill) => (
                 <SkillCard key={skill.id} skill={skill} />
               ))}
             </div>
           </div>
         ) : (
           <div className="p-3 space-y-2">
-            {mcpServers.map((server) => (
+            {(liveMcp.length > 0 ? liveMcp.map(s => ({
+              id: s.id, name: s.name, transport: (typeof s.transport === "object" && "Stdio" in (s.transport || {}) ? "stdio" : "sse") as "stdio" | "sse",
+              tools: s.tools_count ?? 0, resources: s.resources_count ?? 0,
+              connected: s.connected ?? false,
+            })) : mcpServers).map((server) => (
               <McpServerCard
                 key={server.id}
                 server={server}

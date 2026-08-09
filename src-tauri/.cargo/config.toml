@@ -1,8 +1,2 @@
-[registries]
-rsproxy = { index = "sparse+https://rsproxy.cn/index/" }
-
-[source.crates-io]
-replace-with = "rsproxy"
-
-[net]
-retry = 5
+[build]
+rustc = "D:\\rust\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\bin\\rustc.exe"

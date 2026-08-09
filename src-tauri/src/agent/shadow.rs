@@ -219,12 +219,67 @@ impl ShadowEngine {
             dismissed: self.dismissed_count,
         }
     }
+
+    /// 持久化影子状态到磁盘
+    pub fn save_state(&self, dir: &std::path::Path) -> Result<(), String> {
+        let path = dir.join("shadow_state.json");
+        let state = ShadowPersistState {
+            enabled: self.enabled,
+            error_count: self.error_count,
+            suggestions: self.suggestions.clone(),
+            dismissed_count: self.dismissed_count,
+            accepted_count: self.accepted_count,
+        };
+        let json = serde_json::to_string_pretty(&state)
+            .map_err(|e| format!("序列化影子状态失败: {}", e))?;
+        std::fs::write(&path, json)
+            .map_err(|e| format!("写入影子状态文件失败: {}", e))?;
+        tracing::info!("[SHADOW] Saved state: {} suggestions, {} accepted, {} dismissed",
+            state.suggestions.len(), state.accepted_count, state.dismissed_count);
+        Ok(())
+    }
+
+    /// 从磁盘恢复影子状态
+    pub fn load_state(&mut self, dir: &std::path::Path) -> Result<(), String> {
+        let path = dir.join("shadow_state.json");
+        if !path.exists() {
+            tracing::info!("[SHADOW] No saved state file, starting fresh");
+            return Ok(());
+        }
+        let json = std::fs::read_to_string(&path)
+            .map_err(|e| format!("读取影子状态文件失败: {}", e))?;
+        let state: ShadowPersistState = serde_json::from_str(&json)
+            .map_err(|e| format!("反序列化影子状态失败: {}", e))?;
+
+        self.enabled = state.enabled;
+        self.error_count = state.error_count;
+        self.suggestions = state.suggestions;
+        self.dismissed_count = state.dismissed_count;
+        self.accepted_count = state.accepted_count;
+        if self.enabled {
+            self.state = ShadowState::Listening;
+        }
+
+        tracing::info!("[SHADOW] Loaded state: {} suggestions, {} accepted, {} dismissed",
+            self.suggestions.len(), self.accepted_count, self.dismissed_count);
+        Ok(())
+    }
 }
 
 impl Default for ShadowEngine {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// 影子持久化状态快照
+#[derive(Serialize, Deserialize)]
+struct ShadowPersistState {
+    enabled: bool,
+    error_count: u32,
+    suggestions: Vec<SuggestionCard>,
+    dismissed_count: u32,
+    accepted_count: u32,
 }
 
 /// 影子模式统计

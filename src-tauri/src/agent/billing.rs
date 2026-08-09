@@ -35,9 +35,9 @@ pub struct BillingSnapshot {
     pub cached_tokens: u32,
 }
 
-// ─── 2026 官方费率矩阵 (RMB / 1M tokens) ──────────────────────────
+// ─── 2026 官方费率矩阵 (RMB / 1M tokens, 精确到微钱) ────────────
 
-/// (未命中输入, 缓存命中输入, 输出)
+/// (输入价格, 缓存命中输入, 输出价格) — 单位: RMB/1M tokens
 type RateTriple = (f64, f64, f64);
 
 pub struct ChronosBillingEngine {
@@ -48,24 +48,58 @@ impl ChronosBillingEngine {
     pub fn new() -> Self {
         let mut rates = HashMap::new();
 
-        // DeepSeek 官方: https://api-docs.deepseek.com/zh-cn/quick_start/pricing
-        rates.insert(ModelModel::DeepSeekV4Pro,   (1.00, 0.10, 2.00));
-        rates.insert(ModelModel::DeepSeekV4Flash, (0.10, 0.01, 0.20));
+        // ═══════════════════════════════════════════════════════
+        // DeepSeek 官方定价 (2026)
+        // 来源: https://api-docs.deepseek.com/zh-cn/quick_start/pricing
+        // V4-Pro:  ¥1.00/M输入(未命中) ¥0.10/M输入(缓存命中) ¥4.00/M输出
+        // V4-Flash: ¥0.10/M输入(未命中) ¥0.01/M输入(缓存命中) ¥0.40/M输出
+        // 缓存命中 = 一折计费 (90% discount)
+        // ═══════════════════════════════════════════════════════
+        rates.insert(ModelModel::DeepSeekV4Pro,   (1.00, 0.10, 4.00));
+        rates.insert(ModelModel::DeepSeekV4Flash, (0.10, 0.01, 0.40));
 
-        // Kimi 官方: https://platform.kimi.com/docs/pricing/chat
-        rates.insert(ModelModel::KimiK3,               (15.00, 15.00, 15.00));
-        rates.insert(ModelModel::KimiK27Code,          (5.00,  5.00,  5.00));
-        rates.insert(ModelModel::KimiK27CodeHighspeed, (5.00,  5.00,  5.00));
+        // ═══════════════════════════════════════════════════════
+        // Kimi (Moonshot) 官方定价 (2026)
+        // 来源: https://platform.kimi.com/docs/pricing/chat
+        // K3:   ¥8.00/M输入  ¥8.00/M缓存  ¥8.00/M输出
+        // K2.7: ¥3.00/M输入  ¥3.00/M缓存  ¥3.00/M输出
+        // K2.7-HS: ¥1.00/M输入 ¥1.00/M缓存 ¥1.00/M输出
+        // ═══════════════════════════════════════════════════════
+        rates.insert(ModelModel::KimiK3,               (8.00,  8.00,  8.00));
+        rates.insert(ModelModel::KimiK27Code,          (3.00,  3.00,  3.00));
+        rates.insert(ModelModel::KimiK27CodeHighspeed, (1.00,  1.00,  1.00));
 
-        // GLM 官方: https://bigmodel.cn/pricing
+        // ═══════════════════════════════════════════════════════
+        // GLM (智谱) 官方定价 (2026)
+        // 来源: https://bigmodel.cn/pricing
+        // GLM-5.2:     ¥1.00/M输入  ¥1.00/M缓存  ¥2.00/M输出
+        // GLM-5V-Turbo: ¥3.00/M输入  ¥3.00/M缓存  ¥5.00/M输出 (多模态)
+        // GLM-5.1:     ¥0.50/M输入  ¥0.50/M缓存  ¥2.00/M输出
+        // ═══════════════════════════════════════════════════════
         rates.insert(ModelModel::Glm52,       (1.00, 1.00, 2.00));
-        rates.insert(ModelModel::Glm5vTurbo,  (2.00, 2.00, 4.00));
-        rates.insert(ModelModel::Glm51,       (1.00, 1.00, 2.00));
+        rates.insert(ModelModel::Glm5vTurbo,  (3.00, 3.00, 5.00));
+        rates.insert(ModelModel::Glm51,       (0.50, 0.50, 2.00));
 
         // LAN 离线: 0 资费
         rates.insert(ModelModel::LanOllamaR1, (0.00, 0.00, 0.00));
 
         Self { rates }
+    }
+
+    /// 预估单次调用费用 (基于输入字符数估算)
+    pub fn estimate_cost_from_chars(&self, model: &ModelModel, input_chars: usize, estimated_output_chars: usize) -> BillingSnapshot {
+        // 中文≈3.5 chars/token, 英文≈4 chars/token, 取3.5更保守
+        let prompt_tokens = (input_chars as f64 / 3.5).ceil() as u32;
+        let completion_tokens = (estimated_output_chars as f64 / 3.5).ceil() as u32;
+        let usage = ApiUsage { prompt_tokens, completion_tokens, cached_tokens: None };
+        self.calculate_audit_ledger(model, &usage)
+    }
+
+    /// 预估含缓存命中的费用
+    pub fn estimate_cached_cost(&self, model: &ModelModel, prompt_tokens: u32, cached_ratio: f32, completion_tokens: u32) -> BillingSnapshot {
+        let cached = (prompt_tokens as f32 * cached_ratio) as u32;
+        let usage = ApiUsage { prompt_tokens, completion_tokens, cached_tokens: Some(cached) };
+        self.calculate_audit_ledger(model, &usage)
     }
 
     /// 核心：解析 API 用量，计算真实费用 + 省钱审计
@@ -102,9 +136,13 @@ impl ChronosBillingEngine {
             0.0
         };
 
+        // 微钱精度: 保留6位小数
+        let exact_rounded = (exact_total * 1_000_000.0).round() / 1_000_000.0;
+        let saved_rounded = (saved * 1_000_000.0).round() / 1_000_000.0;
+
         BillingSnapshot {
-            exact_cost_rmb: exact_total,
-            saved_cost_rmb: saved,
+            exact_cost_rmb: exact_rounded,
+            saved_cost_rmb: saved_rounded,
             current_saving_rate: rate,
             model_name: model.display().into(),
             tokens_used: usage.prompt_tokens + usage.completion_tokens,

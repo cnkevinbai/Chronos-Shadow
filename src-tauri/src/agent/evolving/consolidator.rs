@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use tokio::sync::Mutex;
 use std::sync::Arc;
 use super::extractor::DeltaExperience;
+use super::embedding::EmbeddingEngine;
 
 // ─── 2.0 规格的正反向增量经验对账单 ──────────────────────────────
 
@@ -134,6 +135,8 @@ pub struct Consolidator {
     pub enabled: bool,
     /// Embedding 维度
     pub embedding_dim: usize,
+    /// 嵌入引擎 — 真实语义相似度检索
+    pub embedding: EmbeddingEngine,
 }
 
 impl Consolidator {
@@ -142,14 +145,14 @@ impl Consolidator {
             db: SkillDatabase { skills: Vec::new(), version: 1 },
             enabled: true,
             embedding_dim: 384,
+            embedding: EmbeddingEngine::new(),
         }
     }
 
-    /// 将经验对固化为本地技能
+    /// 将经验对固化为本地技能 (含向量嵌入)
     pub fn consolidate(&mut self, delta: &DeltaExperience) -> ConsolidatedSkill {
         let id = format!("skill-{:04}", self.db.skills.len() + 1);
 
-        // 生成关键词标签
         let mut tags: Vec<String> = delta.scope
             .split(&['/', '.', ' ', ':', ','][..])
             .filter(|s| !s.is_empty() && s.len() > 2)
@@ -157,8 +160,10 @@ impl Consolidator {
             .collect();
         tags.push(format!("{:?}", delta.trigger).to_lowercase());
 
-        // 模拟向量嵌入 (生产环境使用 fastembed / text-embeddings-inference)
         let embedding = self.mock_embed(&delta.correction);
+
+        // 添加到真实嵌入引擎
+        self.embedding.add(&id, &delta.correction, tags.clone(), "consolidator");
 
         let skill = ConsolidatedSkill {
             id: id.clone(),
@@ -177,12 +182,6 @@ impl Consolidator {
 
         self.db.skills.push(skill.clone());
         self.db.version += 1;
-
-        tracing::info!(
-            "[CONSOLIDATOR] Skill '{}' consolidated ({} dims). DB version: {}",
-            skill.name, self.embedding_dim, self.db.version
-        );
-
         skill
     }
 
@@ -193,8 +192,21 @@ impl Consolidator {
 
     /// 检索相似历史经验（零 Token 经验重用）
     pub fn find_similar(&mut self, query: &str, top_k: usize) -> Vec<ConsolidatedSkill> {
-        let query_emb = self.mock_embed(query);
+        // 优先使用真实嵌入引擎搜索
+        let embedding_results = self.embedding.search(query, top_k);
+        if !embedding_results.is_empty() {
+            let results: Vec<ConsolidatedSkill> = embedding_results.iter()
+                .filter_map(|(_, entry)| {
+                    self.db.skills.iter().find(|s| s.id == entry.id).cloned()
+                })
+                .collect();
+            if !results.is_empty() {
+                return results;
+            }
+        }
 
+        // Fallback: 使用旧的 mock_embed + cosine 搜索
+        let query_emb = self.mock_embed(query);
         let mut scored: Vec<(f64, &ConsolidatedSkill)> = self.db.skills.iter()
             .map(|s| (cosine_similarity(&query_emb, &s.embedding), s))
             .collect();

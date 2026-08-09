@@ -256,6 +256,7 @@ impl ApiClient {
                 let mut stream = response.bytes_stream();
                 let mut full_content = String::new();
                 let mut buffer = String::new();
+                let mut stream_error: Option<String> = None;
 
                 while let Some(chunk_result) = stream.next().await {
                     match chunk_result {
@@ -263,7 +264,6 @@ impl ApiClient {
                             let text = String::from_utf8_lossy(&bytes);
                             buffer.push_str(&text);
 
-                            // 按行解析 SSE data
                             while let Some(line_end) = buffer.find('\n') {
                                 let line = buffer[..line_end].trim().to_string();
                                 buffer = buffer[line_end + 1..].to_string();
@@ -285,24 +285,36 @@ impl ApiClient {
                             }
                         }
                         Err(e) => {
+                            stream_error = Some(format!("流中断: {}", e));
                             tracing::warn!("[API CLIENT] Stream chunk error: {}", e);
                             break;
                         }
                     }
                 }
 
-                let tokens = full_content.len() as u32 / 4; // 粗略估算
+                let tokens = full_content.len() as u32 / 4;
                 let cost = estimate_cost_from_model_name(model, tokens, 0);
                 self.total_tokens += tokens as u64;
                 self.total_cost += cost;
 
-                ApiResponse {
-                    success: true,
-                    content: full_content,
-                    model: model.into(),
-                    tokens_used: tokens,
-                    cost_estimate: cost,
-                    error: None,
+                if let Some(err) = stream_error {
+                    ApiResponse {
+                        success: false,
+                        content: full_content,
+                        model: model.into(),
+                        tokens_used: tokens,
+                        cost_estimate: cost,
+                        error: Some(err),
+                    }
+                } else {
+                    ApiResponse {
+                        success: true,
+                        content: full_content,
+                        model: model.into(),
+                        tokens_used: tokens,
+                        cost_estimate: cost,
+                        error: None,
+                    }
                 }
             }
             Err(e) => ApiResponse {

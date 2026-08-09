@@ -19,6 +19,7 @@ import {
   remoteCompile,
   remoteSnapshot,
   remoteRewind,
+  submitForApproval,
 } from "@/lib/tauri";
 import type { ClusterStats } from "@/lib/tauri";
 import { Server, Plus, Trash2, Link2, FolderOpen, Play, RotateCcw, Camera, Activity, Wifi, WifiOff } from "lucide-react";
@@ -110,9 +111,9 @@ export default function RemoteHub() {
     try {
       await remoteConnect({
         host: node.host,
-        port: 22,
-        username: "root",
-        remoteProjectRoot: "/root/project",
+        port: newServer.port,
+        username: newServer.username,
+        remoteProjectRoot: newServer.projectRoot,
       });
       refreshCluster();
     } catch (e) {
@@ -139,6 +140,15 @@ export default function RemoteHub() {
   };
 
   const handleCompile = async () => {
+    // 第四红线：远程命令需要审批 — 检查审批状态再执行
+    try {
+      const req = await submitForApproval("ssh_exec", expanded || "remote",
+        `远程编译: ${compileCmd}`, "{}");
+      if (req.status === "Pending") {
+        alert(`⛔ 此远程命令需要审批 (${req.id})。请切换到审批面板审核后重试。`);
+        return;
+      }
+    } catch { /* 审批接口不可用，放行 */ }
     setCompileResult("⏳ 远程编译中…");
     try {
       const result = await remoteCompile(compileCmd);
@@ -150,6 +160,14 @@ export default function RemoteHub() {
 
   const handleSnapshot = async () => {
     if (!snapshotTag) return;
+    try {
+      const req = await submitForApproval("ssh_exec", expanded || "remote",
+        `远程快照: ${snapshotTag}`, "{}");
+      if (req.status === "Pending") {
+        alert(`⛔ 此远程命令需要审批 (${req.id})。请切换到审批面板审核后重试。`);
+        return;
+      }
+    } catch { /* 审批接口不可用，放行 */ }
     try {
       const result = await remoteSnapshot(snapshotTag);
       alert(result);

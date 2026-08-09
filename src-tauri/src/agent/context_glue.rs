@@ -450,19 +450,33 @@ impl ContextGlue {
             TransformRule::Direct => data.to_string(),
             TransformRule::Format(template) => {
                 template.replace("{value}", data)
+                    .replace("{upper}", &data.to_uppercase())
+                    .replace("{lower}", &data.to_lowercase())
+                    .replace("{len}", &data.len().to_string())
             }
-            TransformRule::FieldMap { from: _, to: _ } => {
-                // 生产环境：根据 from/to 定义查询 JSON/CSV 映射表
-                data.to_string()
+            TransformRule::FieldMap { from, to } => {
+                // JSON 字段映射: from="amount" → to="total"
+                if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(data) {
+                    if let Some(v) = json_val.get(from) {
+                        let mut out = serde_json::Map::new();
+                        out.insert(to.clone(), v.clone());
+                        serde_json::to_string(&serde_json::Value::Object(out)).unwrap_or_default()
+                    } else { data.to_string() }
+                } else { data.to_string() }
             }
             TransformRule::RegexExtract { pattern, group } => {
-                // 生产环境：正则提取
-                let _ = pattern;
-                let _ = group;
-                data.to_string()
+                if let Ok(re) = regex::Regex::new(pattern) {
+                    if let Some(caps) = re.captures(data) {
+                        caps.get(*group).map(|m| m.as_str().to_string()).unwrap_or_default()
+                    } else { String::new() }
+                } else { data.to_string() }
             }
-            TransformRule::Custom(_rule) => {
-                data.to_string()
+            TransformRule::Custom(rule) => {
+                // 自定义规则: 支持简单表达式
+                if rule.contains("trim") { data.trim().to_string() }
+                else if rule.contains("number:") {
+                    data.chars().filter(|c| c.is_ascii_digit() || *c == '.').collect()
+                } else { data.to_string() }
             }
         };
 
@@ -512,6 +526,64 @@ impl Default for ContextGlue {
     fn default() -> Self {
         Self::new()
     }
+}
+
+impl ContextGlue {
+    /// 持久化所有绑定到磁盘
+    pub fn save_bindings(&self, dir: &std::path::Path) -> Result<(), String> {
+        let path = dir.join("glue_bindings.json");
+        let state = GluePersistState {
+            apps: self.apps.clone(),
+            bindings: self.bindings.clone(),
+            enabled: self.enabled,
+        };
+        let json = serde_json::to_string_pretty(&state)
+            .map_err(|e| format!("序列化绑定失败: {}", e))?;
+        std::fs::write(&path, json)
+            .map_err(|e| format!("写入绑定文件失败: {}", e))?;
+        tracing::info!(
+            "[CONTEXT GLUE] Saved {} apps + {} bindings to {:?}",
+            state.apps.len(), state.bindings.len(), path
+        );
+        Ok(())
+    }
+
+    /// 从磁盘恢复绑定
+    pub fn load_bindings(&mut self, dir: &std::path::Path) -> Result<(), String> {
+        let path = dir.join("glue_bindings.json");
+        if !path.exists() {
+            tracing::info!("[CONTEXT GLUE] No saved bindings file, starting fresh");
+            return Ok(());
+        }
+        let json = std::fs::read_to_string(&path)
+            .map_err(|e| format!("读取绑定文件失败: {}", e))?;
+        let state: GluePersistState = serde_json::from_str(&json)
+            .map_err(|e| format!("反序列化绑定失败: {}", e))?;
+
+        let app_count = state.apps.len();
+        let binding_count = state.bindings.len();
+        self.apps = state.apps;
+        self.bindings = state.bindings;
+        self.enabled = state.enabled;
+        // 重新计算统计
+        self.stats.apps_bound = self.apps.len();
+        self.stats.active_bindings = self.bindings.iter().filter(|b| b.active).count();
+        self.stats.active = self.enabled;
+
+        tracing::info!(
+            "[CONTEXT GLUE] Loaded {} apps + {} bindings from {:?}",
+            app_count, binding_count, path
+        );
+        Ok(())
+    }
+}
+
+/// 持久化状态快照
+#[derive(serde::Serialize, serde::Deserialize)]
+struct GluePersistState {
+    apps: HashMap<String, AppNode>,
+    bindings: Vec<AppBinding>,
+    enabled: bool,
 }
 
 // ─── 单元测试 ──────────────────────────────────────────────────────

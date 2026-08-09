@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
   "productName": "Chronos-Shadow",
-  "version": "0.1.1",
-  "identifier": "com.chronos-shadow.app",
+  "version": "0.2.0",
+  "identifier": "com.chronosshadow.dev",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -10,9 +10,7 @@
     "beforeBuildCommand": "npm run build"
   },
   "plugins": {
-    "updater": {
-      "endpoints": []
-    }
+    "updater": { "endpoints": [] }
   },
   "bundle": {
     "active": true,
@@ -24,28 +22,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [
-      "resources/*",
-      "../dist/splash.png"
-    ],
+    "resources": ["resources/*"],
     "windows": {
-      "nsis": {
-        "installMode": "currentUser",
-        "languages": ["SimpChinese", "English"]
-      }
+      "nsis": { "installMode": "currentUser", "languages": ["SimpChinese", "English"] }
     }
   },
   "app": {
     "windows": [
-      {
-        "title": "Chronos-Shadow | 时空之影",
-        "width": 1400,
-        "height": 900,
-        "minWidth": 1024,
-        "minHeight": 680,
-        "resizable": true,
-        "fullscreen": false
-      }
+      { "title": "Chronos-Shadow | 时空之影", "width": 1400, "height": 900, "minWidth": 1024, "minHeight": 680, "resizable": true, "fullscreen": false }
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.deepseek.com https://api.moonshot.cn https://open.bigmodel.cn http://localhost:11434; img-src 'self' data: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"

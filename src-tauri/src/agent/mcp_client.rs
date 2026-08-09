@@ -352,9 +352,13 @@ impl McpClient {
             }
         }
 
-        // Fallback mock
-        let raw = json!({ "server": server.name, "tool": tool_name, "rows": 42, "status": "ok" });
-        McpCallResult { success: true, data: Some(raw.clone()), distilled: Some(self.distill(&raw)), error: None }
+        // Fallback: 返回错误而非虚构数据，防止 LLM 收到幻觉输出
+        McpCallResult {
+            success: false,
+            data: None,
+            distilled: None,
+            error: Some(format!("MCP tool '{}' on server '{}' is unavailable", tool_name, server.name)),
+        }
     }
 
     // ── 蒸馏 + Prompt 注入 ────────────────────────────────────────

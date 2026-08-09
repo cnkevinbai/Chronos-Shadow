@@ -184,3 +184,95 @@ export interface ContextGlueStats {
   active: boolean;
   clipboard_managed: boolean;
 }
+
+// ─── Approval Gate (第四红线) ─────────────────────────────────────
+
+export type ApprovalStatus = "Pending" | "Approved" | "Rejected" | "Expired" | "AutoApproved" | "AuditorPreScreened";
+
+export interface ApprovalRule {
+  id: string;
+  name: string;
+  action_type: string;
+  enabled: boolean;
+  auto_approve_below_risk: number;
+  timeout_secs: number;
+  reject_on_timeout: boolean;
+  approver: string;
+  project_scope: string | null;
+  enable_auditor_prescreen: boolean;
+  auditor_risk_reduction: number;
+}
+
+export interface ApprovalRequest {
+  id: string;
+  action_type: string;
+  target_id: string;
+  description: string;
+  risk_level: number;
+  status: string;
+  submitted_at: string;
+  decided_at: string | null;
+  decided_by: string | null;
+  decision_comment: string | null;
+  metadata: string;
+  project: string | null;
+  estimated_cost: number | null;
+  auditor_prescreen: {
+    passed: boolean;
+    findings_count: number;
+    critical_count: number;
+    summary: string;
+  } | null;
+  expires_at: string | null;
+}
+
+export interface ApprovalSuggestion {
+  rule_name: string;
+  action_type: string;
+  current_threshold: number;
+  suggested_threshold: number;
+  reason: string;
+  confidence: number;
+}
+
+export interface OperationRiskProfile {
+  impact_scope: number;
+  reversibility: number;
+  cost_impact: number;
+  compliance_required: number;
+  composite_score: number;
+  label: string;
+}
+
+// ─── Worktree ──────────────────────────────────────────────────────
+
+export type WorktreeState =
+  | "Created"
+  | { Active: { task_id: string; agent_id: string } }
+  | { Completed: { task_id: string } }
+  | "Merged"
+  | { Error: string };
+
+export interface WorktreeInstance {
+  id: string;
+  path: string;
+  task_id: string | null;
+  state: WorktreeState;
+  branch: string;
+  created_at: string;
+}
+
+export interface MergeResult {
+  success: boolean;
+  conflicts: string[];
+  merged_files: string[];
+  error: string | null;
+}
+
+export interface WorktreeStats {
+  total: number;
+  active: number;
+  completed: number;
+  merged: number;
+  errors: number;
+}

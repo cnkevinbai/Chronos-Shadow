@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useT } from "@/lib/i18n-context";
-import { getEvolutionStats, evoValidateExperience, evoInterceptContext } from "@/lib/tauri";
+import { getEvolutionStats, evoValidateExperience, evoInterceptContext, getApprovalSuggestions, getAgentQualityScores } from "@/lib/tauri";
 import { Database, TrendingUp, ExternalLink, Shield, Cpu } from "lucide-react";
 
 interface DeltaLog {
@@ -38,6 +38,18 @@ export default function EvolutionConsole() {
   const [totalInterceptions, setTotalInterceptions] = useState(0);
   const [evoTokensSaved, setEvoTokensSaved] = useState(0);
   const [validationState, setValidationState] = useState<"idle" | "evaluating" | "validated">("idle");
+  const [agentScores, setAgentScores] = useState<{ agent_role: string; rigor_score: number }[]>([]);
+  const [approvalSuggestions, setApprovalSuggestions] = useState<{ rule_name: string; reason: string; confidence: number }[]>([]);
+  void agentScores; void approvalSuggestions;
+
+  useEffect(() => {
+    getAgentQualityScores().then((scores: unknown) => {
+      if (Array.isArray(scores)) setAgentScores(scores as { agent_role: string; rigor_score: number }[]);
+    }).catch(() => {});
+    getApprovalSuggestions().then((s: unknown) => {
+      if (Array.isArray(s)) setApprovalSuggestions(s as { rule_name: string; reason: string; confidence: number }[]);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     getEvolutionStats().then((s) => {

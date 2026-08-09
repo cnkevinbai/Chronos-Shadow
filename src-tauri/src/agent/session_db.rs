@@ -153,11 +153,28 @@ pub async fn save_chat_session_chunk(
 
     let meta_raw =
         serde_json::to_string_pretty(&payload.meta).map_err(|e| e.to_string())?;
-    let chunk_raw =
-        serde_json::to_string_pretty(&payload.messages).map_err(|e| e.to_string())?;
 
-    fs::write(meta_path, meta_raw).map_err(|e| e.to_string())?;
-    fs::write(chunk_path, chunk_raw).map_err(|e| e.to_string())?;
+    // AES-256-GCM 加密消息体（元数据保持明文，侧栏极速读取）
+    let vault = crate::agent::security_vault::NativeSecurityVault::new();
+    let chunk_encrypted = {
+        let temp_payload = ChatSessionPayload {
+            meta: payload.meta.clone(),
+            messages: payload.messages.clone(),
+        };
+        vault.encrypt_session_payload(&temp_payload)
+            .map_err(|e| format!("会话加密失败: {}", e))?
+    };
+    // 格式: [12 bytes nonce][AES-256-GCM ciphertext]
+    let mut chunk_data = chunk_encrypted.1; // nonce first
+    chunk_data.extend_from_slice(&chunk_encrypted.0); // then ciphertext
+
+    // 原子化写入: temp + rename, 防止崩溃时文件损坏
+    let meta_tmp = base_dir.join(format!("{}.meta.tmp", &payload.meta.session_id));
+    let chunk_tmp = base_dir.join(format!("{}.chunks.tmp", &payload.meta.session_id));
+    fs::write(&meta_tmp, meta_raw).map_err(|e| e.to_string())?;
+    fs::write(&chunk_tmp, &chunk_data).map_err(|e| e.to_string())?;
+    fs::rename(&meta_tmp, meta_path).map_err(|e| e.to_string())?;
+    fs::rename(&chunk_tmp, chunk_path).map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -184,12 +201,23 @@ pub async fn load_chat_session_chunk(
     }
 
     let meta_raw = fs::read_to_string(meta_path).map_err(|e| e.to_string())?;
-    let chunk_raw = fs::read_to_string(chunk_path).map_err(|e| e.to_string())?;
+    let chunk_data = fs::read(chunk_path).map_err(|e| e.to_string())?;
+
+    // AES-256-GCM 解密: 前12字节为nonce，剩余为密文
+    let messages: Vec<ChatMessageEntity> = if chunk_data.len() > 12 {
+        let nonce = &chunk_data[..12];
+        let ciphertext = &chunk_data[12..];
+        let vault = crate::agent::security_vault::NativeSecurityVault::new();
+        vault.decrypt_session_blob(ciphertext, nonce)
+            .map_err(|e| format!("会话解密失败: {}", e))?.messages
+    } else {
+        // 向后兼容: 未加密的旧格式 (纯 JSON)
+        let chunk_raw = String::from_utf8_lossy(&chunk_data).to_string();
+        serde_json::from_str(&chunk_raw).map_err(|e| e.to_string())?
+    };
 
     let meta: SessionMetaManifest =
         serde_json::from_str(&meta_raw).map_err(|e| e.to_string())?;
-    let messages: Vec<ChatMessageEntity> =
-        serde_json::from_str(&chunk_raw).map_err(|e| e.to_string())?;
 
     Ok(ChatSessionPayload { meta, messages })
 }
@@ -225,6 +253,43 @@ pub async fn list_historical_meta_manifests(
     }
 
     // 按最后修改时间戳降序排列，保证最新会话永远置顶
+    manifest_list.sort_by(|a, b| b.last_updated.cmp(&a.last_updated));
+    Ok(manifest_list)
+}
+
+/// 核心命令 3b：按项目过滤历史会话清单
+///
+/// 与 list_historical_meta_manifests 逻辑相同，但仅返回 bound_project
+/// 匹配的会话。用于项目切换时自动刷新关联会话列表。
+#[tauri::command]
+pub async fn list_sessions_by_project(
+    app_handle: AppHandle,
+    project_name: String,
+) -> Result<Vec<SessionMetaManifest>, String> {
+    let base_dir = get_session_base_dir(&app_handle);
+    let mut manifest_list = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(base_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file()
+                && path
+                    .extension()
+                    .map_or(false, |ext| ext == "meta")
+            {
+                if let Ok(meta_raw) = fs::read_to_string(path) {
+                    if let Ok(meta) =
+                        serde_json::from_str::<SessionMetaManifest>(&meta_raw)
+                    {
+                        if meta.bound_project == project_name {
+                            manifest_list.push(meta);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     manifest_list.sort_by(|a, b| b.last_updated.cmp(&a.last_updated));
     Ok(manifest_list)
 }

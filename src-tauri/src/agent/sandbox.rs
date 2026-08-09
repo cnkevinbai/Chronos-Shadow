@@ -605,6 +605,302 @@ impl ChronosVirtualFileSystem {
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect()
     }
+
+    // ── 真实文件列表 ──────────────────────────────────────────────
+
+    /// 列出项目目录下的真实文件树
+    pub async fn list_project_files(&self, project_id: &str) -> Result<Vec<VfsNode>, String> {
+        let pool = self.projects_pool.read().await;
+        let root = pool.get(project_id)
+            .ok_or_else(|| format!("项目 {} 不存在", project_id))?;
+
+        let mut nodes = Vec::new();
+        Self::walk_dir(root, root, 0, 3, &mut nodes);
+        Ok(nodes)
+    }
+
+    fn walk_dir(base: &PathBuf, dir: &PathBuf, depth: usize, max_depth: usize, nodes: &mut Vec<VfsNode>) {
+        if depth > max_depth { return; }
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            let mut dirs = Vec::new();
+            let mut files = Vec::new();
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                if name.starts_with('.') || name == "node_modules" || name == "target" || name == "dist" {
+                    continue;
+                }
+                let rel = path.strip_prefix(base).unwrap_or(&path).to_string_lossy().to_string();
+                let rel = rel.replace('\\', "/");
+                let is_dir = path.is_dir();
+                let is_locked = name == "CLAUDE.md";
+                let node = VfsNode {
+                    name: name.clone(), is_dir, relative_path: rel,
+                    server_id: String::new(), is_locked,
+                };
+                if is_dir { dirs.push((node, path)); }
+                else { files.push(node); }
+            }
+            dirs.sort_by(|a, b| a.0.name.cmp(&b.0.name));
+            files.sort_by(|a, b| a.name.cmp(&b.name));
+            for (node, p) in dirs {
+                nodes.push(node.clone());
+                Self::walk_dir(base, &p, depth + 1, max_depth, nodes);
+            }
+            for f in files { nodes.push(f); }
+        }
+    }
+
+    // ── 检查点管理（带文件内容快照）────────────────────────────────
+
+    /// 捕获检查点 — 备份实际文件内容
+    pub async fn capture_checkpoint_v2(
+        &self, project_id: &str, label: &str, description: &str,
+    ) -> Result<ChronosCheckpointV2, String> {
+        let pool = self.projects_pool.read().await;
+        let root = pool.get(project_id)
+            .ok_or_else(|| format!("项目 {} 不存在", project_id))?;
+
+        let cid = format!("cp-{}", chrono::Utc::now().timestamp_millis());
+        let mut changed = Vec::new();
+        let mut snapshot_data: HashMap<String, String> = HashMap::new();
+
+        // 快照：遍历项目目录，捕获文本文件内容
+        if let Ok(entries) = std::fs::read_dir(root) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                if name.starts_with('.') { continue; }
+                let rel = path.strip_prefix(root).unwrap_or(&path).to_string_lossy().to_string();
+                changed.push(rel.clone());
+                if path.is_file() && path.metadata().map(|m| m.len() < 1024 * 1024).unwrap_or(false) {
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        snapshot_data.insert(rel, content);
+                    }
+                }
+            }
+        }
+
+        let checkpoint = ChronosCheckpointV2 {
+            checkpoint_id: cid.clone(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            bound_project_id: project_id.to_string(),
+            vss_snapshot_guid: None,
+            changed_files_diff: changed.clone(),
+            desc: format!("{}: {}", label, description),
+        };
+
+        // 持久化检查点到磁盘
+        let cvfs_dir = root.join(".chronos_cvfs");
+        std::fs::create_dir_all(&cvfs_dir).map_err(|e| e.to_string())?;
+        let cp_path = cvfs_dir.join(format!("{}.json", cid));
+        let data = serde_json::json!({
+            "checkpoint": checkpoint,
+            "snapshot": snapshot_data,
+        });
+        std::fs::write(&cp_path, serde_json::to_string_pretty(&data).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+
+        // 内存中同步
+        let mut history = self.timeline_history.write().await;
+        history.push(checkpoint.clone());
+
+        tracing::info!("[C-VFS] Checkpoint {} captured: {} files, {} snapshots",
+            cid, changed.len(), snapshot_data.len());
+        Ok(checkpoint)
+    }
+
+    /// 恢复检查点 — 还原文件内容
+    pub async fn restore_checkpoint(&self, project_id: &str, checkpoint_id: &str) -> Result<(), String> {
+        // 校验 checkpoint_id 防路径穿越
+        if checkpoint_id.contains("..") || checkpoint_id.contains('/') || checkpoint_id.contains('\\') {
+            return Err(format!("无效的检查点ID: {}", checkpoint_id));
+        }
+        let pool = self.projects_pool.read().await;
+        let root = pool.get(project_id)
+            .ok_or_else(|| format!("项目 {} 不存在", project_id))?;
+        let cvfs_dir = root.join(".chronos_cvfs");
+        let cp_path = cvfs_dir.join(format!("{}.json", checkpoint_id));
+        if !cp_path.exists() {
+            return Err(format!("检查点 {} 不存在", checkpoint_id));
+        }
+
+        let json = std::fs::read_to_string(&cp_path).map_err(|e| e.to_string())?;
+        let data: serde_json::Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+        if let Some(snapshot) = data.get("snapshot").and_then(|s| s.as_object()) {
+            for (rel_path, content) in snapshot {
+                let target = root.join(rel_path);
+                // 路径穿越防护：确保还原目标仍在项目根目录内
+                let canon = target.canonicalize().unwrap_or(target.clone());
+                if !canon.starts_with(root) {
+                    tracing::warn!("[C-VFS] Blocked path traversal in checkpoint restore: {}", rel_path);
+                    continue;
+                }
+                if let Some(parent) = target.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                std::fs::write(&target, content.as_str().unwrap_or(""))
+                    .map_err(|e| format!("还原文件 {} 失败: {}", rel_path, e))?;
+            }
+        }
+
+        tracing::info!("[C-VFS] Checkpoint {} restored for project {}", checkpoint_id, project_id);
+        Ok(())
+    }
+
+    /// 删除检查点
+    pub async fn delete_checkpoint(&self, project_id: &str, checkpoint_id: &str) -> Result<(), String> {
+        // 校验 checkpoint_id 防路径穿越
+        if checkpoint_id.contains("..") || checkpoint_id.contains('/') || checkpoint_id.contains('\\') {
+            return Err(format!("无效的检查点ID: {}", checkpoint_id));
+        }
+        let pool = self.projects_pool.read().await;
+        let root = pool.get(project_id)
+            .ok_or_else(|| format!("项目 {} 不存在", project_id))?;
+        let cvfs_dir = root.join(".chronos_cvfs");
+        let cp_path = cvfs_dir.join(format!("{}.json", checkpoint_id));
+        if cp_path.exists() {
+            std::fs::remove_file(&cp_path).map_err(|e| e.to_string())?;
+        }
+        let mut history = self.timeline_history.write().await;
+        history.retain(|c| c.checkpoint_id != checkpoint_id);
+        Ok(())
+    }
+
+    // ── 项目管理 ──────────────────────────────────────────────────
+
+    /// 删除项目
+    pub async fn delete_project(&self, project_id: &str) -> Result<(), String> {
+        // 先持有写锁完成清理，scope 之后释放锁再 save
+        {
+            let mut pool = self.projects_pool.write().await;
+            pool.remove(project_id)
+                .ok_or_else(|| format!("项目 {} 不存在", project_id))?;
+            let mut history = self.timeline_history.write().await;
+            history.retain(|c| c.bound_project_id != project_id);
+        } // 写锁在此释放
+        // 锁已释放，save_state 可以安全地获取读锁
+        self.save_state().await?;
+        Ok(())
+    }
+
+    /// 项目健康状态
+    pub async fn get_project_health(&self, project_id: &str) -> Result<serde_json::Value, String> {
+        let pool = self.projects_pool.read().await;
+        let root = pool.get(project_id)
+            .ok_or_else(|| format!("项目 {} 不存在", project_id))?;
+
+        let mut file_count = 0u32;
+        let mut total_size = 0u64;
+        let mut has_git = false;
+        let mut last_checkpoint: Option<String> = None;
+
+        if let Ok(entries) = std::fs::read_dir(root) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name == ".git" { has_git = true; }
+                if name == ".chronos_cvfs" && entry.path().is_dir() {
+                    if let Ok(cps) = std::fs::read_dir(entry.path()) {
+                        let mut newest = String::new();
+                        let mut newest_time = std::time::SystemTime::UNIX_EPOCH;
+                        for cp in cps.flatten() {
+                            if let Ok(meta) = cp.metadata() {
+                                if let Ok(mod_time) = meta.modified() {
+                                    if mod_time > newest_time {
+                                        newest_time = mod_time;
+                                        newest = cp.file_name().to_string_lossy().to_string();
+                                    }
+                                }
+                            }
+                        }
+                        if !newest.is_empty() { last_checkpoint = Some(newest); }
+                    }
+                }
+                if entry.path().is_file() {
+                    file_count += 1;
+                    total_size += entry.metadata().map(|m| m.len()).unwrap_or(0);
+                }
+            }
+        }
+
+        let history = self.timeline_history.read().await;
+        let cp_count = history.iter().filter(|c| c.bound_project_id == project_id).count() as u32;
+
+        Ok(serde_json::json!({
+            "project_id": project_id,
+            "path": root.to_string_lossy(),
+            "file_count": file_count,
+            "total_size_bytes": total_size,
+            "has_git": has_git,
+            "checkpoint_count": cp_count,
+            "last_checkpoint": last_checkpoint,
+            "status": "healthy",
+        }))
+    }
+
+    // ── 持久化 ────────────────────────────────────────────────────
+
+    /// 保存 C-VFS 状态到磁盘 (使用第一个项目目录，向后兼容)
+    pub async fn save_state(&self) -> Result<(), String> {
+        let pool = self.projects_pool.read().await;
+        let save_dir = if let Some((_, root)) = pool.iter().next() {
+            root.clone()
+        } else {
+            return Ok(());
+        };
+        drop(pool);
+        self.save_state_to(&save_dir).await
+    }
+
+    /// 保存 C-VFS 状态到指定目录
+    pub async fn save_state_to(&self, dir: &std::path::Path) -> Result<(), String> {
+        let cvfs_dir = dir.join(".chronos_cvfs");
+        std::fs::create_dir_all(&cvfs_dir).map_err(|e| e.to_string())?;
+
+        let pool = self.projects_pool.read().await;
+        let projects: HashMap<String, String> = pool.iter()
+            .map(|(k, v)| (k.clone(), v.to_string_lossy().to_string()))
+            .collect();
+        drop(pool);
+        let history = self.timeline_history.read().await.clone();
+
+        let state = serde_json::json!({
+            "projects": projects,
+            "history": history,
+        });
+        std::fs::write(cvfs_dir.join("cvfs_state.json"),
+            serde_json::to_string_pretty(&state).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())
+    }
+
+    /// 从磁盘恢复 C-VFS 状态
+    pub async fn load_state(&self, search_dir: &PathBuf) -> Result<(), String> {
+        let state_path = search_dir.join(".chronos_cvfs").join("cvfs_state.json");
+        if !state_path.exists() { return Ok(()); }
+
+        let json = std::fs::read_to_string(&state_path).map_err(|e| e.to_string())?;
+        let state: serde_json::Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+
+        if let Some(projects) = state.get("projects").and_then(|p| p.as_object()) {
+            let mut pool = self.projects_pool.write().await;
+            for (k, v) in projects {
+                if let Some(path_str) = v.as_str() {
+                    let path = PathBuf::from(path_str);
+                    if path.exists() {
+                        pool.insert(k.clone(), path);
+                    }
+                }
+            }
+        }
+        if let Some(history) = state.get("history") {
+            if let Ok(h) = serde_json::from_value::<Vec<ChronosCheckpointV2>>(history.clone()) {
+                let mut th = self.timeline_history.write().await;
+                *th = h;
+            }
+        }
+        tracing::info!("[C-VFS] State loaded from {:?}", state_path);
+        Ok(())
+    }
 }
 
 impl Default for ChronosVirtualFileSystem {

@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useT } from "@/lib/i18n-context";
-import { getAgentRoster, type AgentRosterEntry, createTask, assignTask, completeTask, failTask } from "@/lib/tauri";
+import { getAgentRoster, type AgentRosterEntry, createTask, assignTask, completeTask, failTask, getEventMetrics } from "@/lib/tauri";
 import {
   User,
   Palette,
@@ -93,6 +93,25 @@ export default function SdlcPipelinePanel({
 
   // ── 零 Token 检测拦截开关 ─────────────────────────────────
   const [detectorOn, setDetectorOn] = useState(true);
+
+  // ── 智能调度指标 ──────────────────────────────────────────
+  const [eventMetrics, setEventMetricsState] = useState<{
+    total_events?: number; dead_letter_queue_size?: number;
+    active_tasks?: number; registered_callbacks?: number;
+  }>({});
+
+  const refreshMetrics = useCallback(async () => {
+    try {
+      const m = await getEventMetrics();
+      setEventMetricsState(m as Record<string, unknown>);
+    } catch { /* offline */ }
+  }, []);
+
+  useEffect(() => {
+    refreshMetrics();
+    const iv = setInterval(refreshMetrics, 8000);
+    return () => clearInterval(iv);
+  }, [refreshMetrics]);
 
   // ── 任务快速操作 ──────────────────────────────────────────
   const [taskTitle, setTaskTitle] = useState("");
@@ -427,6 +446,13 @@ export default function SdlcPipelinePanel({
       <div className="h-6 border-t border-cs-border bg-cs-bg px-4 flex items-center text-[9px] text-cs-muted space-x-4">
         <span>{t.stage}: {activeIdx + 1}/{agents.length}</span>
         <span>{t.active}: {agents[activeIdx].name}</span>
+        {/* 审批门禁指示：Coder/Auditor 阶段显示 */}
+        {(activeIdx === 4 || activeIdx === 5) && (
+          <span className="text-red-400 flex items-center space-x-1" title="此阶段跃迁需审批">
+            <ShieldCheck className="w-2.5 h-2.5" />
+            <span>需审批</span>
+          </span>
+        )}
         {pipelineStats && (
           <>
             <span>{t.tasks}: {pipelineStats.completed_tasks}/{pipelineStats.total_tasks}</span>
@@ -438,6 +464,19 @@ export default function SdlcPipelinePanel({
         <span className={isRunning ? "text-cs-accent" : "text-cs-warn"}>
           {t.pipeline}: {isRunning ? t.running : t.paused}
         </span>
+        {/* 智能调度指标 */}
+        {eventMetrics.total_events != null && (
+          <>
+            <span className="text-zinc-500">|</span>
+            <span title="事件总线事件数">📡 {eventMetrics.total_events}</span>
+            {eventMetrics.dead_letter_queue_size != null && eventMetrics.dead_letter_queue_size > 0 && (
+              <span className="text-amber-400" title="死信队列">✉️ {eventMetrics.dead_letter_queue_size}</span>
+            )}
+            {eventMetrics.active_tasks != null && (
+              <span title="活跃任务">📋 {eventMetrics.active_tasks}</span>
+            )}
+          </>
+        )}
         {mode === "step" && (
           <span className="text-cs-warn">{t.step_debug}</span>
         )}
