@@ -1043,10 +1043,15 @@ async fn get_remote_stats(state: tauri::State<'_, AppState>) -> Result<RemoteSes
 async fn cvfs_create_project(
     state: tauri::State<'_, AppState>,
     project_id: String, target_path: String,
+    app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
     let cvfs = state.cvfs.lock().await;
     let path = cvfs.create_secure_project_workspace(&project_id, PathBuf::from(&target_path)).await
         .map_err(|e| e.to_string())?;
+    // 同步保存到 app_data_dir 确保重启恢复
+    if let Ok(app_data) = app_handle.path().app_data_dir() {
+        let _ = cvfs.save_state_to(&app_data).await;
+    }
     Ok(format!("Project '{}' created at {:?}", project_id, path))
 }
 

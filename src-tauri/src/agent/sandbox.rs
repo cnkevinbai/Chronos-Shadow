@@ -691,10 +691,15 @@ impl ChronosVirtualFileSystem {
             fs::write(&contract_path, "# CHRONOS-SHADOW CORE CONTRACT\n- Mode: Auto-Matrix-Optimization\n- Scope Protection: True\n")?;
         }
 
-        let mut pool = self.projects_pool.write().await;
-        pool.insert(project_id.to_string(), canonical_path.clone());
+        {
+            let mut pool = self.projects_pool.write().await;
+            pool.insert(project_id.to_string(), canonical_path.clone());
+        } // 写锁释放
 
-        tracing::info!("[VFS ENGINE] Project sandbox initialized & Scope locked.");
+        // 持久化项目列表到磁盘
+        let _ = self.save_state().await;
+
+        tracing::info!("[VFS ENGINE] Project sandbox initialized & Scope locked + persisted.");
         Ok(canonical_path)
     }
 
