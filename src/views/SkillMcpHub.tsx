@@ -152,18 +152,18 @@ export default function SkillMcpHub() {
               <span>{t.import_skill}</span>
             </button>
 
-            {/* Skill cards grid — 实时数据优先，mock 兜底 */}
+            {/* Skill cards grid — 始终显示硬编码技能作为兜底 */}
             <div className="grid grid-cols-2 gap-2">
-              {(liveSkills.length > 0 ? liveSkills.map(s => ({
-                id: s.manifest.id, name: s.manifest.name, description: s.manifest.description || "",
-                type: (s.state === "subagent" ? "subagent" : "skill") as "skill" | "subagent",
-                enabled: true, synced: true,
-                badge: s.state === "subagent" ? "🤖 Agent" : "⚡ Skill",
-                category: s.state || "general",
-              })) : skills).map((skill) => (
+              {skills.map((skill) => (
                 <SkillCard key={skill.id} skill={skill} />
               ))}
             </div>
+            {/* Live skills count badge */}
+            {liveSkills.length > 0 && (
+              <div className="text-[8px] text-cs-muted text-center mt-1">
+                +{liveSkills.length} 个运行时技能已加载
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-3 space-y-2">
@@ -236,7 +236,7 @@ function SkillCard({ skill }: { skill: Skill }) {
       {/* Premium badge */}
       {skill.premium && skill.badge && (
         <span className={`absolute -top-1.5 -right-1.5 text-[7px] px-1.5 py-0.5 rounded-full font-bold border ${
-          skill.badge.includes("安全") ? "bg-red-950/80 border-red-800/50 text-red-400" : "bg-emerald-950/80 border-emerald-800/50 text-emerald-400"
+          (skill.badge || '').includes("安全") ? "bg-red-950/80 border-red-800/50 text-red-400" : "bg-emerald-950/80 border-emerald-800/50 text-emerald-400"
         }`}>
           {skill.badge}
         </span>

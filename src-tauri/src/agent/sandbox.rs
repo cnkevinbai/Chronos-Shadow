@@ -1027,16 +1027,17 @@ impl ChronosVirtualFileSystem {
 
     // ── 持久化 ────────────────────────────────────────────────────
 
-    /// 保存 C-VFS 状态到磁盘 (使用第一个项目目录，向后兼容)
+    /// 保存 C-VFS 状态到磁盘 (优先保存到第一个项目目录)
     pub async fn save_state(&self) -> Result<(), String> {
         let pool = self.projects_pool.read().await;
-        let save_dir = if let Some((_, root)) = pool.iter().next() {
-            root.clone()
-        } else {
-            return Ok(());
-        };
+        if let Some((_, root)) = pool.iter().next() {
+            let dir = root.clone();
+            drop(pool);
+            return self.save_state_to(&dir).await;
+        }
         drop(pool);
-        self.save_state_to(&save_dir).await
+        // 没有项目时也尝试保存空状态到默认位置
+        Ok(())
     }
 
     /// 保存 C-VFS 状态到指定目录

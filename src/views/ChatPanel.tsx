@@ -22,6 +22,7 @@ import {
   renameChatSession,
   importChatSession,
   extractAndExecuteActions,
+  cvfsListProjectFiles,
 } from "@/lib/tauri";
 
 // 真实文件对话框（Tauri 环境可用，浏览器降级为 mock）
@@ -174,9 +175,13 @@ export default function ChatPanel({
       listSessionsByProject(currentProject)
         .then((res) => {
           if (res && res.length > 0) setManifests(res);
-          else refreshManifests(); // 无项目会话时回退到全量列表
+          else refreshManifests();
         })
         .catch(() => refreshManifests());
+      // 加载项目文件列表
+      cvfsListProjectFiles(currentProject).then(files => setProjectFiles(files)).catch(() => {});
+    } else {
+      setProjectFiles([]);
     }
   }, [currentProject, refreshManifests]);
 
@@ -223,6 +228,9 @@ export default function ChatPanel({
   const stageLabel = { idle:"", connecting:"连接中", thinking:"推理中", streaming:"流式接收", researching:"研究中" }[flowStage];
   const [lastUserInput, setLastUserInput] = useState("");
   const [retryCount, setRetryCount] = useState(0);
+  const [showFileExplorer, setShowFileExplorer] = useState(false);
+  const [projectFiles, setProjectFiles] = useState<Array<{name:string;is_dir:boolean;relative_path:string}>>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const msgContainerRef = useRef<HTMLDivElement>(null);
@@ -1028,11 +1036,12 @@ export default function ChatPanel({
 
   return (
     <div className="flex h-full bg-[#09090b] font-mono text-xs text-[#fafafa] overflow-hidden select-none">
-      {/* ═══ 左侧栏：多维轻量元数据面板（Chunked V2） ═══ */}
+      {/* ═══ 左侧栏：会话历史 (可折叠) ═══ */}
+      {!sidebarCollapsed && (
       <div className="w-56 border-r border-[#27272a] bg-[#0c0c0e] flex flex-col shrink-0">
         <div className="p-2.5 border-b border-[#27272a] bg-[#121214] flex items-center justify-between">
           <span className="font-bold text-zinc-500 uppercase tracking-wider text-[10px]">
-            ⌛ 历史会话轨道
+            🗂️ 项目会话矩阵
             {manifests.length > 0 && (
               <span className="ml-1.5 bg-zinc-800 text-zinc-400 text-[8px] px-1.5 py-0.5 rounded-full">
                 {manifests.length}
@@ -1105,8 +1114,25 @@ export default function ChatPanel({
         )}
 
         {/* 清单列表流（仅渲染轻量 .meta，毫秒级撑起成百上千条树轴） */}
-        <div className="flex-1 overflow-y-auto p-1.5 space-y-1.5 scrollbar-thin">
-          {filteredManifests.map((m) => (
+        <div className="flex-1 overflow-y-auto p-1.5 space-y-2 scrollbar-thin">
+          {/* 项目分组显示 */}
+          {(() => {
+            const groups = new Map<string, typeof filteredManifests>();
+            for (const m of filteredManifests) {
+              const proj = (m as any).bound_project || currentProject || "default";
+              if (!groups.has(proj)) groups.set(proj, []);
+              groups.get(proj)!.push(m);
+            }
+            return Array.from(groups.entries()).map(([project, sessions]) => (
+              <div key={project} className="space-y-0.5">
+                <div className="px-1.5 py-0.5 text-[9px] bg-black border border-zinc-900 rounded font-bold text-zinc-400 flex items-center justify-between">
+                  <span className="truncate">📁 {project}</span>
+                  <span className="text-zinc-600 font-light text-[8px] shrink-0 ml-1">
+                    {sessions.length}会话
+                  </span>
+                </div>
+                <div className="pl-1 space-y-0.5">
+                  {sessions.map((m) => (
             <div
               key={m.session_id}
               className={`group/session p-2 rounded border text-left transition-all cursor-pointer relative ${
@@ -1194,6 +1220,10 @@ export default function ChatPanel({
               </button>
             </div>
           ))}
+                </div>
+              </div>
+            ));
+          })()}
           {filteredManifests.length === 0 && manifests.length > 0 && (
             <div className="p-3 text-[10px] text-zinc-600 italic text-center">
               无匹配会话
@@ -1239,12 +1269,23 @@ export default function ChatPanel({
           </div>
         )}
       </div>
+      )}
 
-      {/* ═══ 右侧主栏：沉浸式高级流式对话控制面板 ═══ */}
+      {/* ═══ 右侧主栏：沉浸式对话 ═══ */}
       <div className="flex-1 flex flex-col min-w-0 bg-[#09090b] relative h-full">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[#27272a] bg-[#0c0c0e] shrink-0">
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#27272a] bg-[#0c0c0e] shrink-0">
           <div className="flex items-center space-x-2 text-xs">
+            {/* 侧栏切换 */}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-1 rounded hover:bg-zinc-800/50 text-zinc-500 hover:text-zinc-300 transition-colors"
+              title={sidebarCollapsed ? "展开历史会话" : "收起历史会话"}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 12h18M3 6h18M3 18h18"/>
+              </svg>
+            </button>
             <span
               className={`inline-block w-2 h-2 rounded-full ${apiKey ? "bg-emerald-500 animate-ping" : "bg-amber-500"}`}
             />
@@ -1288,12 +1329,19 @@ export default function ChatPanel({
                 {anyKey ? `(切换至 ${availableProvider})` : "(Demo)"}
               </span>
             )}
-            {/* 项目绑定指示 */}
+            {/* 项目绑定指示 + 文件浏览器切换 */}
             {currentProject && currentProject !== "default" && (
-              <span className="text-[9px] text-cyan-500 border border-cyan-500/20 bg-cyan-950/20 px-1 rounded"
-                title={`会话自动绑定到项目: ${currentProject}`}>
-                📁 {currentProject}
-              </span>
+              <button
+                onClick={() => { setShowFileExplorer(!showFileExplorer); if (!showFileExplorer) cvfsListProjectFiles(currentProject).then(setProjectFiles).catch(()=>{}); }}
+                className={`text-[9px] border px-1.5 py-0.5 rounded transition-colors ${
+                  showFileExplorer
+                    ? "text-cyan-300 border-cyan-400/40 bg-cyan-950/30"
+                    : "text-cyan-500 border-cyan-500/20 bg-cyan-950/20 hover:border-cyan-500/40"
+                }`}
+                title="点击切换项目文件浏览器"
+              >
+                📁 {currentProject} ({projectFiles.length})
+              </button>
             )}
           </div>
           <div className="flex items-center space-x-1.5">
@@ -1355,6 +1403,8 @@ export default function ChatPanel({
           </div>
         )}
 
+        {/* ── 消息区 + 文件面板 ── */}
+        <div className="flex-1 flex overflow-hidden">
         {/* Messages */}
         <div
           ref={msgContainerRef}
@@ -1365,7 +1415,7 @@ export default function ChatPanel({
                 el.scrollHeight - el.scrollTop - el.clientHeight < 80;
             }
           }}
-          className="flex-1 p-4 space-y-4 overflow-y-auto scrollbar-thin"
+          className={`${showFileExplorer ? 'flex-[3]' : 'flex-1'} p-4 space-y-4 overflow-y-auto scrollbar-thin`}
         >
           {messages.map((msg) => (
             <div
@@ -1403,8 +1453,8 @@ export default function ChatPanel({
                   <span className="text-zinc-600">
                     ({msg.costTokens}t
                     {msg.isCached && (
-                      <span className="text-emerald-500/80 font-bold ml-0.5">
-                        [Cache Hit]
+                      <span className="ml-1 text-[8px] text-emerald-400 font-bold border border-emerald-500/30 bg-emerald-950/20 px-1 rounded animate-pulse">
+                        [Cache-Aligned]
                       </span>
                     )}
                     <span className="text-emerald-600 ml-0.5">
@@ -1498,6 +1548,43 @@ export default function ChatPanel({
           )}
           <div ref={chatEndRef} />
         </div>
+
+        {/* 文件浏览器 (右侧面板) */}
+        {showFileExplorer && currentProject !== "default" && (
+          <div className="w-48 border-l border-[#27272a] bg-[#0c0c0e] flex flex-col shrink-0 overflow-y-auto">
+            <div className="px-2 py-1.5 border-b border-[#27272a] text-[9px] text-zinc-500 flex items-center justify-between">
+              <span>📁 {currentProject}</span>
+              <button onClick={() => setShowFileExplorer(false)} className="text-zinc-600 hover:text-zinc-400">✕</button>
+            </div>
+            <div className="p-1 space-y-0.5">
+              {projectFiles.map((f) => {
+                const isContract = (f as any).is_locked || f.name === 'CLAUDE.md';
+                const isModified = (f as any).is_modified || false;
+                return (
+                <div key={f.relative_path}
+                  className={`flex items-center space-x-1 px-1 py-0.5 rounded text-[9px] cursor-default transition-colors ${
+                    isModified ? 'bg-emerald-950/20 border border-emerald-900/30 animate-pulse' : 'hover:bg-zinc-800/40'
+                  }`}>
+                  <span className="shrink-0">{f.is_dir ? '📁' : '📄'}</span>
+                  <span className={`truncate ${
+                    isContract ? 'text-amber-400 font-bold' :
+                    isModified ? 'text-emerald-400 font-bold' :
+                    f.is_dir ? 'text-cyan-400/70' : 'text-zinc-400'
+                  }`} title={f.relative_path}>{f.name}</span>
+                  {isContract && <span className="text-[7px] text-amber-500 border border-amber-500/30 bg-amber-950/20 px-0.5 rounded shrink-0">🔒</span>}
+                  {isModified && <span className="text-[7px] text-emerald-400 shrink-0">●</span>}
+                </div>
+                );
+              })}
+              {projectFiles.length === 0 && (
+                <div className="text-[9px] text-zinc-600 text-center py-2">
+                  空项目 — AI创建文件后出现
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        </div>{/* end messages+files flex row */}
 
         {/* Input */}
         <div className="relative shrink-0">
