@@ -2498,8 +2498,21 @@ async fn dispatch_action(
                 Err(result.error.unwrap_or_else(|| format!("MCP call '{}' on '{}' failed", tool_name, server_id)))
             }
         }
-        AgentAction::FileEdit { path: _, content: _ } => {
-            Err("FileEdit actions must be approved by the user before execution".into())
+        AgentAction::FileEdit { path, content } => {
+            tracing::info!("[DISPATCH] FileEdit: {} ({} bytes)", path, content.len());
+            let sandbox = state.sandbox.lock().unwrap();
+            let full_path = sandbox.project_root.join(path);
+            if !sandbox.is_path_in_sandbox(&full_path) {
+                return Err(format!("⛔ Path '{}' is outside sandbox scope", path));
+            }
+            sandbox.check_file_size(content.len() as u64)?;
+            drop(sandbox);
+            if let Some(parent) = full_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {}", e))?;
+            }
+            std::fs::write(&full_path, content)
+                .map_err(|e| format!("Write failed: {}", e))?;
+            Ok(format!("✅ 文件已写入: {} ({} bytes)", path, content.len()))
         }
     }
 }

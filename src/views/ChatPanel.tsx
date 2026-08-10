@@ -801,8 +801,8 @@ export default function ChatPanel({
             model: `${modelDisplayName(selectedModel)} (API)`,
           }];
 
-          // Scan for and execute embedded actions
-          if (finalContent.includes('"action"') && (finalContent.includes('"web_search"') || finalContent.includes('"web_fetch"'))) {
+          // Scan for and execute embedded actions (all AgentAction types)
+          if (finalContent.includes('"action"')) {
             try {
               const execResult = await extractAndExecuteActions(finalContent);
               if (execResult.has_actions && execResult.combined_context) {
