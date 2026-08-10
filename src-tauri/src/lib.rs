@@ -695,6 +695,31 @@ fn get_sandbox_status(state: tauri::State<AppState>) -> String {
 }
 
 #[tauri::command]
+fn sandbox_health_check(state: tauri::State<AppState>) -> Result<serde_json::Value, String> {
+    let sb = state.sandbox.lock().unwrap();
+    Ok(serde_json::to_value(sb.health_check()).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+fn sandbox_audit_stats(state: tauri::State<AppState>) -> Result<serde_json::Value, String> {
+    let sb = state.sandbox.lock().unwrap();
+    Ok(sb.audit_stats())
+}
+
+#[tauri::command]
+fn sandbox_check_file_size(state: tauri::State<AppState>, size: u64) -> Result<String, String> {
+    let sb = state.sandbox.lock().unwrap();
+    sb.check_file_size(size).map(|_| format!("File size {} OK", size))
+}
+
+#[tauri::command]
+fn sandbox_cleanup_temp(state: tauri::State<AppState>) -> Result<String, String> {
+    let sb = state.sandbox.lock().unwrap();
+    let cleaned = sb.cleanup_temp_files();
+    Ok(format!("Cleaned {} temp files", cleaned))
+}
+
+#[tauri::command]
 fn get_session_cost(state: tauri::State<AppState>) -> f64 {
     state.billing_engine.get_budget_total()
 }
@@ -1578,18 +1603,35 @@ fn get_user_profile(state: tauri::State<AppState>) -> serde_json::Value {
 }
 
 #[tauri::command]
-fn update_user_profile(state: tauri::State<AppState>, display_name: String, nickname: String, avatar: String, personality: String) -> String {
+fn update_user_profile(
+    state: tauri::State<AppState>,
+    display_name: String, nickname: String, avatar: String, personality: String,
+    theme: Option<String>, language: Option<String>,
+    default_model: Option<String>, vision_model: Option<String>,
+    auto_routing: Option<bool>, distillation: Option<bool>,
+    work_hours_start: Option<u32>, work_hours_end: Option<u32>,
+    skill_level: Option<u32>, work_mode: Option<String>,
+) -> String {
     let mut profile = state.user_profile.lock().unwrap();
-    profile.display_name = display_name;
-    profile.nickname = nickname;
-    profile.avatar = avatar;
-    profile.personality = personality;
+    profile.update_personalization(
+        &display_name, &nickname, &avatar, &personality,
+        &theme.unwrap_or_default(), &language.unwrap_or_default(),
+        &default_model.unwrap_or_default(), &vision_model.unwrap_or_default(),
+        auto_routing.unwrap_or(true), distillation.unwrap_or(true),
+        work_hours_start.unwrap_or(9), work_hours_end.unwrap_or(18),
+        skill_level.unwrap_or(50), &work_mode.unwrap_or_default(),
+    );
     format!("Profile updated — 你好，{}！", profile.nickname)
 }
 
 #[tauri::command]
 fn get_greeting(state: tauri::State<AppState>) -> String {
     state.user_profile.lock().unwrap().greeting()
+}
+
+#[tauri::command]
+fn get_personalization(state: tauri::State<AppState>) -> serde_json::Value {
+    state.user_profile.lock().unwrap().personalization_summary()
 }
 
 #[tauri::command]
@@ -1676,10 +1718,19 @@ fn wb_generate_suggestions(state: tauri::State<AppState>) -> Vec<serde_json::Val
 
 #[tauri::command]
 fn state_save_all(app_handle: tauri::AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
-    let _dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     let mut sm = state.state_mgr.lock().unwrap();
     sm.save_all()?;
-    Ok("All state saved".into())
+
+    // 保存进化引擎状态
+    let _ = state.evolution_bus.lock().unwrap().save_state(&dir);
+    let _ = state.flywheel.lock().unwrap().save_state(&dir);
+    if let Ok(wi) = state.web_intelligence.try_lock() {
+        let _ = wi.distillation.save_state(&dir);
+        let _ = wi.cache.save_to_disk(&dir);
+    }
+
+    Ok(format!("All state saved to {:?}", dir))
 }
 
 #[tauri::command]
@@ -2902,6 +2953,7 @@ pub fn run() {
             get_user_profile,
             update_user_profile,
             get_greeting,
+            get_personalization,
             get_heartbeat,
             get_achievements,
             touch_interaction,
@@ -2986,6 +3038,10 @@ pub fn run() {
             load_context_glue_bindings,
             // general
             get_sandbox_status,
+            sandbox_health_check,
+            sandbox_audit_stats,
+            sandbox_check_file_size,
+            sandbox_cleanup_temp,
             get_session_cost,
             get_saved_cost,
             get_saving_rate,
@@ -3092,6 +3148,23 @@ pub fn run() {
             {
                 if let Ok(dir) = _app.handle().path().app_data_dir() {
                     let _ = _app.state::<AppState>().approval_gate.lock().unwrap().load_state(&dir);
+                }
+            }
+
+            // 自动恢复进化引擎状态 (EvolutionBus + DataFlywheel + Distillation)
+            {
+                if let Ok(dir) = _app.handle().path().app_data_dir() {
+                    let _ = _app.state::<AppState>().evolution_bus.lock().unwrap().load_state(&dir);
+                    let _ = _app.state::<AppState>().flywheel.lock().unwrap().load_state(&dir);
+                    let _ = std::fs::create_dir_all(&dir);
+                    // Distillation + cache state restore
+                    {
+                        let app_state = _app.state::<AppState>();
+                        let mut wi = app_state.web_intelligence.blocking_lock();
+                        let _ = wi.distillation.load_state(&dir);
+                        let _ = wi.cache.load_from_disk(&dir);
+                    }
+                    tracing::info!("[SETUP] Evolution state restored");
                 }
             }
 

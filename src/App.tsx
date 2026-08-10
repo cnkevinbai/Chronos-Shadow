@@ -329,16 +329,19 @@ function AppInner() {
           /* 工作台：左 Dock + 中央画布 + 右安全面板 */
           <div className="flex flex-1 overflow-hidden animate-fadeIn">
             {/* 左侧垂直 Dock 导航 */}
-            <nav className="w-12 border-r border-[#27272a] bg-[#0c0c0e] flex flex-col items-center py-3 space-y-2 shrink-0">
+            <nav className="w-12 border-r border-[#27272a] bg-[#0c0c0e] flex flex-col items-center py-3 space-y-1.5 shrink-0 overflow-y-auto">
+              {/* 核心面板 */}
               <DockButton active={dockView === "chat"} tip="沉浸对话" onClick={() => setDockView("chat")}>
                 <ChatIcon size={18} className={dockView === "chat" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
               <DockButton active={dockView === "pipeline"} tip="调度流水线" onClick={() => setDockView("pipeline")}>
                 <PipelineIcon size={18} className={dockView === "pipeline" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
-              <DockButton active={dockView === "glue"} tip="跨软件粘合" onClick={() => setDockView("glue")}>
-                <GlueIcon size={18} className={dockView === "glue" ? "stroke-white" : "stroke-zinc-500"} />
-              </DockButton>
+
+              {/* 分隔线 */}
+              <div className="w-6 h-px bg-[#27272a] my-1" />
+
+              {/* 智能引擎 */}
               <DockButton active={dockView === "skills"} tip="技能中枢" onClick={() => setDockView("skills")}>
                 <McpIcon size={18} className={dockView === "skills" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
@@ -352,6 +355,14 @@ function AppInner() {
                   <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
                 </svg>
               </DockButton>
+              <DockButton active={dockView === "glue"} tip="跨软件粘合" onClick={() => setDockView("glue")}>
+                <GlueIcon size={18} className={dockView === "glue" ? "stroke-white" : "stroke-zinc-500"} />
+              </DockButton>
+
+              {/* 分隔线 */}
+              <div className="w-6 h-px bg-[#27272a] my-1" />
+
+              {/* 基础设施 */}
               <DockButton active={dockView === "remote"} tip="远程服务器" onClick={() => setDockView("remote")}>
                 <RemoteIcon size={18} className={dockView === "remote" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>

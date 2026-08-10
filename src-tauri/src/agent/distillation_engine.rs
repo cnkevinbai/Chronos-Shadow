@@ -901,6 +901,38 @@ impl DistillationEngine {
         }
     }
 
+    pub fn save_state(&self, dir: &std::path::Path) -> Result<(), String> {
+        let path = dir.join("distillation_engine.json");
+        let state = serde_json::json!({
+            "total_distillations": self.total_distillations,
+            "total_bytes_saved": self.total_bytes_saved,
+            "default_token_budget": self.default_token_budget,
+            "evolution_weights": self.evolution_weights,
+            "evolution_enabled": self.evolution_enabled,
+            "adaptive_strategies": self.adaptive_strategies,
+        });
+        std::fs::write(&path, serde_json::to_string_pretty(&state).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn load_state(&mut self, dir: &std::path::Path) -> Result<(), String> {
+        let path = dir.join("distillation_engine.json");
+        if !path.exists() { return Ok(()); }
+        let json = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let state: serde_json::Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+        if let Some(v) = state.get("total_distillations").and_then(|v| v.as_u64()) { self.total_distillations = v; }
+        if let Some(v) = state.get("total_bytes_saved").and_then(|v| v.as_u64()) { self.total_bytes_saved = v; }
+        if let Some(v) = state.get("default_token_budget").and_then(|v| v.as_u64()) { self.default_token_budget = v as usize; }
+        if let Some(v) = state.get("evolution_enabled").and_then(|v| v.as_bool()) { self.evolution_enabled = v; }
+        if let Some(w) = state.get("evolution_weights") {
+            if let Ok(weights) = serde_json::from_value(w.clone()) { self.evolution_weights = weights; }
+        }
+        if let Some(s) = state.get("adaptive_strategies") {
+            if let Ok(strategies) = serde_json::from_value(s.clone()) { self.adaptive_strategies = strategies; }
+        }
+        Ok(())
+    }
+
     /// 获取进化状态报告
     pub fn evolution_report(&self) -> serde_json::Value {
         let strategies: Vec<_> = self.adaptive_strategies.iter().map(|(k, v)| {

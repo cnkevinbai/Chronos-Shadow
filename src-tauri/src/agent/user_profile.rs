@@ -41,6 +41,24 @@ pub struct UserProfile {
     pub today_interactions: u32,
     /// 系统个性: "professional" | "friendly" | "playful"
     pub personality: String,
+    /// 默认文本模型
+    pub default_text_model: String,
+    /// 默认视觉模型
+    pub default_vision_model: String,
+    /// 自动路由偏好: true=自动, false=手动
+    pub prefer_auto_routing: bool,
+    /// 蒸馏偏好: true=自动蒸馏, false=保留原始
+    pub prefer_distillation: bool,
+    /// 通知偏好
+    pub notifications_enabled: bool,
+    /// 工作时段开始 (0-23)
+    pub work_hours_start: u32,
+    /// 工作时段结束 (0-23)
+    pub work_hours_end: u32,
+    /// 技能熟练度: 0-100
+    pub skill_level: u32,
+    /// 偏好工作模式: "solo" | "collaborative" | "learning"
+    pub work_mode: String,
 }
 
 impl Default for UserProfile {
@@ -58,6 +76,15 @@ impl Default for UserProfile {
             streak_days: 1,
             today_interactions: 0,
             personality: "friendly".into(),
+            default_text_model: "deepseek-v4-pro".into(),
+            default_vision_model: "glm-5v-turbo".into(),
+            prefer_auto_routing: true,
+            prefer_distillation: true,
+            notifications_enabled: true,
+            work_hours_start: 9,
+            work_hours_end: 18,
+            skill_level: 50,
+            work_mode: "solo".into(),
         }
     }
 }
@@ -113,11 +140,59 @@ impl UserProfile {
         })
     }
 
+    /// 更新个性化配置
+    pub fn update_personalization(
+        &mut self,
+        display_name: &str, nickname: &str, avatar: &str,
+        personality: &str, theme: &str, language: &str,
+        default_model: &str, vision_model: &str,
+        auto_routing: bool, distillation: bool,
+        work_hours_start: u32, work_hours_end: u32,
+        skill_level: u32, work_mode: &str,
+    ) {
+        if !display_name.is_empty() { self.display_name = display_name.into(); }
+        if !nickname.is_empty() { self.nickname = nickname.into(); }
+        if !avatar.is_empty() { self.avatar = avatar.into(); }
+        if !personality.is_empty() { self.personality = personality.into(); }
+        if !theme.is_empty() { self.theme = theme.into(); }
+        if !language.is_empty() { self.language = language.into(); }
+        if !default_model.is_empty() { self.default_text_model = default_model.into(); }
+        if !vision_model.is_empty() { self.default_vision_model = vision_model.into(); }
+        self.prefer_auto_routing = auto_routing;
+        self.prefer_distillation = distillation;
+        if work_hours_start < 24 { self.work_hours_start = work_hours_start; }
+        if work_hours_end <= 24 && work_hours_end > work_hours_start { self.work_hours_end = work_hours_end; }
+        if skill_level <= 100 { self.skill_level = skill_level; }
+        if !work_mode.is_empty() { self.work_mode = work_mode.into(); }
+    }
+
     /// 记录一次交互
     pub fn touch(&mut self) {
         self.total_interactions += 1;
         self.today_interactions += 1;
         self.last_active = chrono::Utc::now().to_rfc3339();
+    }
+
+    /// 个性化配置摘要
+    pub fn personalization_summary(&self) -> serde_json::Value {
+        let work_hours_active = self.current_hour() >= self.work_hours_start
+            && self.current_hour() < self.work_hours_end;
+        serde_json::json!({
+            "display_name": self.display_name,
+            "nickname": self.nickname,
+            "avatar": self.avatar,
+            "personality": self.personality,
+            "theme": self.theme,
+            "language": self.language,
+            "default_model": self.default_text_model,
+            "vision_model": self.default_vision_model,
+            "auto_routing": self.prefer_auto_routing,
+            "distillation": self.prefer_distillation,
+            "work_hours_active": work_hours_active,
+            "skill_level": self.skill_level,
+            "work_mode": self.work_mode,
+            "streak": self.streak_days,
+        })
     }
 
     fn current_hour(&self) -> u32 {

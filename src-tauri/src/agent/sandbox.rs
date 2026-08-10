@@ -82,6 +82,42 @@ pub struct SandboxAuditLog {
     pub allowed: bool,
 }
 
+/// 沙盒资源限制
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxLimits {
+    /// 单文件最大大小 (字节), 默认 10MB
+    pub max_file_size: u64,
+    /// 项目最大文件数
+    pub max_file_count: u32,
+    /// 写操作速率限制 (次/分钟)
+    pub write_rate_limit: u32,
+    /// 临时文件最大存活时间 (秒)
+    pub temp_file_ttl_secs: u64,
+}
+
+impl Default for SandboxLimits {
+    fn default() -> Self {
+        Self { max_file_size: 10 * 1024 * 1024, max_file_count: 10000, write_rate_limit: 60, temp_file_ttl_secs: 3600 }
+    }
+}
+
+/// 沙盒健康状态
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxHealth {
+    pub active: bool,
+    pub project_root_exists: bool,
+    pub mounts_active: u32,
+    pub mounts_total: u32,
+    pub checkpoints_count: u32,
+    pub total_files: u32,
+    pub total_size_bytes: u64,
+    pub blocked_operations: u32,
+    pub allowed_operations: u32,
+    pub integrity_ok: bool,
+    pub temp_files_count: u32,
+    pub contract_present: bool,
+}
+
 /// 沙盒管理器
 pub struct Sandbox {
     pub project_root: PathBuf,
@@ -91,6 +127,12 @@ pub struct Sandbox {
     pub audit_logs: Vec<SandboxAuditLog>,
     pub global_contract: Option<String>,
     pub active: bool,
+    /// 资源限制
+    pub limits: SandboxLimits,
+    /// 文件哈希缓存 (路径 → SHA256)
+    file_hashes: HashMap<String, String>,
+    /// 写操作时间戳 (用于速率限制)
+    write_timestamps: Vec<u64>,
 }
 
 impl Sandbox {
@@ -107,6 +149,9 @@ impl Sandbox {
             audit_logs: Vec::new(),
             global_contract: None,
             active: true,
+            limits: SandboxLimits::default(),
+            file_hashes: HashMap::new(),
+            write_timestamps: Vec::new(),
         }
     }
 
@@ -416,6 +461,143 @@ impl Sandbox {
         let start = if len > n { len - n } else { 0 };
         &self.audit_logs[start..]
     }
+
+    // ── 资源限制检查 ──────────────────────────────────────────
+
+    /// 检查文件大小是否超限
+    pub fn check_file_size(&self, size: u64) -> Result<(), String> {
+        if size > self.limits.max_file_size {
+            Err(format!("文件大小 {} 超过限制 {}", size, self.limits.max_file_size))
+        } else { Ok(()) }
+    }
+
+    /// 写操作速率限制检查
+    pub fn check_write_rate(&mut self) -> Result<(), String> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+        self.write_timestamps.retain(|t| now - t < 60);
+        if self.write_timestamps.len() >= self.limits.write_rate_limit as usize {
+            return Err(format!("写操作速率超限 ({}次/分钟)", self.limits.write_rate_limit));
+        }
+        self.write_timestamps.push(now);
+        Ok(())
+    }
+
+    // ── 沙盒健康检查 ──────────────────────────────────────────
+
+    /// 获取沙盒健康状态
+    pub fn health_check(&self) -> SandboxHealth {
+        let mut total_files = 0u32;
+        let mut total_size = 0u64;
+        if let Ok(entries) = std::fs::read_dir(&self.project_root) {
+            for entry in entries.flatten() {
+                if let Ok(meta) = entry.metadata() {
+                    if meta.is_file() { total_files += 1; total_size += meta.len(); }
+                }
+            }
+        }
+
+        let allowed = self.audit_logs.iter().filter(|l| l.allowed).count() as u32;
+        let blocked = self.audit_logs.len() as u32 - allowed;
+
+        SandboxHealth {
+            active: self.active,
+            project_root_exists: self.project_root.exists(),
+            mounts_active: self.mounts.iter().filter(|m| m.active).count() as u32,
+            mounts_total: self.mounts.len() as u32,
+            checkpoints_count: self.checkpoints.len() as u32,
+            total_files,
+            total_size_bytes: total_size,
+            blocked_operations: blocked,
+            allowed_operations: allowed,
+            integrity_ok: self.verify_integrity().is_ok(),
+            temp_files_count: self.count_temp_files(),
+            contract_present: self.project_root.join("CLAUDE.md").exists(),
+        }
+    }
+
+    /// 完整性校验 — 检查已哈希文件是否被篡改
+    pub fn verify_integrity(&self) -> Result<(), Vec<String>> {
+        let mut violations = Vec::new();
+        for (path, expected_hash) in &self.file_hashes {
+            let full = self.project_root.join(path);
+            if full.exists() {
+                if let Ok(content) = std::fs::read(&full) {
+                    let actual = sha2_hash(&content);
+                    if actual != *expected_hash {
+                        violations.push(format!("文件被篡改: {} (期望:{})", path, &expected_hash[..8]));
+                    }
+                }
+            }
+        }
+        if violations.is_empty() { Ok(()) } else { Err(violations) }
+    }
+
+    /// 注册文件哈希（写操作时调用）
+    pub fn track_file_hash(&mut self, path: &str) {
+        let full = self.project_root.join(path);
+        if let Ok(content) = std::fs::read(&full) {
+            let hash = sha2_hash(&content);
+            self.file_hashes.insert(path.to_string(), hash);
+        }
+    }
+
+    // ── 自动清理 ──────────────────────────────────────────────
+
+    /// 清理过期临时文件
+    pub fn cleanup_temp_files(&self) -> u32 {
+        let mut cleaned = 0u32;
+        let ttl = self.limits.temp_file_ttl_secs;
+        if let Ok(entries) = std::fs::read_dir(&self.backup_tmp_dir) {
+            for entry in entries.flatten() {
+                if let Ok(meta) = entry.metadata() {
+                    if let Ok(mtime) = meta.modified() {
+                        if let Ok(elapsed) = mtime.elapsed() {
+                            if elapsed.as_secs() > ttl {
+                                let _ = std::fs::remove_file(entry.path());
+                                cleaned += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        cleaned
+    }
+
+    fn count_temp_files(&self) -> u32 {
+        if let Ok(entries) = std::fs::read_dir(&self.backup_tmp_dir) {
+            entries.flatten().count() as u32
+        } else { 0 }
+    }
+
+    // ── 审计统计 ──────────────────────────────────────────────
+
+    pub fn audit_stats(&self) -> serde_json::Value {
+        let mut by_operation: HashMap<String, (u32, u32)> = HashMap::new();
+        for log in &self.audit_logs {
+            let entry = by_operation.entry(log.operation.clone()).or_insert((0, 0));
+            if log.allowed { entry.0 += 1; } else { entry.1 += 1; }
+        }
+        serde_json::json!({
+            "total": self.audit_logs.len(),
+            "allowed": self.audit_logs.iter().filter(|l| l.allowed).count(),
+            "blocked": self.audit_logs.iter().filter(|l| !l.allowed).count(),
+            "by_operation": by_operation.iter().map(|(op, (a, b))| {
+                serde_json::json!({"operation": op, "allowed": a, "blocked": b})
+            }).collect::<Vec<_>>(),
+        })
+    }
+}
+
+// ─── 工具函数 ──────────────────────────────────────────────────────
+
+/// SHA256 哈希（简单实现）
+fn sha2_hash(data: &[u8]) -> String {
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    format!("{:x}", hasher.finalize())
 }
 
 impl Default for Sandbox {
