@@ -2565,36 +2565,59 @@ async fn extract_and_execute_actions(
 
     let mut action_results = Vec::new();
     let mut combined_results = String::new();
+    let mut files_created: Vec<String> = Vec::new();
+    let mut files_read: Vec<String> = Vec::new();
 
     for block in &blocks {
         let action_json = block.clone();
         match execute_agent_action_inner(&state, &action_json).await {
             Ok(result_text) => {
                 combined_results.push_str(&result_text);
-                combined_results.push_str("\n\n");
+                combined_results.push_str("\n");
+                // Track file operations
+                if let Ok(action) = serde_json::from_str::<serde_json::Value>(&action_json) {
+                    if action["action"] == "file_edit" {
+                        if let Some(path) = action["params"]["path"].as_str() {
+                            files_created.push(path.to_string());
+                        }
+                    } else if action["action"] == "file_read" {
+                        if let Some(path) = action["params"]["path"].as_str() {
+                            files_read.push(path.to_string());
+                        }
+                    }
+                }
                 action_results.push(serde_json::json!({
-                    "action": block,
-                    "success": true,
-                    "result": result_text
+                    "action": block, "success": true, "result": result_text
                 }));
             }
             Err(e) => {
                 tracing::warn!("[DISPATCH] Action failed: {}", e);
-                combined_results.push_str(&format!("[Action failed: {}]\n\n", e));
                 action_results.push(serde_json::json!({
-                    "action": block,
-                    "success": false,
-                    "error": e
+                    "action": block, "success": false, "error": e
                 }));
             }
         }
+    }
+
+    // Build file operations summary
+    let mut summary = String::new();
+    if !files_created.is_empty() {
+        summary.push_str(&format!("📁 Created {} files:\n", files_created.len()));
+        for f in &files_created { summary.push_str(&format!("  ✅ {}\n", f)); }
+    }
+    if !files_read.is_empty() {
+        summary.push_str(&format!("📖 Read {} files:\n", files_read.len()));
+        for f in &files_read { summary.push_str(&format!("  📄 {}\n", f)); }
     }
 
     Ok(serde_json::json!({
         "has_actions": true,
         "text_response": llm_response,
         "action_results": action_results,
-        "combined_context": combined_results
+        "combined_context": combined_results,
+        "files_created": files_created,
+        "files_read": files_read,
+        "files_summary": summary,
     }))
 }
 

@@ -806,14 +806,28 @@ export default function ChatPanel({
             try {
               const execResult = await extractAndExecuteActions(finalContent);
               if (execResult.has_actions && execResult.combined_context) {
-                // Add system message showing executed actions
+                // Build action summary message
+                const filesCreated = (execResult as any).files_created as string[] | undefined;
+                const filesSummary = (execResult as any).files_summary as string | undefined;
+                const actionCount = execResult.action_results.filter((a: any) => a.success).length;
+                const failCount = execResult.action_results.filter((a: any) => !a.success).length;
+
+                let summaryText = '';
+                if (filesCreated && filesCreated.length > 0) {
+                  summaryText = `📁 **文件已生成** (${filesCreated.length} files)\n\n${filesSummary || filesCreated.map((f: string) => `✅ ${f}`).join('\n')}`;
+                } else if (execResult.combined_context?.includes('Web Search')) {
+                  summaryText = `🔍 **搜索完成**\n\n${execResult.action_results.map((a: any, i: number) =>
+                    `${i + 1}. ${a.success ? '✅' : '❌'} \`${(a.action || '').slice(0, 80)}...\``
+                  ).join('\n')}`;
+                } else {
+                  summaryText = `⚡ **已执行 ${actionCount} 个操作**${failCount > 0 ? ` (${failCount} 失败)` : ''}`;
+                }
+
                 const sysMsg: Message = {
                   id: `sys-${Date.now()}`,
                   sender: "System",
                   model: "Action Engine",
-                  content: `🔍 **Auto-research executed**\n\n${execResult.action_results.map((a, i) =>
-                    `${i + 1}. ${a.success ? '✅' : '❌'} \`${a.action.slice(0, 80)}...\``
-                  ).join('\n')}`,
+                  content: summaryText,
                   timestamp: new Date().toLocaleTimeString(),
                 };
                 allMessages = [...allMessages, sysMsg];
