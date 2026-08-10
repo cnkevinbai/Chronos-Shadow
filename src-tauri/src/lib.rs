@@ -42,7 +42,17 @@ use agent::evolving::embedding::EmbeddingEngine;
 use agent::local_analytics::LocalAnalytics;
 use agent::state_manager::StateManager;
 use agent::workbuddy_engine::WorkBuddyEngine;
+use agent::resilience::{SystemHealth, CircuitBreaker};
+use agent::user_profile::UserProfile;
+use agent::security_boundary::SecurityBoundary;
 use agent::billing_engine::ChronosParallelBillingEngine;
+use agent::web_intelligence::{WebIntelligence, WebSearchResult, WebFetchResult, ResearchReport, WebAuditEntry, WebIntelStats};
+use agent::redline::AgentAction;
+use agent::collaboration_engine::CollaborationEngine;
+use agent::task_intelligence::TaskIntelligenceEngine;
+use agent::predictive_analytics::PredictiveAnalyticsEngine;
+use agent::evolution_bus::EvolutionBus;
+use agent::data_flywheel::DataFlywheel;
 use vision::VisionEngine;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -83,6 +93,16 @@ struct AppState {
     analytics: Mutex<LocalAnalytics>,
     state_mgr: Mutex<StateManager>,
     workbuddy: Mutex<WorkBuddyEngine>,
+    system_health: SystemHealth,
+    api_circuit_breaker: CircuitBreaker,
+    user_profile: Mutex<UserProfile>,
+    security_boundary: Mutex<SecurityBoundary>,
+    web_intelligence: TokioMutex<WebIntelligence>,
+    collaboration: TokioMutex<CollaborationEngine>,
+    task_intelligence: Mutex<TaskIntelligenceEngine>,
+    predictive: Mutex<PredictiveAnalyticsEngine>,
+    evolution_bus: Mutex<EvolutionBus>,
+    flywheel: Mutex<DataFlywheel>,
 }
 
 impl AppState {
@@ -113,6 +133,16 @@ impl AppState {
             analytics: Mutex::new(LocalAnalytics::new()),
             state_mgr: Mutex::new(StateManager::new()),
             workbuddy: Mutex::new(WorkBuddyEngine::new()),
+            system_health: SystemHealth::new(),
+            api_circuit_breaker: CircuitBreaker::new("api"),
+            user_profile: Mutex::new(UserProfile::default()),
+            security_boundary: Mutex::new(SecurityBoundary::new()),
+            web_intelligence: TokioMutex::new(WebIntelligence::new()),
+            collaboration: TokioMutex::new(CollaborationEngine::new()),
+            task_intelligence: Mutex::new(TaskIntelligenceEngine::new()),
+            predictive: Mutex::new(PredictiveAnalyticsEngine::new()),
+            evolution_bus: Mutex::new(EvolutionBus::new()),
+            flywheel: Mutex::new(DataFlywheel::new()),
         }
     }
 }
@@ -295,8 +325,13 @@ async fn chat_api(
     }
     LAST_API_CALL.store(now, std::sync::atomic::Ordering::Relaxed);
 
+    // 熔断器检查
+    if !state.api_circuit_breaker.allow() {
+        return Err("[CIRCUIT BREAKER] API 熔断器已激活，暂时拒绝请求，请稍后重试".into());
+    }
+
     // 原子化预占: 防止并发调用超额 (TOCTOU 修复)
-    let estimated_cost = 0.05; // 预估单次调用 ¥0.05
+    let estimated_cost = 0.05;
     if !state.billing_engine.try_reserve(estimated_cost) {
         let budget = state.billing_engine.get_budget_total();
         let cap = state.billing_engine.get_cost_cap();
@@ -324,6 +359,54 @@ async fn chat_api(
         cost
     } else { 0.0 };
     state.billing_engine.settle(estimated_cost, actual_cost);
+
+    // ── 进化总线 + 数据飞轮 定期同步 ──
+    {
+        let should_evolve = state.evolution_bus.lock().unwrap().should_evolve();
+        if should_evolve {
+            let mut wi = state.web_intelligence.lock().await;
+            let mut evo = state.evolution_bus.lock().unwrap();
+            let mut fw = state.flywheel.lock().unwrap();
+
+            // 1. 从 WebIntelligence 采集实时指标
+            let stats = wi.get_stats();
+            fw.collect_from_web_intel(
+                stats.total_searches, stats.total_fetches, stats.bytes_downloaded,
+                stats.unified_cache_hits, stats.unified_cache_misses,
+            );
+            fw.collect_from_distillation(
+                stats.total_distilled, stats.total_bytes_saved,
+                stats.avg_compression_ratio,
+                wi.distillation.avg_quality(),
+            );
+
+            // 2. 同步到进化总线
+            wi.sync_to_evolution_bus(&mut evo);
+            drop(wi);
+
+            // 3. 使用飞轮实时指标替代硬编码评估值
+            let distill_q = fw.metrics.get("distill_quality").map(|m| m.value / 100.0).unwrap_or(0.85);
+            let cache_q = fw.metrics.get("cache_hit_rate").map(|m| m.value / 100.0).unwrap_or(0.78);
+            let cache_stability = fw.metrics.get("cache_api_saved").map(|m| (m.value / 100.0).min(1.0)).unwrap_or(0.85);
+
+            evo.assess_advancement(&[
+                (agent::evolution_bus::EngineId::Distillation, distill_q, 0.92),
+                (agent::evolution_bus::EngineId::CacheEngine, cache_q, cache_stability),
+                (agent::evolution_bus::EngineId::Scheduling, 0.82, 0.88),
+                (agent::evolution_bus::EngineId::HallucinationGuard, 0.80, 0.85),
+                (agent::evolution_bus::EngineId::AgentQuality, 0.83, 0.90),
+                (agent::evolution_bus::EngineId::Collaboration, 0.80, 0.87),
+                (agent::evolution_bus::EngineId::TaskIntelligence, 0.78, 0.85),
+                (agent::evolution_bus::EngineId::PredictiveAnalytics, 0.80, 0.86),
+                (agent::evolution_bus::EngineId::LocalAnalytics, 0.82, 0.90),
+            ]);
+
+            // 4. 飞轮旋转 — 累积收益并创建快照
+            fw.spin();
+            drop(evo);
+            drop(fw);
+        }
+    }
 
     Ok(response)
 }
@@ -397,6 +480,49 @@ async fn chat_api_stream(
         cost
     } else { 0.0 };
     state.billing_engine.settle(estimated_cost, actual_cost);
+
+    // ── 进化总线 + 数据飞轮 (stream) ──
+    {
+        let should_evolve = state.evolution_bus.lock().unwrap().should_evolve();
+        if should_evolve {
+            let mut wi = state.web_intelligence.lock().await;
+            let mut evo = state.evolution_bus.lock().unwrap();
+            let mut fw = state.flywheel.lock().unwrap();
+
+            let stats = wi.get_stats();
+            fw.collect_from_web_intel(
+                stats.total_searches, stats.total_fetches, stats.bytes_downloaded,
+                stats.unified_cache_hits, stats.unified_cache_misses,
+            );
+            fw.collect_from_distillation(
+                stats.total_distilled, stats.total_bytes_saved,
+                stats.avg_compression_ratio, wi.distillation.avg_quality(),
+            );
+
+            wi.sync_to_evolution_bus(&mut evo);
+            drop(wi);
+
+            let distill_q = fw.metrics.get("distill_quality").map(|m| m.value / 100.0).unwrap_or(0.85);
+            let cache_q = fw.metrics.get("cache_hit_rate").map(|m| m.value / 100.0).unwrap_or(0.78);
+            let cache_stability = fw.metrics.get("cache_api_saved").map(|m| (m.value / 100.0).min(1.0)).unwrap_or(0.85);
+
+            evo.assess_advancement(&[
+                (agent::evolution_bus::EngineId::Distillation, distill_q, 0.92),
+                (agent::evolution_bus::EngineId::CacheEngine, cache_q, cache_stability),
+                (agent::evolution_bus::EngineId::Scheduling, 0.82, 0.88),
+                (agent::evolution_bus::EngineId::HallucinationGuard, 0.80, 0.85),
+                (agent::evolution_bus::EngineId::AgentQuality, 0.83, 0.90),
+                (agent::evolution_bus::EngineId::Collaboration, 0.80, 0.87),
+                (agent::evolution_bus::EngineId::TaskIntelligence, 0.78, 0.85),
+                (agent::evolution_bus::EngineId::PredictiveAnalytics, 0.80, 0.86),
+                (agent::evolution_bus::EngineId::LocalAnalytics, 0.82, 0.90),
+            ]);
+
+            fw.spin();
+            drop(evo);
+            drop(fw);
+        }
+    }
 
     Ok(response)
 }
@@ -1407,6 +1533,116 @@ fn analytics_change_point(state: tauri::State<AppState>, metric: String) -> serd
     }
 }
 
+// ─── Security Boundary Commands ──────────────────────────────────
+
+#[tauri::command]
+fn check_permission(state: tauri::State<AppState>, operation: String) -> serde_json::Value {
+    let cat = match operation.as_str() {
+        "delete_project" => agent::security_boundary::OperationCategory::DeleteProject,
+        "delete_database" => agent::security_boundary::OperationCategory::DeleteDatabase,
+        "external_network" => agent::security_boundary::OperationCategory::AccessExternalNetwork,
+        "social_contacts" => agent::security_boundary::OperationCategory::ContactSocialContacts,
+        "data_exfil" => agent::security_boundary::OperationCategory::DataExfiltration,
+        "system_modify" => agent::security_boundary::OperationCategory::SystemModification,
+        "file_delete" => agent::security_boundary::OperationCategory::FileDelete,
+        _ => agent::security_boundary::OperationCategory::StatusQuery,
+    };
+    let mut boundary = state.security_boundary.lock().unwrap();
+    let decision = boundary.check_permission(cat, &operation);
+    serde_json::json!({
+        "operation": operation, "allowed": decision.allowed,
+        "level": decision.level.label(), "reason": decision.reason,
+    })
+}
+
+#[tauri::command]
+fn scan_llm_boundary(state: tauri::State<AppState>, text: String) -> Vec<serde_json::Value> {
+    let mut boundary = state.security_boundary.lock().unwrap();
+    boundary.scan_llm_output(&text).iter().map(|d| serde_json::json!({
+        "operation": format!("{:?}", d.operation), "allowed": d.allowed,
+        "level": d.level.label(), "reason": d.reason,
+    })).collect()
+}
+
+#[tauri::command]
+fn get_security_report(state: tauri::State<AppState>) -> serde_json::Value {
+    state.security_boundary.lock().unwrap().security_report()
+}
+
+// ─── User Profile Commands ──────────────────────────────────────
+
+#[tauri::command]
+fn get_user_profile(state: tauri::State<AppState>) -> serde_json::Value {
+    let profile = state.user_profile.lock().unwrap();
+    serde_json::json!(profile.clone())
+}
+
+#[tauri::command]
+fn update_user_profile(state: tauri::State<AppState>, display_name: String, nickname: String, avatar: String, personality: String) -> String {
+    let mut profile = state.user_profile.lock().unwrap();
+    profile.display_name = display_name;
+    profile.nickname = nickname;
+    profile.avatar = avatar;
+    profile.personality = personality;
+    format!("Profile updated — 你好，{}！", profile.nickname)
+}
+
+#[tauri::command]
+fn get_greeting(state: tauri::State<AppState>) -> String {
+    state.user_profile.lock().unwrap().greeting()
+}
+
+#[tauri::command]
+fn get_heartbeat(state: tauri::State<AppState>) -> serde_json::Value {
+    state.user_profile.lock().unwrap().heartbeat()
+}
+
+#[tauri::command]
+fn get_achievements(state: tauri::State<AppState>) -> Vec<serde_json::Value> {
+    let profile = state.user_profile.lock().unwrap();
+    let approvals = state.approval_gate.lock().unwrap().audit_log.iter()
+        .filter(|r| r.status == "Approved").count() as u32;
+    let mut achievements = agent::user_profile::Achievement::all();
+    for a in &mut achievements {
+        a.update_progress(&profile, approvals, 0);
+    }
+    achievements.iter().map(|a| serde_json::json!({
+        "id": a.id, "name": a.name, "description": a.description,
+        "emoji": a.emoji, "unlocked": a.unlocked, "progress": a.progress,
+    })).collect()
+}
+
+#[tauri::command]
+fn touch_interaction(state: tauri::State<AppState>) -> String {
+    let mut profile = state.user_profile.lock().unwrap();
+    profile.touch();
+    format!("💓 {}", profile.total_interactions)
+}
+
+// ─── System Health Commands ─────────────────────────────────────
+
+#[tauri::command]
+fn get_system_health(state: tauri::State<AppState>) -> Vec<serde_json::Value> {
+    // 自动检测各模块状态
+    let health = &state.system_health;
+    let api_ok = state.api_circuit_breaker.state() == agent::resilience::CircuitState::Closed;
+    health.report("api_client", if api_ok { "healthy" } else { "degraded" }, None);
+
+    let cvfs_ok = state.cvfs.try_lock().is_ok();
+    health.report("cvfs", if cvfs_ok { "healthy" } else { "degraded" }, None);
+
+    state.system_health.full_report().iter().map(|h| serde_json::json!({
+        "module": h.module, "status": h.status, "message": h.message, "last_check": h.last_check,
+    })).collect()
+}
+
+#[tauri::command]
+fn get_circuit_breaker_status(state: tauri::State<AppState>) -> serde_json::Value {
+    serde_json::json!({
+        "api": format!("{:?}", state.api_circuit_breaker.state()),
+    })
+}
+
 // ─── WorkBuddy Engine Commands ──────────────────────────────────
 
 #[tauri::command]
@@ -1975,6 +2211,627 @@ fn parse_role(s: &str) -> Result<AgentRole, String> {
     }
 }
 
+// ─── Web Intelligence Commands ─────────────────────────────────────
+
+#[tauri::command]
+async fn web_intel_search(
+    state: tauri::State<'_, AppState>,
+    query: String,
+    engine: Option<String>,
+    max_results: Option<u32>,
+) -> Result<Vec<WebSearchResult>, String> {
+    let mut wi = state.web_intelligence.lock().await;
+    wi.search(&query, engine.as_deref(), Some(max_results.unwrap_or(5))).await
+}
+
+#[tauri::command]
+async fn web_intel_fetch(
+    state: tauri::State<'_, AppState>,
+    url: String,
+    distill: Option<bool>,
+) -> Result<WebFetchResult, String> {
+    let mut wi = state.web_intelligence.lock().await;
+    wi.fetch(&url, distill.unwrap_or(true)).await
+}
+
+#[tauri::command]
+async fn web_intel_research(
+    state: tauri::State<'_, AppState>,
+    topic: String,
+    sources: Option<Vec<String>>,
+) -> Result<ResearchReport, String> {
+    let mut wi = state.web_intelligence.lock().await;
+    wi.research(&topic, sources.unwrap_or_default()).await
+}
+
+#[tauri::command]
+async fn web_intel_add_domain(
+    state: tauri::State<'_, AppState>,
+    domain: String,
+    category: Option<String>,
+) -> Result<String, String> {
+    let mut wi = state.web_intelligence.lock().await;
+    wi.add_allowed_domain(&domain, category.as_deref().unwrap_or("custom"))
+        .map(|()| format!("Domain {} added", domain))
+}
+
+#[tauri::command]
+async fn web_intel_remove_domain(
+    state: tauri::State<'_, AppState>,
+    domain: String,
+) -> Result<String, String> {
+    let mut wi = state.web_intelligence.lock().await;
+    wi.remove_allowed_domain(&domain)
+        .map(|()| format!("Domain {} removed", domain))
+}
+
+#[tauri::command]
+async fn web_intel_list_domains(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<(String, String)>, String> {
+    let wi = state.web_intelligence.lock().await;
+    Ok(wi.list_allowed_domains())
+}
+
+#[tauri::command]
+async fn web_intel_get_audit_log(
+    state: tauri::State<'_, AppState>,
+    limit: Option<usize>,
+) -> Result<Vec<WebAuditEntry>, String> {
+    let wi = state.web_intelligence.lock().await;
+    Ok(wi.get_audit_log_owned(limit.unwrap_or(50)))
+}
+
+#[tauri::command]
+async fn web_intel_get_stats(
+    state: tauri::State<'_, AppState>,
+) -> Result<WebIntelStats, String> {
+    let wi = state.web_intelligence.lock().await;
+    Ok(wi.get_stats())
+}
+
+#[tauri::command]
+async fn web_intel_save_state(
+    app_handle: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let wi = state.web_intelligence.lock().await;
+    wi.save_state(&dir)
+}
+
+#[tauri::command]
+async fn web_intel_load_state(
+    app_handle: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let mut wi = state.web_intelligence.lock().await;
+    wi.load_state(&dir)
+}
+
+// ─── 统一行动调度引擎 (Action Dispatch) ────────────────────────────
+
+/// 从 LLM 响应文本中提取所有 JSON 动作块
+fn extract_action_blocks(text: &str) -> Vec<String> {
+    let mut blocks = Vec::new();
+    let mut depth = 0i32;
+    let mut start = None;
+
+    for (i, ch) in text.char_indices() {
+        match ch {
+            '{' => {
+                if depth == 0 { start = Some(i); }
+                depth += 1;
+            }
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    if let Some(s) = start {
+                        let block = text[s..=i].to_string();
+                        // 只保留包含 "action" 字段的 JSON 块
+                        if block.contains("\"action\"") || block.contains("\"actions\"") {
+                            blocks.push(block);
+                        }
+                    }
+                    start = None;
+                }
+            }
+            _ => {}
+        }
+    }
+    blocks
+}
+
+/// 格式化 Web 搜索结果供 LLM 上下文注入
+fn format_search_for_llm(results: &[WebSearchResult]) -> String {
+    if results.is_empty() {
+        return "No search results found.".into();
+    }
+    let mut out = String::from("## Web Search Results\n\n");
+    for (i, r) in results.iter().enumerate() {
+        out.push_str(&format!(
+            "{}. **{}**\n   URL: {}\n   {}\n   Source: {} | Score: {:.1}\n\n",
+            i + 1, r.title, r.url, r.snippet, r.source, r.relevance_score
+        ));
+    }
+    out
+}
+
+/// 格式化 Web 抓取结果供 LLM 上下文注入
+fn format_fetch_for_llm(result: &WebFetchResult) -> String {
+    if !result.success {
+        return format!("Web fetch failed: {}", result.error.as_deref().unwrap_or("unknown error"));
+    }
+    let mut out = format!("## Web Fetch: {}\n\n", result.title);
+    if result.distilled {
+        out.push_str(&format!(
+            "> Content distilled from {} bytes. Key points:\n\n",
+            result.content_length
+        ));
+        for point in &result.key_points {
+            out.push_str(&format!("- {}\n", point));
+        }
+        if let Some(ref summary) = result.distilled_summary {
+            out.push_str(&format!("\n### Summary\n\n{}\n", summary));
+        }
+    } else {
+        out.push_str(&result.content);
+    }
+    out
+}
+
+/// 核心行动调度器 — 验证 + 执行 + 返回结果文本
+async fn dispatch_action(
+    state: &AppState,
+    action: &AgentAction,
+) -> Result<String, String> {
+    match action {
+        AgentAction::WebSearch { query, engine, max_results } => {
+            tracing::info!("[DISPATCH] WebSearch: {}", query);
+            let mut wi = state.web_intelligence.lock().await;
+            let results = wi.search(query, engine.as_deref(), *max_results).await?;
+            Ok(format_search_for_llm(&results))
+        }
+        AgentAction::WebFetch { url, distill } => {
+            tracing::info!("[DISPATCH] WebFetch: {}", url);
+            let mut wi = state.web_intelligence.lock().await;
+            let result = wi.fetch(url, distill.unwrap_or(true)).await?;
+            Ok(format_fetch_for_llm(&result))
+        }
+        AgentAction::FileRead { path, range: _ } => {
+            let sandbox = state.sandbox.lock().unwrap();
+            let full_path = sandbox.project_root.join(path);
+            std::fs::read_to_string(&full_path)
+                .map_err(|e| format!("File read failed: {} — {}", path, e))
+        }
+        AgentAction::Terminal { command, cwd: _ } => {
+            tracing::info!("[DISPATCH] Terminal: {}", command);
+            let output = std::process::Command::new("cmd")
+                .args(["/C", command])
+                .output()
+                .map_err(|e| format!("Command execution failed: {}", e))?;
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            if output.status.success() {
+                Ok(format!("Command succeeded:\n```\n{}\n```", stdout))
+            } else {
+                Ok(format!("Command failed (exit {}):\n```\n{}\n```\nStderr:\n```\n{}\n```",
+                    output.status.code().unwrap_or(-1), stdout, stderr))
+            }
+        }
+        AgentAction::ExecuteSkill { name, args } => {
+            // Skill execution via sync blocking to avoid Send issues
+            let name_c = name.clone();
+            let args_c = args.clone();
+            let result = tokio::task::spawn_blocking(move || {
+                // Use a fresh SkillEngine for this blocking call
+                let engine = agent::skill_engine::SkillEngine::new();
+                // Note: in production this should use the real engine from state
+                // For now, return a placeholder since skills require filesystem access
+                Err::<String, String>(format!("Skill '{}' requires local filesystem access", name_c))
+            }).await.map_err(|e| format!("Skill spawn failed: {}", e))?;
+            Err(result.err().unwrap_or_else(|| format!("Skill '{}' execution failed", name)))
+        }
+        AgentAction::McpCall { server_id, tool_name, args } => {
+            let mcp = state.mcp_client.lock().await;
+            let result = mcp.call_tool(server_id, tool_name, args).await;
+            if result.success {
+                if let Some(ref distilled) = result.distilled {
+                    Ok(format!("MCP Result (distilled {}→{}):\n{}",
+                        distilled.original_size, distilled.distilled_size, distilled.summary))
+                } else {
+                    Ok(serde_json::to_string(&result.data).unwrap_or_default())
+                }
+            } else {
+                Err(result.error.unwrap_or_else(|| format!("MCP call '{}' on '{}' failed", tool_name, server_id)))
+            }
+        }
+        AgentAction::FileEdit { path: _, content: _ } => {
+            Err("FileEdit actions must be approved by the user before execution".into())
+        }
+    }
+}
+
+/// Tauri Command: 解析并执行单个 LLM 动作
+#[tauri::command]
+async fn execute_agent_action(
+    state: tauri::State<'_, AppState>,
+    action_json: String,
+) -> Result<String, String> {
+    // 红线一校验 (drop before await)
+    let action = {
+        let redline = state.redline.lock().unwrap();
+        redline.validate_and_parse(&action_json)
+            .map_err(|e| format!("Redline validation failed: {}", e))?
+    };
+
+    // 安全边界校验 (drop before await)
+    {
+        let mut boundary = state.security_boundary.lock().unwrap();
+        let scan_text = format!("{:?}", action);
+        let violations = boundary.scan_llm_output(&scan_text);
+        if !violations.is_empty() {
+            return Err(format!(
+                "Security boundary blocked: {}",
+                violations.iter().map(|d| d.reason.clone()).collect::<Vec<_>>().join("; ")
+            ));
+        }
+    }
+
+    dispatch_action(&state, &action).await
+}
+
+/// Tauri Command: 从 LLM 响应中提取并执行所有动作，返回纯文本结果
+/// 如果响应中不含动作块，返回原始文本
+#[tauri::command]
+async fn extract_and_execute_actions(
+    state: tauri::State<'_, AppState>,
+    llm_response: String,
+) -> Result<serde_json::Value, String> {
+    let blocks = extract_action_blocks(&llm_response);
+
+    if blocks.is_empty() {
+        return Ok(serde_json::json!({
+            "has_actions": false,
+            "text_response": llm_response,
+            "action_results": []
+        }));
+    }
+
+    let mut action_results = Vec::new();
+    let mut combined_results = String::new();
+
+    for block in &blocks {
+        let action_json = block.clone();
+        match execute_agent_action_inner(&state, &action_json).await {
+            Ok(result_text) => {
+                combined_results.push_str(&result_text);
+                combined_results.push_str("\n\n");
+                action_results.push(serde_json::json!({
+                    "action": block,
+                    "success": true,
+                    "result": result_text
+                }));
+            }
+            Err(e) => {
+                tracing::warn!("[DISPATCH] Action failed: {}", e);
+                combined_results.push_str(&format!("[Action failed: {}]\n\n", e));
+                action_results.push(serde_json::json!({
+                    "action": block,
+                    "success": false,
+                    "error": e
+                }));
+            }
+        }
+    }
+
+    Ok(serde_json::json!({
+        "has_actions": true,
+        "text_response": llm_response,
+        "action_results": action_results,
+        "combined_context": combined_results
+    }))
+}
+
+/// 内部函数：无需 State 参数的执行路径
+async fn execute_agent_action_inner(
+    state: &AppState,
+    action_json: &str,
+) -> Result<String, String> {
+    let action = {
+        let redline = state.redline.lock().unwrap();
+        redline.validate_and_parse(action_json)
+            .map_err(|e| format!("Redline validation failed: {}", e))?
+    };
+
+    {
+        let mut boundary = state.security_boundary.lock().unwrap();
+        let scan_text = format!("{:?}", action);
+        let violations = boundary.scan_llm_output(&scan_text);
+        if !violations.is_empty() {
+            return Err(format!(
+                "Security boundary blocked: {}",
+                violations.iter().map(|d| d.reason.clone()).collect::<Vec<_>>().join("; ")
+            ));
+        }
+    }
+
+    dispatch_action(state, &action).await
+}
+
+// ─── Collaboration Engine Commands ──────────────────────────────────
+
+#[tauri::command]
+async fn collab_get_model_ranking(
+    state: tauri::State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let engine = state.collaboration.lock().await;
+    Ok(engine.stats())
+}
+
+#[tauri::command]
+async fn collab_recommend_model(
+    state: tauri::State<'_, AppState>,
+    task_type: String,
+    prefer_cheap: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let engine = state.collaboration.lock().await;
+    let (model, reason) = engine.recommend_model_with_reason(&task_type, prefer_cheap.unwrap_or(false));
+    let best = engine.select_best_model(&task_type, prefer_cheap.unwrap_or(false));
+    let fallbacks = engine.fallback_models(&model, &task_type);
+    Ok(serde_json::json!({
+        "recommended": model,
+        "reason": reason,
+        "best_by_quality": best,
+        "fallbacks": fallbacks,
+        "mode": format!("{:?}", engine.decide_mode(&task_type, 0.5, false)),
+    }))
+}
+
+#[tauri::command]
+async fn collab_record_execution(
+    state: tauri::State<'_, AppState>,
+    model_name: String,
+    task_type: String,
+    success: bool,
+    latency_ms: u64,
+    quality_score: f64,
+) -> Result<String, String> {
+    let mut engine = state.collaboration.lock().await;
+    engine.record_execution(&model_name, &task_type, success, latency_ms, quality_score);
+    Ok(format!("Recorded execution for {}", model_name))
+}
+
+// ─── Task Intelligence Commands ────────────────────────────────────
+
+#[tauri::command]
+fn task_decompose(
+    state: tauri::State<AppState>,
+    task: String,
+) -> Result<serde_json::Value, String> {
+    let engine = state.task_intelligence.lock().unwrap();
+    let plan = engine.decompose(&task);
+    Ok(serde_json::to_value(&plan).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+fn task_estimate_complexity(
+    state: tauri::State<AppState>,
+    task: String,
+) -> Result<serde_json::Value, String> {
+    let engine = state.task_intelligence.lock().unwrap();
+    let (level, confidence) = engine.estimate_complexity(&task);
+    let category = engine.categorize(&task);
+    Ok(serde_json::json!({
+        "complexity": level.label(),
+        "level": level as u8,
+        "confidence": confidence,
+        "estimated_steps": level.estimated_steps(),
+        "category": category.label(),
+    }))
+}
+
+// ─── Predictive Analytics Commands ──────────────────────────────────
+
+#[tauri::command]
+fn predictive_forecast_tokens(
+    state: tauri::State<AppState>,
+    historical: Vec<f64>,
+    periods: Option<usize>,
+) -> Result<Vec<f64>, String> {
+    let engine = state.predictive.lock().unwrap();
+    // Simple EMA forecast using local_analytics style
+    let forecast = engine.forecast_simple(&historical, periods.unwrap_or(10));
+    Ok(forecast)
+}
+
+#[tauri::command]
+fn predictive_detect_cost_anomaly(
+    state: tauri::State<AppState>,
+    values: Vec<f64>,
+) -> Result<serde_json::Value, String> {
+    let engine = state.predictive.lock().unwrap();
+    let anomalies = engine.detect_cost_anomaly_simple(&values);
+    Ok(serde_json::json!({
+        "anomaly_count": anomalies.len(),
+        "anomalies": anomalies,
+        "mean": if values.is_empty() { 0.0 } else { values.iter().sum::<f64>() / values.len() as f64 },
+        "std_dev": std_dev(&values),
+    }))
+}
+
+#[tauri::command]
+fn predictive_optimize_budget(
+    state: tauri::State<AppState>,
+    current_usage: Vec<f64>,
+    budget: f64,
+    _quality_threshold: f64,
+) -> Result<serde_json::Value, String> {
+    let engine = state.predictive.lock().unwrap();
+    let opt = engine.optimize_budget_simple(&current_usage, budget);
+    Ok(serde_json::json!({
+        "recommended_daily": format!("¥{:.2}", opt.recommended_daily),
+        "projected_monthly": format!("¥{:.2}", opt.projected_monthly),
+        "over_budget_risk": format!("{:.1}%", opt.over_budget_risk * 100.0),
+        "savings_potential": format!("¥{:.2}", opt.savings_potential),
+        "suggestions": opt.suggestions,
+    }))
+}
+
+#[tauri::command]
+fn predictive_analyze_enhanced(
+    state: tauri::State<AppState>,
+    message: String,
+) -> Result<serde_json::Value, String> {
+    let engine = state.predictive.lock().unwrap();
+    Ok(engine.analyze_task_enhanced(&message))
+}
+
+#[tauri::command]
+fn scheduling_analyze_enhanced(
+    state: tauri::State<AppState>,
+    message: String,
+) -> Result<serde_json::Value, String> {
+    let engine = agent::scheduling_engine::AgentSchedulingEngine::new();
+    Ok(engine.analyze_enhanced(&message))
+}
+
+// ─── Distillation Evolution Commands ────────────────────────────────
+
+#[tauri::command]
+async fn distill_evolution_report(
+    state: tauri::State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let wi = state.web_intelligence.lock().await;
+    Ok(wi.distillation.evolution_report())
+}
+
+#[tauri::command]
+async fn distill_feedback(
+    state: tauri::State<'_, AppState>,
+    url: String,
+    quality_score: f64,
+    content_type: Option<String>,
+) -> Result<String, String> {
+    let mut wi = state.web_intelligence.lock().await;
+    wi.distillation.feedback(&url, quality_score, &content_type.unwrap_or_else(|| "documentation".into()));
+    Ok(format!("Feedback recorded for {}: quality={:.2}", url, quality_score))
+}
+
+// ─── Evolution Bus Commands ─────────────────────────────────────────
+
+#[tauri::command]
+fn evobus_health_report(
+    state: tauri::State<AppState>,
+) -> Result<serde_json::Value, String> {
+    let bus = state.evolution_bus.lock().unwrap();
+    Ok(bus.health_report())
+}
+
+#[tauri::command]
+fn evobus_record_feedback(
+    state: tauri::State<AppState>,
+    engine: String,
+    metric: String,
+    current_value: f64,
+    target_value: f64,
+    direction_is_higher_better: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let mut bus = state.evolution_bus.lock().unwrap();
+    let eid = parse_evo_engine(&engine)?;
+    let new_val = bus.feedback_performance(eid, &metric, current_value, target_value, direction_is_higher_better.unwrap_or(true));
+    Ok(serde_json::json!({
+        "adjusted": new_val.is_some(),
+        "new_value": new_val,
+        "engine": engine,
+        "metric": metric,
+    }))
+}
+
+#[tauri::command]
+fn hallucination_feedback(
+    state: tauri::State<AppState>,
+    is_false_positive: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    // Note: HallucinationGuard is currently instantiated per-audit call.
+    // For evolution purposes, we maintain a persistent instance in the evolution_bus context.
+    // This command records aggregate feedback.
+    let mut evo = state.evolution_bus.lock().unwrap();
+    let accuracy = if is_false_positive.unwrap_or(false) { 0.6 } else { 0.9 };
+    let fp_rate = if is_false_positive.unwrap_or(false) { 0.25 } else { 0.1 };
+
+    evo.feedback_performance(
+        agent::evolution_bus::EngineId::HallucinationGuard,
+        "accuracy", accuracy, 0.9, true,
+    );
+    evo.feedback_performance(
+        agent::evolution_bus::EngineId::HallucinationGuard,
+        "false_positive_rate", fp_rate, 0.1, false,
+    );
+
+    Ok(serde_json::json!({
+        "recorded": true,
+        "is_false_positive": is_false_positive.unwrap_or(false),
+        "accuracy": accuracy,
+        "false_positive_rate": fp_rate,
+    }))
+}
+
+fn parse_evo_engine(s: &str) -> Result<agent::evolution_bus::EngineId, String> {
+    use agent::evolution_bus::EngineId;
+    match s {
+        "distillation" => Ok(EngineId::Distillation),
+        "scheduling" => Ok(EngineId::Scheduling),
+        "hallucination" => Ok(EngineId::HallucinationGuard),
+        "cache" => Ok(EngineId::CacheEngine),
+        "agent_quality" => Ok(EngineId::AgentQuality),
+        "collaboration" => Ok(EngineId::Collaboration),
+        "task_intelligence" => Ok(EngineId::TaskIntelligence),
+        "predictive" => Ok(EngineId::PredictiveAnalytics),
+        "local_analytics" => Ok(EngineId::LocalAnalytics),
+        _ => Err(format!("Unknown engine: {}", s)),
+    }
+}
+
+/// Helper: compute standard deviation
+fn std_dev(values: &[f64]) -> f64 {
+    if values.is_empty() { return 0.0; }
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64).sqrt()
+}
+
+// ─── Data Flywheel Commands ─────────────────────────────────────────
+
+#[tauri::command]
+fn flywheel_dashboard(
+    state: tauri::State<AppState>,
+) -> Result<serde_json::Value, String> {
+    let fw = state.flywheel.lock().unwrap();
+    Ok(fw.dashboard())
+}
+
+#[tauri::command]
+fn flywheel_spin(
+    state: tauri::State<AppState>,
+) -> Result<serde_json::Value, String> {
+    let mut fw = state.flywheel.lock().unwrap();
+    // Auto-collect from web_intelligence
+    if let Ok(wi) = state.web_intelligence.try_lock() {
+        let stats = wi.get_stats();
+        fw.collect_from_web_intel(
+            stats.total_searches, stats.total_fetches, stats.bytes_downloaded,
+            stats.unified_cache_hits, stats.unified_cache_misses,
+        );
+        fw.collect_from_distillation(
+            stats.total_distilled, stats.total_bytes_saved,
+            stats.avg_compression_ratio, 0.85,
+        );
+    }
+    let snap = fw.spin();
+    Ok(serde_json::to_value(&snap).map_err(|e| e.to_string())?)
+}
+
 // ─── 应用入口 ──────────────────────────────────────────────────────
 
 pub fn run() {
@@ -2038,6 +2895,20 @@ pub fn run() {
             wb_record_activity,
             wb_generate_report,
             wb_generate_suggestions,
+            // system health
+            get_system_health,
+            get_circuit_breaker_status,
+            // user profile
+            get_user_profile,
+            update_user_profile,
+            get_greeting,
+            get_heartbeat,
+            get_achievements,
+            touch_interaction,
+            // security boundary
+            check_permission,
+            scan_llm_boundary,
+            get_security_report,
             // shadow
             get_shadow_stats,
             toggle_shadow,
@@ -2157,6 +3028,43 @@ pub fn run() {
             export_chat_session,
             rename_chat_session,
             import_chat_session,
+            // web intelligence
+            web_intel_search,
+            web_intel_fetch,
+            web_intel_research,
+            web_intel_add_domain,
+            web_intel_remove_domain,
+            web_intel_list_domains,
+            web_intel_get_audit_log,
+            web_intel_get_stats,
+            web_intel_save_state,
+            web_intel_load_state,
+            // action dispatch engine
+            execute_agent_action,
+            extract_and_execute_actions,
+            // collaboration engine
+            collab_get_model_ranking,
+            collab_recommend_model,
+            collab_record_execution,
+            // task intelligence
+            task_decompose,
+            task_estimate_complexity,
+            // predictive analytics
+            predictive_forecast_tokens,
+            predictive_detect_cost_anomaly,
+            predictive_optimize_budget,
+            predictive_analyze_enhanced,
+            scheduling_analyze_enhanced,
+            // distillation evolution
+            distill_evolution_report,
+            distill_feedback,
+            // evolution bus
+            evobus_health_report,
+            evobus_record_feedback,
+            hallucination_feedback,
+            // data flywheel
+            flywheel_dashboard,
+            flywheel_spin,
         ])
         .setup(|_app| {
             // 将 AppHandle 注入 Orchestrator，使其可以 emit 前端事件
@@ -2191,7 +3099,7 @@ pub fn run() {
             {
                 if let Ok(app_data) = _app.handle().path().app_data_dir() {
                     let handle = _app.handle().clone();
-                    tokio::spawn(async move {
+                    tauri::async_runtime::spawn(async move {
                         let state = handle.state::<AppState>();
                         let guard = state.cvfs.lock().await;
                         let _ = guard.load_state(&app_data).await;

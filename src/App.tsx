@@ -10,6 +10,8 @@ import SettingsPanel from "@/views/SettingsPanel";
 import EvolutionConsole from "@/views/EvolutionConsole";
 import AppGlueBinder from "@/views/AppGlueBinder";
 import SkillMcpHub from "@/views/SkillMcpHub";
+import WebIntelligencePanel from "@/views/WebIntelligencePanel";
+import AutoRoutingPanel from "@/views/AutoRoutingPanel";
 import RemoteHub from "@/views/RemoteHub";
 import RedlineGuardPanel from "@/views/RedlineGuardPanel";
 import SecurityShieldPanel from "@/components/SecurityShieldPanel";
@@ -61,7 +63,7 @@ function AppInner() {
   // ── 全局视图路由 ────────────────────────────────────────────────
   const [activeView, setActiveView] = useState<"workbench" | "settings" | "evolution">("workbench");
   // Dock 导航
-  const [dockView, setDockView] = useState<"chat" | "pipeline" | "glue" | "skills" | "remote" | "explorer" | "approval">("chat");
+  const [dockView, setDockView] = useState<"chat" | "pipeline" | "glue" | "skills" | "webintel" | "autoroute" | "remote" | "explorer" | "approval">("chat");
 
   // ── 模型配置 ────────────────────────────────────────────────────
   const [routeMode, setRouteMode] = useState<"auto" | "manual">("auto");
@@ -340,6 +342,16 @@ function AppInner() {
               <DockButton active={dockView === "skills"} tip="技能中枢" onClick={() => setDockView("skills")}>
                 <McpIcon size={18} className={dockView === "skills" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
+              <DockButton active={dockView === "webintel"} tip="Web智能搜索" onClick={() => setDockView("webintel")}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={dockView === "webintel" ? "stroke-cyan-400" : "stroke-zinc-500"}>
+                  <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M11 8a3 3 0 0 0-3 3"/>
+                </svg>
+              </DockButton>
+              <DockButton active={dockView === "autoroute"} tip="自动路由中枢" onClick={() => setDockView("autoroute")}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={dockView === "autoroute" ? "stroke-purple-400" : "stroke-zinc-500"}>
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                </svg>
+              </DockButton>
               <DockButton active={dockView === "remote"} tip="远程服务器" onClick={() => setDockView("remote")}>
                 <RemoteIcon size={18} className={dockView === "remote" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
@@ -375,6 +387,12 @@ function AppInner() {
               )}
               {dockView === "skills" && (
                 <div className="flex-1 overflow-hidden"><SkillMcpHub /></div>
+              )}
+              {dockView === "webintel" && (
+                <div className="flex-1 overflow-hidden"><WebIntelligencePanel /></div>
+              )}
+              {dockView === "autoroute" && (
+                <div className="flex-1 overflow-hidden"><AutoRoutingPanel /></div>
               )}
               {dockView === "remote" && (
                 <div className="flex-1 overflow-hidden"><RemoteHub /></div>

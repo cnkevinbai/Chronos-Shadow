@@ -321,7 +321,7 @@ mod tests {
 
     fn make_exp(agent: &str, success: bool, satisfied: Option<bool>) -> ExperienceMemory {
         ExperienceMemory {
-            id: format!("exp-{}", rand::random::<u16>()),
+            id: format!("exp-{}", chrono::Utc::now().timestamp_millis() % 65535),
             timestamp: chrono_now(),
             user_input: "test".into(),
             intent: "CodeGeneration".into(),

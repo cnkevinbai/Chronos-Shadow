@@ -75,16 +75,153 @@ impl Default for GuardConfig {
 pub struct HallucinationGuard {
     config: GuardConfig,
     /// 历史检测统计: (总检测次数, 确认幻觉次数)
-    #[allow(dead_code)]
-    detection_history: (u32, u32),
+    detection_history: (u64, u64),
+    /// 误报统计: (总报告数, 用户标记为误报数)
+    false_positive_history: (u64, u64),
+    /// 各维度检测灵敏度 (0.5-1.5, 1.0=默认)
+    pub detection_sensitivity: HallucinationSensitivity,
+}
+
+/// 各维度自适应检测灵敏度
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HallucinationSensitivity {
+    pub confidence_markers: f64,   // 置信度检测
+    pub fake_apis: f64,            // 虚构API
+    pub code_consistency: f64,     // 代码一致性
+    pub contradictions: f64,       // 内部矛盾
+    pub impossible_commands: f64,  // 危险命令
+    pub outdated_refs: f64,        // 过时引用
+    pub fake_programming: f64,     // 假编程
+    pub fake_completion: f64,      // 假完成
+    pub empty_scaffold: f64,       // 空文件夹
+    pub fabricated_facts: f64,     // 编造谎言
+}
+
+impl Default for HallucinationSensitivity {
+    fn default() -> Self {
+        Self {
+            confidence_markers: 1.0,
+            fake_apis: 1.0,
+            code_consistency: 1.0,
+            contradictions: 1.0,
+            impossible_commands: 1.0,
+            outdated_refs: 1.0,
+            fake_programming: 1.0,
+            fake_completion: 1.0,
+            empty_scaffold: 1.0,
+            fabricated_facts: 1.0,
+        }
+    }
 }
 
 impl HallucinationGuard {
-    pub fn new() -> Self { Self { config: GuardConfig::default(), detection_history: (0, 0) } }
+    pub fn new() -> Self {
+        Self {
+            config: GuardConfig::default(),
+            detection_history: (0, 0),
+            false_positive_history: (0, 0),
+            detection_sensitivity: HallucinationSensitivity::default(),
+        }
+    }
 
     /// 创建带模型画像的检测器
     pub fn with_profile(model_hallucination_rate: f32) -> Self {
-        Self { config: GuardConfig { model_hallucination_profile: model_hallucination_rate, ..Default::default() }, detection_history: (0, 0) }
+        Self {
+            config: GuardConfig { model_hallucination_profile: model_hallucination_rate, ..Default::default() },
+            detection_history: (0, 0),
+            false_positive_history: (0, 0),
+            detection_sensitivity: HallucinationSensitivity::default(),
+        }
+    }
+
+    // ── 进化反馈接口 ──────────────────────────────────────────
+
+    /// 接收用户反馈：标记某次检测是否为误报
+    pub fn record_feedback(&mut self, is_false_positive: bool) {
+        self.detection_history.0 += 1;
+        if !is_false_positive {
+            self.detection_history.1 += 1; // 真正的幻觉
+        } else {
+            self.false_positive_history.0 += 1;
+            self.false_positive_history.1 += 1;
+        }
+
+        // 自适应调整灵敏度
+        let fp_rate = self.false_positive_rate();
+        self.adapt_sensitivity(fp_rate);
+    }
+
+    /// 当前误报率
+    pub fn false_positive_rate(&self) -> f64 {
+        if self.false_positive_history.0 == 0 { return 0.1; }
+        self.false_positive_history.1 as f64 / self.false_positive_history.0 as f64
+    }
+
+    /// 检测准确率
+    pub fn accuracy(&self) -> f64 {
+        if self.detection_history.0 == 0 { return 0.9; }
+        self.detection_history.1 as f64 / self.detection_history.0 as f64
+    }
+
+    /// 自适应调整灵敏度：误报率高→降低灵敏度，漏报率高→提高灵敏度
+    fn adapt_sensitivity(&mut self, fp_rate: f64) {
+        let lr = 0.08;
+        let target_fp = 0.15; // 目标误报率 15%
+
+        let adjustment = if fp_rate > target_fp + 0.1 {
+            -lr * 1.5 // 误报太多，降低灵敏度
+        } else if fp_rate > target_fp {
+            -lr * 0.5 // 轻微降低
+        } else if fp_rate < 0.05 {
+            lr * 1.0 // 太保守，提高灵敏度
+        } else {
+            0.0 // 在目标范围内
+        };
+
+        if adjustment != 0.0 {
+            let s = &mut self.detection_sensitivity;
+            let clamp = |v: f64| v.clamp(0.5, 1.5);
+            s.confidence_markers = clamp(s.confidence_markers + adjustment);
+            s.fake_apis = clamp(s.fake_apis + adjustment);
+            s.fake_programming = clamp(s.fake_programming + adjustment);
+            s.fake_completion = clamp(s.fake_completion + adjustment);
+            s.fabricated_facts = clamp(s.fabricated_facts + adjustment);
+            s.code_consistency = clamp(s.code_consistency + adjustment * 0.5);
+        }
+    }
+
+    /// 应用灵敏度到惩罚值
+    pub fn apply_sensitivity(&self, category: &str, base_penalty: u32) -> u32 {
+        let factor = match category {
+            "置信度" => self.detection_sensitivity.confidence_markers,
+            "虚构API" => self.detection_sensitivity.fake_apis,
+            "代码一致性" => self.detection_sensitivity.code_consistency,
+            "内部矛盾" | "版本混淆" => self.detection_sensitivity.contradictions,
+            "危险命令" => self.detection_sensitivity.impossible_commands,
+            "过时引用" => self.detection_sensitivity.outdated_refs,
+            "假编程" => self.detection_sensitivity.fake_programming,
+            "假完成" => self.detection_sensitivity.fake_completion,
+            "空文件夹" => self.detection_sensitivity.empty_scaffold,
+            "编造谎言" => self.detection_sensitivity.fabricated_facts,
+            _ => 1.0,
+        };
+        (base_penalty as f64 * factor).round() as u32
+    }
+
+    /// 获取进化指标 (供 EvolutionBus 使用)
+    pub fn evolution_metrics(&self) -> serde_json::Value {
+        serde_json::json!({
+            "accuracy": self.accuracy(),
+            "false_positive_rate": self.false_positive_rate(),
+            "total_detections": self.detection_history.0,
+            "confirmed_hallucinations": self.detection_history.1,
+            "sensitivity": {
+                "confidence": self.detection_sensitivity.confidence_markers,
+                "fake_apis": self.detection_sensitivity.fake_apis,
+                "fake_programming": self.detection_sensitivity.fake_programming,
+                "fabricated_facts": self.detection_sensitivity.fabricated_facts,
+            },
+        })
     }
 
     /// 自适应惩罚: 基于模型历史画像动态调整扣分力度

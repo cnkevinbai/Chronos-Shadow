@@ -21,6 +21,7 @@ import {
   exportChatSession,
   renameChatSession,
   importChatSession,
+  extractAndExecuteActions,
 } from "@/lib/tauri";
 
 // 真实文件对话框（Tauri 环境可用，浏览器降级为 mock）
@@ -196,14 +197,16 @@ export default function ChatPanel({
     setMessages((prev) => [
       {
         ...prev[0],
-        content: anyKey ? t.chat_welcome_connected : t.chat_welcome_demo,
+        content: anyKey
+          ? `🦀 **Chronos-Shadow v0.2.0** 已就绪 ❤️\n\n${t.chat_welcome_connected}\n\n> *每一次交互，都让系统更懂你*\n> *所有数据端侧处理，你的隐私我们守护* 🔒`
+          : t.chat_welcome_demo,
       },
       ...prev.slice(1),
     ]);
   }, [anyKey, t]);
 
   const [isThinking, setIsThinking] = useState(false);
-  const [flowStage, setFlowStage] = useState<"idle"|"connecting"|"thinking"|"streaming">("idle");
+  const [flowStage, setFlowStage] = useState<"idle"|"connecting"|"thinking"|"streaming"|"researching">("idle");
   const [flowStartMs, setFlowStartMs] = useState(0);
   const [flowTick, setFlowTick] = useState(0);
   const [macrosVisible, setMacrosVisible] = useState(false);
@@ -217,7 +220,7 @@ export default function ChatPanel({
 
   const flowDots = ".".repeat((flowTick % 3) + 1);
   const flowElapsed = isThinking ? ((Date.now() - flowStartMs) / 1000).toFixed(1) : "0.0";
-  const stageLabel = { idle:"", connecting:"连接中", thinking:"推理中", streaming:"流式接收" }[flowStage];
+  const stageLabel = { idle:"", connecting:"连接中", thinking:"推理中", streaming:"流式接收", researching:"研究中" }[flowStage];
   const [lastUserInput, setLastUserInput] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -788,18 +791,96 @@ export default function ChatPanel({
             ),
           );
 
+          // ── 行动调度引擎：检测 LLM 响应中的动作指令 ──
+          const finalContent = response.content || streamedContent;
+          let allMessages = [...updatedAfterUser, {
+            ...streamPlaceholder,
+            content: finalContent,
+            costTokens: response.tokens_used,
+            isCached: response.cached,
+            model: `${modelDisplayName(selectedModel)} (API)`,
+          }];
+
+          // Scan for and execute embedded actions
+          if (finalContent.includes('"action"') && (finalContent.includes('"web_search"') || finalContent.includes('"web_fetch"'))) {
+            try {
+              const execResult = await extractAndExecuteActions(finalContent);
+              if (execResult.has_actions && execResult.combined_context) {
+                // Add system message showing executed actions
+                const sysMsg: Message = {
+                  id: `sys-${Date.now()}`,
+                  sender: "System",
+                  model: "Action Engine",
+                  content: `🔍 **Auto-research executed**\n\n${execResult.action_results.map((a, i) =>
+                    `${i + 1}. ${a.success ? '✅' : '❌'} \`${a.action.slice(0, 80)}...\``
+                  ).join('\n')}`,
+                  timestamp: new Date().toLocaleTimeString(),
+                };
+                allMessages = [...allMessages, sysMsg];
+
+                // Auto-continue: feed results back to LLM for a synthesized answer
+                setMessages(allMessages);
+                setIsThinking(true);
+                setFlowStage("researching");
+
+                const followUpMessages = [
+                  ...chatMessages,
+                  { role: "assistant", content: finalContent },
+                  { role: "user", content: `Based on the following research results, please synthesize a comprehensive answer. Cite sources.\n\n${execResult.combined_context}` },
+                ];
+
+                // Stream listener for follow-up
+                let followUpContent = "";
+                const fuUnlisten = await onChatStreamChunk((chunk) => {
+                  followUpContent += chunk;
+                  setMessages((prev) => {
+                    const last = prev[prev.length - 1];
+                    if (last?.id.startsWith("followup-")) {
+                      setFlowStage("streaming");
+                      return prev.map((m) => m.id === last.id ? { ...m, content: followUpContent } : m);
+                    }
+                    return prev;
+                  });
+                });
+
+                const followUpPlaceholderId = `followup-${Date.now()}`;
+                setMessages((prev) => [...prev, {
+                  id: followUpPlaceholderId, sender: "Coder" as const,
+                  model: `${modelDisplayName(selectedModel)} (Research)`,
+                  content: "", costTokens: 0, isCached: false,
+                  timestamp: new Date().toLocaleTimeString(),
+                }]);
+
+                let followUp;
+                try { followUp = await chatApiStream(endpoint, apiKey, selectedModel, followUpMessages, 4096); }
+                finally { fuUnlisten(); }
+
+                if (followUp.success) {
+                  const fuFinal = followUp.content || followUpContent;
+                  setMessages((prev) => prev.map((m) =>
+                    m.id === followUpPlaceholderId ? { ...m, content: fuFinal, costTokens: followUp.tokens_used, isCached: followUp.cached } : m
+                  ));
+                  allMessages.push({
+                    id: followUpPlaceholderId, sender: "Coder" as const,
+                    model: `${modelDisplayName(selectedModel)} (Research)`,
+                    content: fuFinal, costTokens: followUp.tokens_used, isCached: followUp.cached,
+                    timestamp: new Date().toLocaleTimeString(),
+                  });
+                  toast.showToast("success", "RESEARCH COMPLETE", "已自动搜索并整合信息到回复中。");
+                } else {
+                  setMessages((prev) => prev.filter((m) => m.id !== followUpPlaceholderId));
+                }
+              }
+            } catch (e) {
+              // Action execution failed silently — response is still valid
+              console.warn("[ChatPanel] Action dispatch failed:", e);
+            }
+          }
+
+          setMessages(allMessages);
+
           // 自动分块持久化
-          const persistedMsgs = [
-            ...updatedAfterUser,
-            {
-              ...streamPlaceholder,
-              content: response.content || streamedContent,
-              costTokens: response.tokens_used,
-              isCached: response.cached,
-              model: `${modelDisplayName(selectedModel)} (API)`,
-            },
-          ];
-          persistCurrentSession(persistedMsgs);
+          persistCurrentSession(allMessages);
           refreshManifests();
           if (response.cached) {
             toast.showToast(

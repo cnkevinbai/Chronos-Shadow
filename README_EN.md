@@ -1,149 +1,132 @@
-# Chronos-Shadow (Shadow of Time)
+# Chronos-Shadow
 
-> Next-generation industrial-grade open-source desktop agent — deeply integrating LLM capabilities with Windows system-level control
+> Next-gen Industrial Open-Source Desktop Agent — Deeply integrating LLM potential with Windows system-level control
+
+[**🇨🇳 中文**](README.md) | [**🇬🇧 English**](README_EN.md)
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.80%2B-orange.svg)](https://rust-lang.org)
 [![Tauri](https://img.shields.io/badge/tauri-v2.0-purple.svg)](https://tauri.app)
 [![React](https://img.shields.io/badge/react-19.0-blue.svg)](https://react.dev)
 
-Chronos-Shadow is an industrial-grade open-source desktop agent that deeply integrates LLM capabilities with Windows system-level control. Built-in MCP client bus, adaptive distributed cluster management, AES-256-GCM session encryption, native Windows Credential Manager key storage, zero-token local skill detection engine, and gamified cost-saving ledger.
+Chronos-Shadow is an industrial-grade open-source desktop agent that deeply integrates LLM capabilities with Windows system-level control. Features 41 Rust backend modules, 12 frontend panels, multi-model hybrid routing, on-device evolution engine cluster, AES-256-GCM session encryption, and a full-chain security approval system.
 
-> 🚧 **Development Status**: ONNX privacy masking, Buddy Scan visual inspection, and vector embeddings are currently framework placeholders under active development. See [CHANGELOG.md](CHANGELOG.md) for details.
+> ✅ **v0.2.0 Released** — Web Intelligence, Semantic Distillation, Unified Cache, Multi-Model Collaboration, Task Intelligence, Predictive Analytics, 9-Engine Evolution Bus. See [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
-## Feature Matrix
+## Features
 
 ### 🧠 Multi-Model Hybrid Routing
-- Support: DeepSeek V4-Pro/Flash, Kimi K3/K2.7, GLM-5.2/5V-Turbo
-- Auto-routing: selects optimal model per Agent role (PM/Coder/Auditor)
-- LAN hot-swap: cloud timeout → millisecond fallback to Ollama local model
-- DeepSeek Context Caching maximized at 90% discount
+- DeepSeek V4-Pro/Flash, Kimi K3/K2.7, GLM-5.2/5V-Turbo
+- Auto-routing: 27 keyword rules → optimal Agent + Model
+- Multi-model collaboration: Parallel / Voting / Cascade / Divide-and-Conquer
+- LAN hot-swap: Cloud timeout → millisecond fallback to Ollama local
+- DeepSeek Context Caching 90% discount maximization
+- Quality feedback loop: EMA model profile updates + auto-degradation
 
 ### 🔒 Financial-Grade Security
-- **AES-256-GCM** streaming session encryption (hardware-fingerprint-bound key)
-- **Windows Credential Manager** native FFI (`keyring` → `CredWriteW/CredReadW`)
-- Strict CSP · Tauri permission whitelist · rate limiting · cost circuit breaker
-- Three Red Lines anti-hallucination: Schema validation + Sandbox path blocking + Healing fuse
+- AES-256-GCM session streaming encryption (hardware-fingerprint key binding)
+- Windows Credential Manager native FFI
+- CSP strict policy · Tauri permission whitelist · Rate limiting · Cost circuit breaker
+- Four redline protection: Schema validation + Sandbox path lock + Self-healing fuse + Approval gate
+- 10-dimension anti-hallucination engine with adaptive sensitivity
+- Domain whitelist: read-only external search/fetch, data exfiltration permanently forbidden
 
-### 🖥️ Remote Server Cluster
-- SSH tunnel · file browser · remote compilation · Git snapshot/rewind
-- Multi-server async registration · project→server mapping · cluster ping
+### 🌐 Web Intelligence (v0.2.0)
+- Domain whitelist: 30+ preloaded official docs + tech community domains
+- Web search: Bing / DuckDuckGo dual engines with result caching
+- Web fetch: HTML→Markdown auto-conversion with content sanitization
+- Multi-source research: Search→Fetch→Distill→Summarize pipeline
+- Full audit trail for all external requests
 
-### 🎨 OmniDesign-Matrix
-- Natural language → cross-platform UI/UX code (PC + Mobile)
-- Vercel / Linear / Apple theme one-click switching
-- Dual-pane live preview + ONNX pixel-level fidelity inspection 🚧
+### 🧪 Semantic Distillation Engine (v0.2.0)
+- Three-level: Light / Medium / Deep
+- 7-dimension RL weight auto-evolution
+- 12 entity types auto-extraction: versions, dates, crates, packages, repos, licenses
+- Adaptive strategy table per content type (code/doc/blog)
+- LRU cache + quality feedback loop
 
-### 📊 Full-Role SDLC Pipeline
-- 7 Agent ring scheduling (PM → Designer → Architect → Planner → Coder → Auditor → Verifier)
-- Task Kanban: create/assign/complete/fail
-- Zero-Token local skill detection & interception
-- 🚧 Buddy Scan pixel-level visual inspection (in development)
-- 🚧 ONNX local privacy masking (in development)
+### 🔄 Unified Cache Engine (v0.2.0)
+- 5 categories with independent TTLs
+- Adaptive TTL: adjusts based on hit rate patterns
+- LRU eviction + disk persistence
+- Full-dimension statistics
+
+### 🤖 Multi-Model Collaboration (v0.2.0)
+- 4 collaboration modes with 5 model profiles
+- EMA quality feedback + auto fallback
+- Cost optimization: cheapest model above quality threshold
+
+### 🔮 Predictive Analytics (v0.2.0)
+- Holt-Winters seasonal token forecasting
+- SPC cost anomaly detection
+- Bayesian budget optimization
+- K-means usage pattern clustering
+
+### 🧬 Evolution Bus (v0.2.0)
+- 9-engine unified evolution management
+- Feedback loop with safety clamp protection
+- Cross-engine knowledge transfer
+- Hourly advancement assessment
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| **Desktop** | Tauri v2 (Rust) |
-| **Frontend** | React 19 + TypeScript + Tailwind CSS 4 + Vite |
-| **Backend** | Rust (23 modules, 10,600+ lines) |
-| **Crypto** | AES-256-GCM + SHA-256 + keyring (Windows FFI) |
-| **AI Routing** | reqwest + SSE streaming + Context Caching |
-| **Storage** | Chunked JSON (Chronos Vault) |
-| **Testing** | Rust `#[cfg(test)]` + TypeScript strict mode |
+| Layer | Technology | Scale |
+|-------|-----------|-------|
+| Desktop | Tauri v2 (Rust) | — |
+| Frontend | React 19 + TS + Tailwind CSS 4 + Vite | 1815 modules, 469 KB JS |
+| Backend | Rust | 41 modules, ~936 KB source |
+| Crypto | AES-256-GCM + SHA-256 + keyring | — |
+| AI Routing | reqwest + SSE streaming + Context Caching | — |
+| Storage | Chunked JSON (Chronos Vault) | — |
+| i18n | Chinese + English | 333 keys |
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-- **Windows 10/11** (WebView2 built-in)
-- [Rust](https://rustup.rs) 1.80+
-- [Node.js](https://nodejs.org) 22+
-- [Tauri CLI](https://tauri.app) v2
+- Windows 10/11 (WebView2 built-in)
+- Rust 1.80+
+- Node.js 22+
+- Tauri CLI v2
 
 ### Development
 
 ```bash
 cd chronos-shadow
 npm install
-npm run tauri dev
+npx tauri dev
 ```
 
 ### Production Build
 
 ```bash
-npm run tauri build
-# Output: src-tauri/target/release/bundle/msi/Chronos-Shadow_*.msi
-```
-
-### Portable Edition
-
-Run `chronos-shadow.exe` directly (9.3 MB), no installation required.
-
----
-
-## Project Structure
-
-```
-chronos-shadow/
-├── src/                    # React frontend
-│   ├── views/              # 9 panels
-│   ├── components/         # 11 components (incl. SvgIcons)
-│   └── lib/                # IPC layer + types + i18n
-├── src-tauri/              # Rust backend
-│   ├── src/agent/          # 23 core modules
-│   ├── skills/             # Skill definitions
-│   └── resources/          # ONNX models + MCP configs
-├── .github/workflows/      # CI/CD
-└── dist/                   # Frontend build output
+build-tauri.bat
+# Output:
+#   src-tauri/target/release/chronos-shadow.exe  (9.34 MB)
+#   src-tauri/target/release/bundle/msi/*.msi    (4.2 MB)
 ```
 
 ---
 
-## Panels
+## Architecture
 
-| Panel | Icon | Function |
-|-------|------|----------|
-| ChatPanel | `ChatIcon` | Streaming chat · attachments · @/slash · Markdown |
-| SdlcPipelinePanel | `PipelineIcon` | 7 Agent ring · task Kanban |
-| AppGlueBinder | `GlueIcon` | Cross-app glue · OmniDesign canvas |
-| SkillMcpHub | `McpIcon` | Skill management · MCP connect |
-| RemoteHub | `RemoteIcon` | SSH cluster · file browse · compile |
-| ProjectExplorer | `ChronosFolderIcon` | C-VFS projects · Chronos timeline |
-| SecurityShield | `ShieldIcon` | Shadow toggle · fuse reset |
-| RedlineGuard | `ShieldIcon` | Three Red Lines · schema test |
-| EvolutionConsole | `EvolutionIcon` | Evolution system · tech tree |
-| SettingsPanel | `SettingsIcon` | API/cost/LAN/security/lang/About |
+```
+Security Layer → security_boundary + redline + approval_gate + hallucination_guard
+Intelligence Layer → scheduling_engine + task_intelligence + collaboration + predictive
+Information Layer → web_intelligence + distillation + cache_engine
+Evolution Layer → evolution_bus + agent_quality
+Infrastructure Layer → router + billing_engine + orchestrator
+```
 
 ---
-
-## 💝 Support the Project
-
-Chronos-Shadow is free and open-source. If you find it useful, support us via:
-
-- ⭐ [GitHub Stars](https://github.com/cnkevinbai/Chronos-Shadow) — free encouragement
-- 💰 [GitHub Sponsors](https://github.com/sponsors/cnkevinbai) — monthly sponsorship
-- ☕ [Afdian](https://afdian.com/a/chronos-shadow) — one-time support
-
-Every contribution helps us continue developing and maintaining this project. Thank you!
 
 ## License
 
-This project is released under [Apache License 2.0](LICENSE).
+Apache License 2.0
 
 Copyright 2026 Chronos-Shadow Open Source Team.
-
----
-
-## Acknowledgments
-
-- [Tauri](https://tauri.app) — Lightweight desktop framework
-- [React](https://react.dev) — UI framework
-- [Tailwind CSS](https://tailwindcss.com) — Styling system
-- [DeepSeek](https://deepseek.com) · [Kimi](https://kimi.moonshot.cn) · [GLM](https://bigmodel.cn) — LLM APIs

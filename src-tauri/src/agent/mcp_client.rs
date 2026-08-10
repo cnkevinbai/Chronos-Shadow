@@ -515,7 +515,7 @@ mod tests {
         // Uses 'echo' which exists on both Windows and Unix — just verifies no panic
         let result = McpClient::spawn_server("test", "echo", &["hello"]);
         assert!(result.is_ok());
-        let (client, id) = result.unwrap();
+        let (mut client, id) = result.unwrap();
         assert_eq!(id, "test");
         assert!(client.servers.contains_key("test"));
         assert!(client.processes.contains_key("test"));

@@ -1283,3 +1283,333 @@ export async function loadApprovalState(): Promise<string> {
   try { return await invoke<string>("load_approval_state"); }
   catch { return "Load failed (mock)"; }
 }
+
+// ─── Web Intelligence ──────────────────────────────────────────────
+
+export async function webIntelSearch(
+  query: string,
+  engine?: string,
+  maxResults?: number,
+): Promise<import("./types").WebSearchResult[]> {
+  try {
+    return await invoke<import("./types").WebSearchResult[]>("web_intel_search", {
+      query, engine: engine ?? null, maxResults: maxResults ?? null,
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function webIntelFetch(
+  url: string,
+  distill?: boolean,
+): Promise<import("./types").WebFetchResult> {
+  try {
+    return await invoke<import("./types").WebFetchResult>("web_intel_fetch", {
+      url, distill: distill ?? null,
+    });
+  } catch {
+    return { success: false, url, title: "", content: "", content_length: 0, distilled: false, distilled_summary: null, key_points: [], error: "IPC unavailable" };
+  }
+}
+
+export async function webIntelResearch(
+  topic: string,
+  sources?: string[],
+): Promise<import("./types").ResearchReport> {
+  try {
+    return await invoke<import("./types").ResearchReport>("web_intel_research", {
+      topic, sources: sources ?? null,
+    });
+  } catch {
+    return { topic, summary: "", key_findings: [], sources: [], confidence: 0, timestamp: new Date().toISOString(), recommendations: [] };
+  }
+}
+
+export async function webIntelAddDomain(
+  domain: string,
+  category?: string,
+): Promise<string> {
+  try {
+    return await invoke<string>("web_intel_add_domain", { domain, category: category ?? null });
+  } catch {
+    return `Domain ${domain} added (mock)`;
+  }
+}
+
+export async function webIntelRemoveDomain(domain: string): Promise<string> {
+  try { return await invoke<string>("web_intel_remove_domain", { domain }); }
+  catch { return `Domain ${domain} removed (mock)`; }
+}
+
+export async function webIntelListDomains(): Promise<[string, string][]> {
+  try { return await invoke<[string, string][]>("web_intel_list_domains"); }
+  catch { return []; }
+}
+
+export async function webIntelGetAuditLog(
+  limit?: number,
+): Promise<import("./types").WebAuditEntry[]> {
+  try {
+    return await invoke<import("./types").WebAuditEntry[]>("web_intel_get_audit_log", { limit: limit ?? null });
+  } catch {
+    return [];
+  }
+}
+
+export async function webIntelGetStats(): Promise<import("./types").WebIntelStats> {
+  try { return await invoke<import("./types").WebIntelStats>("web_intel_get_stats"); }
+  catch {
+    return { total_searches: 0, total_fetches: 0, total_research: 0, bytes_downloaded: 0, domains_whitelisted: 0, requests_blocked: 0, estimated_cost_saved: 0, total_distilled: 0, total_bytes_saved: 0, avg_compression_ratio: 0, cache_hit_rate: 0, unified_cache_hits: 0, unified_cache_misses: 0, api_calls_saved: 0 };
+  }
+}
+
+export async function webIntelSaveState(): Promise<string> {
+  try { return await invoke<string>("web_intel_save_state"); }
+  catch { return "Save failed (mock)"; }
+}
+
+export async function webIntelLoadState(): Promise<string> {
+  try { return await invoke<string>("web_intel_load_state"); }
+  catch { return "Load failed (mock)"; }
+}
+
+// ─── Action Dispatch Engine ────────────────────────────────────────
+
+export interface ActionExecutionResult {
+  has_actions: boolean;
+  text_response: string;
+  action_results: Array<{
+    action: string;
+    success: boolean;
+    result?: string;
+    error?: string;
+  }>;
+  combined_context?: string;
+}
+
+/** 执行单个 Agent Action JSON */
+export async function executeAgentAction(
+  actionJson: string,
+): Promise<string> {
+  try { return await invoke<string>("execute_agent_action", { actionJson }); }
+  catch { return `Action execution failed (mock)`; }
+}
+
+/** 从 LLM 响应中提取并执行所有 action，返回结构化结果 */
+export async function extractAndExecuteActions(
+  llmResponse: string,
+): Promise<ActionExecutionResult> {
+  try {
+    return await invoke<ActionExecutionResult>("extract_and_execute_actions", { llmResponse });
+  } catch {
+    return { has_actions: false, text_response: llmResponse, action_results: [] };
+  }
+}
+
+// ─── Collaboration Engine ──────────────────────────────────────────
+
+export interface ModelRanking {
+  total_executions: number;
+  success_rate: number;
+  models_tracked: number;
+  model_ranking: Array<{
+    name: string;
+    quality: string;
+    success_rate: string;
+    avg_latency: string;
+    cost: string;
+    online: boolean;
+  }>;
+}
+
+export interface ModelRecommendation {
+  recommended: string;
+  reason: string;
+  best_by_quality: string | null;
+  fallbacks: string[];
+  mode: string;
+}
+
+export async function collabGetModelRanking(): Promise<ModelRanking> {
+  try { return await invoke<ModelRanking>("collab_get_model_ranking"); }
+  catch { return { total_executions: 0, success_rate: 0, models_tracked: 0, model_ranking: [] }; }
+}
+
+export async function collabRecommendModel(
+  taskType: string,
+  preferCheap?: boolean,
+): Promise<ModelRecommendation> {
+  try {
+    return await invoke<ModelRecommendation>("collab_recommend_model", {
+      taskType, preferCheap: preferCheap ?? null,
+    });
+  } catch {
+    return { recommended: "deepseek-v4-flash", reason: "默认", best_by_quality: null, fallbacks: [], mode: "Single" };
+  }
+}
+
+export async function collabRecordExecution(
+  modelName: string, taskType: string,
+  success: boolean, latencyMs: number, qualityScore: number,
+): Promise<string> {
+  try { return await invoke<string>("collab_record_execution", { modelName, taskType, success, latencyMs, qualityScore }); }
+  catch { return "Recorded (mock)"; }
+}
+
+// ─── Task Intelligence ────────────────────────────────────────────
+
+export interface TaskPlan {
+  task_id: string;
+  original_task: string;
+  complexity: string;
+  category: string;
+  sub_tasks: Array<{
+    id: string; title: string; description: string;
+    dependencies: string[]; recommended_agent: string;
+    recommended_model: string; estimated_tokens: number;
+    estimated_duration_secs: number; priority: number;
+    status: string; category: string;
+  }>;
+  parallel_groups: string[][];
+  total_estimated_tokens: number;
+  total_estimated_duration_secs: number;
+  estimated_cost: number;
+  created_at: string;
+}
+
+export interface ComplexityEstimate {
+  complexity: string;
+  level: number;
+  confidence: number;
+  estimated_steps: number;
+  category: string;
+}
+
+export async function taskDecompose(task: string): Promise<TaskPlan> {
+  try { return await invoke<TaskPlan>("task_decompose", { task }); }
+  catch {
+    return {
+      task_id: "mock", original_task: task, complexity: "Simple", category: "CodeImplementation",
+      sub_tasks: [], parallel_groups: [], total_estimated_tokens: 0,
+      total_estimated_duration_secs: 0, estimated_cost: 0, created_at: new Date().toISOString(),
+    };
+  }
+}
+
+export async function taskEstimateComplexity(task: string): Promise<ComplexityEstimate> {
+  try { return await invoke<ComplexityEstimate>("task_estimate_complexity", { task }); }
+  catch { return { complexity: "基础", level: 2, confidence: 0.5, estimated_steps: 3, category: "代码实现" }; }
+}
+
+// ─── Distillation Evolution ────────────────────────────────────────
+
+export interface EvolutionReport {
+  evolution_enabled: boolean;
+  total_evolutions: number;
+  avg_quality: string;
+  weights: {
+    code_retention: string;
+    api_retention: string;
+    fact_extraction: string;
+    paragraph_threshold: string;
+    entity_aggressiveness: string;
+    compression_aggressiveness: string;
+  };
+  strategies: Array<{
+    content_type: string;
+    optimal_budget: number;
+    optimal_level: string;
+    avg_quality: string;
+    avg_compression: string;
+    usage_count: number;
+  }>;
+}
+
+export async function distillEvolutionReport(): Promise<EvolutionReport> {
+  try { return await invoke<EvolutionReport>("distill_evolution_report"); }
+  catch {
+    return {
+      evolution_enabled: true, total_evolutions: 0, avg_quality: "0.75",
+      weights: { code_retention: "0.90", api_retention: "0.85", fact_extraction: "0.80", paragraph_threshold: "0.30", entity_aggressiveness: "0.70", compression_aggressiveness: "0.50" },
+      strategies: [],
+    };
+  }
+}
+
+export async function distillFeedback(
+  url: string, qualityScore: number, contentType?: string,
+): Promise<string> {
+  try {
+    return await invoke<string>("distill_feedback", { url, qualityScore, contentType: contentType ?? null });
+  } catch { return "Feedback recorded (mock)"; }
+}
+
+// ─── Evolution Bus ─────────────────────────────────────────────────
+
+export interface EvoHealthReport {
+  auto_evolution_enabled: boolean;
+  total_evolutions: number;
+  engines_tracked: number;
+  average_advancement: string;
+  cycle_secs: number;
+  engines: Array<{
+    engine: string;
+    advancement_score: string;
+    stability: string;
+    evolution_count: number;
+    cumulative_improvement: string;
+    is_degrading: boolean;
+    recommendation: string | null;
+  }>;
+}
+
+export async function evobusHealthReport(): Promise<EvoHealthReport> {
+  try { return await invoke<EvoHealthReport>("evobus_health_report"); }
+  catch {
+    return {
+      auto_evolution_enabled: true, total_evolutions: 0, engines_tracked: 9,
+      average_advancement: "75", cycle_secs: 3600, engines: [],
+    };
+  }
+}
+
+export async function evobusRecordFeedback(
+  engine: string, metric: string,
+  currentValue: number, targetValue: number,
+  directionIsHigherBetter?: boolean,
+): Promise<{ adjusted: boolean; new_value: number | null }> {
+  try {
+    return await invoke("evobus_record_feedback", {
+      engine, metric, currentValue, targetValue,
+      directionIsHigherBetter: directionIsHigherBetter ?? null,
+    });
+  } catch { return { adjusted: false, new_value: null }; }
+}
+
+// ─── Data Flywheel ─────────────────────────────────────────────────
+
+export interface FlywheelDashboard {
+  enabled: boolean;
+  cycles: number;
+  total_tokens_saved: number;
+  total_cost_saved: string;
+  quality_trend: string;
+  trend: string;
+  metrics: Array<{ name: string; source: string; value: string; direction: string; trend: string }>;
+  recent_benefits: Array<{ engine: string; category: string; description: string; tokens: number; cost: string }>;
+  trend_data: Array<{ time: string; cost: string; tokens: number; quality: string }>;
+  engine_contributions: Array<{ engine: string; contribution: string }>;
+}
+
+export async function flywheelDashboard(): Promise<FlywheelDashboard> {
+  try { return await invoke<FlywheelDashboard>("flywheel_dashboard"); }
+  catch {
+    return { enabled: true, cycles: 0, total_tokens_saved: 0, total_cost_saved: "¥0", quality_trend: "0%", trend: "➡️", metrics: [], recent_benefits: [], trend_data: [], engine_contributions: [] };
+  }
+}
+
+export async function flywheelSpin(): Promise<Record<string, unknown>> {
+  try { return await invoke("flywheel_spin"); }
+  catch { return { cycles: 0 }; }
+}

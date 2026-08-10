@@ -276,3 +276,62 @@ export interface WorktreeStats {
   merged: number;
   errors: number;
 }
+
+// ─── Web Intelligence ───────────────────────────────────────────────
+
+export interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  source: string;
+  relevance_score: number;
+}
+
+export interface WebFetchResult {
+  success: boolean;
+  url: string;
+  title: string;
+  content: string;
+  content_length: number;
+  distilled: boolean;
+  distilled_summary: string | null;
+  key_points: string[];
+  error: string | null;
+}
+
+export interface ResearchReport {
+  topic: string;
+  summary: string;
+  key_findings: string[];
+  sources: WebSearchResult[];
+  confidence: number;
+  timestamp: string;
+  recommendations: string[];
+}
+
+export interface WebAuditEntry {
+  timestamp: string;
+  request_type: string;
+  target: string;
+  result: string;
+  bytes_received: number;
+  duration_ms: number;
+  domain_allowed: boolean;
+}
+
+export interface WebIntelStats {
+  total_searches: number;
+  total_fetches: number;
+  total_research: number;
+  bytes_downloaded: number;
+  domains_whitelisted: number;
+  requests_blocked: number;
+  estimated_cost_saved: number;
+  total_distilled: number;
+  total_bytes_saved: number;
+  avg_compression_ratio: number;
+  cache_hit_rate: number;
+  unified_cache_hits: number;
+  unified_cache_misses: number;
+  api_calls_saved: number;
+}

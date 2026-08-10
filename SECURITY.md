@@ -1,30 +1,65 @@
-# 安全策略 / Security Policy
+# Chronos-Shadow Security Policy
 
-## 支持的版本
+## Security Architecture
 
-| 版本 | 支持状态 |
-|------|---------|
-| 0.1.x | ✅ 活跃支持 |
+Chronos-Shadow employs a **five-layer defense-in-depth** security architecture:
 
-## 报告漏洞
+### Layer 1: Permission Boundary (`security_boundary.rs`)
+- **6 operation categories** with granular permission levels:
+  - 🚫 Forbidden: DeleteProject, DeleteDatabase, DataExfiltration, SocialPostWrite, DataUploadExternal, SystemModification
+  - 🛡️ RequireApproval: WebSearch, WebFetchReadonly, ApiCallReadonly, WorktreeMerge, PipelineAdvance, RemoteCommand, CostOverride, ConfigChange
+  - ⚠️ RequireConfirmation: FileDelete, SessionDelete, CheckpointDelete
+  - 📖 SandboxReadOnly: FileRead, ProjectList, SessionRead
+  - ✏️ SandboxReadWrite: FileWrite, CodeGeneration, CheckpointCreate
+  - 🟢 Allowed: ChatMessage, StatusQuery
+- **Deny-by-Default**: All external network operations require explicit approval
+- **Domain Whitelist**: Only pre-approved domains accessible for search/fetch
 
-如果您发现安全漏洞，请**不要**通过公开 Issue 报告。请通过以下渠道私密报告：
+### Layer 2: Redline Guard (`redline.rs`)
+- **Redline 1**: JSON Schema strict validation — all LLM outputs must conform to `AgentAction` schema
+- **Redline 2**: Sandbox path whitelist — file operations locked within project root
+- **Redline 3**: Self-healing circuit breaker — max 3 consecutive heal attempts before fuse
+- WebSearch/WebFetch: HTTPS enforced, URL format validated, SQL injection detected
 
-- 📧 Email: cnkevinbai@gmail.com
-- 🔐 建议使用 PGP 加密（如有）
+### Layer 3: Hallucination Guard (`hallucination_guard.rs`)
+- **10-dimension detection**:
+  1. Confidence markers (uncertainty language)
+  2. Fake APIs (invented libraries/functions)
+  3. Code consistency (mismatched braces, undeclared variables)
+  4. Internal contradictions (self-contradicting statements)
+  5. Dangerous commands (rm -rf, DROP DATABASE)
+  6. Outdated references (deprecated tech stacks)
+  7. Fake programming (TODO stubs, pseudocode)
+  8. Fake completion (claims done without substance)
+  9. Empty scaffold (mkdir without file creation)
+  10. Fabricated facts (benchmark data, version numbers, authority claims)
+- **Adaptive sensitivity**: False positive feedback loop with RL-style weight adjustment
 
-我们会尽快（通常在 48 小时内）确认并给出修复时间线。
+### Layer 4: Approval Gate (`approval_gate.rs`)
+- **4-dimension risk scoring**: Impact Scope × Reversibility × Cost Impact × Compliance
+- Auto-approval for low-risk operations (below configured threshold)
+- Web search/fetch: low risk profile (impact:1, reversible:10, cost:2)
+- Auditor pre-screening for high-risk operations
 
-## 安全设计
+### Layer 5: Content Safety (`web_intelligence.rs`)
+- **Request sanitization**: API keys, file paths, personal info automatically redacted
+- **Response distillation**: Web content distilled on-device before reaching LLM context
+- **Full audit trail**: All external requests logged with timestamp, target, result
+- **HTTPS-only**: Plain HTTP requests rejected at schema level
 
-Chronos-Shadow 的安全架构包括：
+## Encryption
 
-- **API Key 存储**：Windows Credential Manager 原生加密（`CredWriteW` / `CredReadW`）
-- **会话加密**：AES-256-GCM 分块流式加密
-- **沙盒隔离**：文件系统操作受 C-VFS 沙盒约束
-- **防幻觉**：三红线拦截器（Schema 校验 + 路径拦截 + 自愈熔断）
-- **依赖审计**：内置 GPL/AGPL 传染性协议检测
+- **AES-256-GCM** session encryption with hardware fingerprint key binding
+- **SHA-256** chain hashing for context caching markers
+- **Windows Credential Manager** native FFI for API key storage
 
-## 致谢
+## Reporting a Vulnerability
 
-我们将在 README 中致谢负责任披露漏洞的安全研究人员（经报告者同意）。
+Please report security vulnerabilities to [GitHub Issues](https://github.com/cnkevinbai/Chronos-Shadow/issues) with the `security` label.
+
+## Supported Versions
+
+| Version | Supported          |
+| ------- | ------------------ |
+| 0.2.0   | ✅ Active          |
+| 0.1.1   | ❌ End of life     |

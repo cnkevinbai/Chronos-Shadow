@@ -3,8 +3,8 @@
 
 import { useState, useEffect } from "react";
 import { useT } from "@/lib/i18n-context";
-import { getEvolutionStats, evoValidateExperience, evoInterceptContext, getApprovalSuggestions, getAgentQualityScores } from "@/lib/tauri";
-import { Database, TrendingUp, ExternalLink, Shield, Cpu } from "lucide-react";
+import { getEvolutionStats, evoValidateExperience, evoInterceptContext, getApprovalSuggestions, getAgentQualityScores, evobusHealthReport } from "@/lib/tauri";
+import { Database, TrendingUp, ExternalLink, Shield, Cpu, Activity, Zap } from "lucide-react";
 
 interface DeltaLog {
   id: string;
@@ -40,6 +40,7 @@ export default function EvolutionConsole() {
   const [validationState, setValidationState] = useState<"idle" | "evaluating" | "validated">("idle");
   const [agentScores, setAgentScores] = useState<{ agent_role: string; rigor_score: number }[]>([]);
   const [approvalSuggestions, setApprovalSuggestions] = useState<{ rule_name: string; reason: string; confidence: number }[]>([]);
+  const [evoHealth, setEvoHealth] = useState<{ avg_advancement: string; engines: Array<{ engine: string; advancement_score: string; evolution_count: number; is_degrading: boolean }> } | null>(null);
   void agentScores; void approvalSuggestions;
 
   useEffect(() => {
@@ -48,6 +49,9 @@ export default function EvolutionConsole() {
     }).catch(() => {});
     getApprovalSuggestions().then((s: unknown) => {
       if (Array.isArray(s)) setApprovalSuggestions(s as { rule_name: string; reason: string; confidence: number }[]);
+    }).catch(() => {});
+    evobusHealthReport().then((r) => {
+      setEvoHealth({ avg_advancement: r.average_advancement, engines: (r.engines || []).slice(0, 9) });
     }).catch(() => {});
   }, []);
 
@@ -283,6 +287,40 @@ export default function EvolutionConsole() {
                 <Cpu className="w-2.5 h-2.5 ml-auto" />
                 <span className="text-emerald-400">+{selectedLog.tokensSaved}t</span>
               </div>
+              {/* Evolution Bus Health */}
+              {evoHealth && (
+                <div className="mt-2 p-2 border border-emerald-900/40 bg-emerald-950/15 rounded">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-emerald-400 font-bold text-[10px] flex items-center space-x-1">
+                      <Activity className="w-3 h-3" />
+                      <span>进化总线</span>
+                    </span>
+                    <span className="text-emerald-300 text-[9px] font-mono">
+                      先进性: <b>{evoHealth.avg_advancement}</b>/100
+                    </span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {evoHealth.engines.slice(0, 5).map((eng) => (
+                      <div key={eng.engine} className="flex items-center justify-between text-[8px]">
+                        <span className="text-zinc-400">{eng.engine}</span>
+                        <div className="flex items-center space-x-2">
+                          <span className={`font-mono ${parseInt(eng.advancement_score) > 80 ? 'text-emerald-400' : parseInt(eng.advancement_score) > 60 ? 'text-amber-400' : 'text-red-400'}`}>
+                            {eng.advancement_score}
+                          </span>
+                          <span className="text-zinc-600">×{eng.evolution_count}</span>
+                          {eng.is_degrading && <Zap className="w-2 h-2 text-red-400" />}
+                        </div>
+                      </div>
+                    ))}
+                    {evoHealth.engines.length > 5 && (
+                      <div className="text-[8px] text-zinc-600 text-center pt-0.5">
+                        +{evoHealth.engines.length - 5} more engines
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* 2.0: Contract hot-compile badge */}
               {contractsCompiled > 0 && (
                 <div className="mt-2 p-1.5 border border-cyan-900/40 bg-cyan-950/20 rounded text-[9px]">

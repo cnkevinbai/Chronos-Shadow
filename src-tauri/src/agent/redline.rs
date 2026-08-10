@@ -59,6 +59,22 @@ pub enum AgentAction {
         tool_name: String,
         args: serde_json::Value,
     },
+    /// Web 搜索引擎查询
+    #[serde(rename = "web_search")]
+    WebSearch {
+        query: String,
+        /// 可选：指定搜索引擎 (bing/google/duckduckgo)
+        engine: Option<String>,
+        /// 可选：返回结果数量上限
+        max_results: Option<u32>,
+    },
+    /// Web 网页只读抓取
+    #[serde(rename = "web_fetch")]
+    WebFetch {
+        url: String,
+        /// 可选：是否启用端侧蒸馏
+        distill: Option<bool>,
+    },
 }
 
 /// 大模型完整输出 — 入口 Schema
@@ -291,6 +307,8 @@ impl RedlineGuard {
                     "terminal".into(),
                     "execute_skill".into(),
                     "mcp_call".into(),
+                    "web_search".into(),
+                    "web_fetch".into(),
                 ],
                 project_root,
                 blocked_path_count: 0,
@@ -325,6 +343,33 @@ impl RedlineGuard {
             AgentAction::Terminal { command, .. } => {
                 if !self.schema_validator.is_command_safe(command) {
                     return Err(RedlineError::FormatViolation(format!("Dangerous command blocked: {}", command)));
+                }
+            }
+            AgentAction::WebSearch { query, .. } => {
+                if query.trim().is_empty() {
+                    return Err(RedlineError::FormatViolation("WebSearch query must not be empty".into()));
+                }
+                // 检查是否包含恶意命令注入
+                if query.contains("DROP") || query.contains("DELETE") || query.contains("--") {
+                    return Err(RedlineError::FormatViolation("WebSearch query contains suspicious content".into()));
+                }
+            }
+            AgentAction::WebFetch { url, .. } => {
+                if url.trim().is_empty() {
+                    return Err(RedlineError::FormatViolation("WebFetch url must not be empty".into()));
+                }
+                // URL 安全检查：协议必须是 https
+                let lower_url = url.to_lowercase();
+                if !lower_url.starts_with("https://") {
+                    return Err(RedlineError::FormatViolation(
+                        "WebFetch URL must use HTTPS protocol".into()
+                    ));
+                }
+                // 基本 URL 格式校验
+                if !lower_url.contains(".") || lower_url.len() < 12 {
+                    return Err(RedlineError::FormatViolation(
+                        format!("WebFetch URL appears invalid: {}", url)
+                    ));
                 }
             }
             _ => {}
@@ -451,6 +496,28 @@ impl RedlineGuard {
                     return Err(RedlineResult::Fail {
                         message: format!("Action[{}] McpCall: server_id and tool_name must not be empty", index),
                         code: "EMPTY_MCP_PARAMS".into(),
+                    });
+                }
+            }
+            AgentAction::WebSearch { query, engine: _, max_results: _ } => {
+                if query.trim().is_empty() {
+                    return Err(RedlineResult::Fail {
+                        message: format!("Action[{}] WebSearch: query must not be empty", index),
+                        code: "EMPTY_QUERY".into(),
+                    });
+                }
+            }
+            AgentAction::WebFetch { url, distill: _ } => {
+                if url.trim().is_empty() {
+                    return Err(RedlineResult::Fail {
+                        message: format!("Action[{}] WebFetch: url must not be empty", index),
+                        code: "EMPTY_URL".into(),
+                    });
+                }
+                if !url.to_lowercase().starts_with("https://") {
+                    return Err(RedlineResult::Fail {
+                        message: format!("Action[{}] WebFetch: URL must use HTTPS ({})", index, url),
+                        code: "INSECURE_PROTOCOL".into(),
                     });
                 }
             }

@@ -304,6 +304,69 @@ export interface LocaleDict {
   toast_router_auto: string;
   toast_router_manual: string;
   toast_llm_changed: string;
+
+  // ─── Web Intelligence Panel ─────────────────────────────────────
+  wi_title: string;
+  wi_search: string;
+  wi_fetch: string;
+  wi_research: string;
+  wi_domains: string;
+  wi_audit: string;
+  wi_search_placeholder: string;
+  wi_search_btn: string;
+  wi_engine_label: string;
+  wi_fetch_url_placeholder: string;
+  wi_fetch_distill: string;
+  wi_fetch_btn: string;
+  wi_research_topic_placeholder: string;
+  wi_research_btn: string;
+  wi_add_domain_placeholder: string;
+  wi_no_results: string;
+  wi_no_audit: string;
+  wi_search_results: string;
+  wi_source: string;
+  wi_relevance: string;
+  wi_distilled: string;
+  wi_key_points: string;
+  wi_domain_whitelist: string;
+  wi_security_notice: string;
+  wi_stats_searches: string;
+  wi_stats_fetches: string;
+  wi_stats_research: string;
+  wi_stats_domains: string;
+  wi_stats_blocked: string;
+  wi_stats_distilled: string;
+  wi_stats_compression: string;
+  wi_stats_traffic_saved: string;
+  wi_stats_cache_hit: string;
+  wi_stats_unified_hits: string;
+  wi_stats_api_saved: string;
+  wi_stats_unified_rate: string;
+
+  // ─── Auto Routing Panel ─────────────────────────────────────────
+  ar_title: string;
+  ar_rules: string;
+  ar_models: string;
+  ar_matrix: string;
+  ar_search_placeholder: string;
+  ar_all: string;
+  ar_pro: string;
+  ar_flash: string;
+  ar_rules_count: string;
+  ar_agents_count: string;
+  ar_category: string;
+  ar_description: string;
+  ar_route_model: string;
+  ar_match_keywords: string;
+  ar_online: string;
+  ar_offline: string;
+  ar_quality: string;
+  ar_latency: string;
+  ar_cost: string;
+  ar_loading_models: string;
+  ar_agent: string;
+  ar_model: string;
+  ar_bottom_bar: string;
 }
 
 const zh: LocaleDict = {
@@ -592,6 +655,69 @@ const zh: LocaleDict = {
   toast_router_auto: "已切回自动全局能效规则，混合网关接管。",
   toast_router_manual: "手动覆盖模式激活。云端自适应评估已挂起。",
   toast_llm_changed: "文本链路已重定向至",
+
+  // Web Intelligence
+  wi_title: "🌐 Web 智能搜索",
+  wi_search: "搜索",
+  wi_fetch: "抓取",
+  wi_research: "研究",
+  wi_domains: "域名",
+  wi_audit: "审计",
+  wi_search_placeholder: "输入搜索关键词...",
+  wi_search_btn: "搜索",
+  wi_engine_label: "引擎",
+  wi_fetch_url_placeholder: "输入 HTTPS URL...",
+  wi_fetch_distill: "蒸馏",
+  wi_fetch_btn: "抓取",
+  wi_research_topic_placeholder: "输入研究主题...",
+  wi_research_btn: "开始研究",
+  wi_add_domain_placeholder: "添加域名...",
+  wi_no_results: "暂无搜索结果",
+  wi_no_audit: "暂无审计记录",
+  wi_search_results: "个结果",
+  wi_source: "来源",
+  wi_relevance: "相关度",
+  wi_distilled: "已蒸馏",
+  wi_key_points: "关键点",
+  wi_domain_whitelist: "域名白名单",
+  wi_security_notice: "仅白名单内域名可被访问 · 首次访问需审批 · 全量审计",
+  wi_stats_searches: "搜索",
+  wi_stats_fetches: "抓取",
+  wi_stats_research: "研究",
+  wi_stats_domains: "白名单域名",
+  wi_stats_blocked: "已拦截",
+  wi_stats_distilled: "蒸馏次数",
+  wi_stats_compression: "压缩率",
+  wi_stats_traffic_saved: "节省流量",
+  wi_stats_cache_hit: "蒸馏缓存",
+  wi_stats_unified_hits: "统一缓存命中",
+  wi_stats_api_saved: "API调用节省",
+  wi_stats_unified_rate: "统一命中率",
+
+  // Auto Routing
+  ar_title: "自动路由中枢",
+  ar_rules: "路由规则",
+  ar_models: "模型矩阵",
+  ar_matrix: "Agent映射",
+  ar_search_placeholder: "搜索关键词/Agent...",
+  ar_all: "全部",
+  ar_pro: "Pro深度推理",
+  ar_flash: "Flash快速",
+  ar_rules_count: "条规则",
+  ar_agents_count: "个Agent",
+  ar_category: "分类",
+  ar_description: "说明",
+  ar_route_model: "路由模型",
+  ar_match_keywords: "匹配关键词",
+  ar_online: "在线",
+  ar_offline: "离线",
+  ar_quality: "质量",
+  ar_latency: "延迟",
+  ar_cost: "成本",
+  ar_loading_models: "正在加载模型能力数据...",
+  ar_agent: "Agent",
+  ar_model: "模型",
+  ar_bottom_bar: "自动按关键词匹配最优Agent+模型 · 27条路由规则",
 };
 
 const en: LocaleDict = {
@@ -880,6 +1006,69 @@ const en: LocaleDict = {
   toast_router_auto: "Switched to auto global efficiency rules. Hybrid gateway接管.",
   toast_router_manual: "Manual override mode active. Cloud adaptive evaluation suspended.",
   toast_llm_changed: "Text link redirected to",
+
+  // Web Intelligence
+  wi_title: "🌐 Web Intelligence",
+  wi_search: "Search",
+  wi_fetch: "Fetch",
+  wi_research: "Research",
+  wi_domains: "Domains",
+  wi_audit: "Audit",
+  wi_search_placeholder: "Enter search keywords...",
+  wi_search_btn: "Search",
+  wi_engine_label: "Engine",
+  wi_fetch_url_placeholder: "Enter HTTPS URL...",
+  wi_fetch_distill: "Distill",
+  wi_fetch_btn: "Fetch",
+  wi_research_topic_placeholder: "Enter research topic...",
+  wi_research_btn: "Research",
+  wi_add_domain_placeholder: "Add domain...",
+  wi_no_results: "No search results",
+  wi_no_audit: "No audit records",
+  wi_search_results: "results",
+  wi_source: "Source",
+  wi_relevance: "Relevance",
+  wi_distilled: "Distilled",
+  wi_key_points: "Key Points",
+  wi_domain_whitelist: "Domain Whitelist",
+  wi_security_notice: "Only whitelisted domains accessible · First access requires approval · Full audit",
+  wi_stats_searches: "Searches",
+  wi_stats_fetches: "Fetches",
+  wi_stats_research: "Research",
+  wi_stats_domains: "Domains",
+  wi_stats_blocked: "Blocked",
+  wi_stats_distilled: "Distilled",
+  wi_stats_compression: "Compression",
+  wi_stats_traffic_saved: "Traffic Saved",
+  wi_stats_cache_hit: "Distill Cache",
+  wi_stats_unified_hits: "Cache Hits",
+  wi_stats_api_saved: "API Saved",
+  wi_stats_unified_rate: "Hit Rate",
+
+  // Auto Routing
+  ar_title: "Auto-Routing Hub",
+  ar_rules: "Route Rules",
+  ar_models: "Model Matrix",
+  ar_matrix: "Agent Map",
+  ar_search_placeholder: "Search keyword/Agent...",
+  ar_all: "All",
+  ar_pro: "Pro Deep",
+  ar_flash: "Flash Fast",
+  ar_rules_count: "rules",
+  ar_agents_count: "agents",
+  ar_category: "Category",
+  ar_description: "Description",
+  ar_route_model: "Route Model",
+  ar_match_keywords: "Match Keywords",
+  ar_online: "Online",
+  ar_offline: "Offline",
+  ar_quality: "Quality",
+  ar_latency: "Latency",
+  ar_cost: "Cost",
+  ar_loading_models: "Loading model data...",
+  ar_agent: "Agent",
+  ar_model: "Model",
+  ar_bottom_bar: "Auto-match optimal Agent+Model by keyword · 27 routing rules",
 };
 
 export const locales: Record<Lang, LocaleDict> = { zh, en };

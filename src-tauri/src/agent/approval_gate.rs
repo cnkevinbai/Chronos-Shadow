@@ -58,6 +58,10 @@ pub enum ApprovalActionType {
     CostThreshold,
     FileDelete,
     ConfigChange,
+    // ── 外网信息获取 ──
+    WebSearch,         // Web 搜索引擎查询
+    WebFetch,          // 网页只读抓取
+    ApiCall,           // 只读 API 调用
     Custom(String),
 }
 
@@ -70,6 +74,9 @@ impl ApprovalActionType {
             Self::CostThreshold => "资费超限",
             Self::FileDelete => "文件删除",
             Self::ConfigChange => "配置变更",
+            Self::WebSearch => "Web 搜索",
+            Self::WebFetch => "网页抓取",
+            Self::ApiCall => "API 调用",
             Self::Custom(s) => s,
         }
     }
@@ -84,6 +91,10 @@ impl ApprovalActionType {
             Self::CostThreshold => RiskProfile { impact_scope: 1, reversibility: 10, cost_impact: 8, compliance: 4 },
             Self::FileDelete => RiskProfile { impact_scope: 4, reversibility: 1, cost_impact: 1, compliance: 3 },
             Self::ConfigChange => RiskProfile { impact_scope: 3, reversibility: 8, cost_impact: 1, compliance: 2 },
+            // 外网信息获取：只读操作，影响范围低，完全可逆，资费低，合规中低
+            Self::WebSearch => RiskProfile { impact_scope: 1, reversibility: 10, cost_impact: 2, compliance: 2 },
+            Self::WebFetch => RiskProfile { impact_scope: 1, reversibility: 10, cost_impact: 2, compliance: 3 },
+            Self::ApiCall => RiskProfile { impact_scope: 2, reversibility: 10, cost_impact: 2, compliance: 3 },
             Self::Custom(_) => RiskProfile { impact_scope: 3, reversibility: 5, cost_impact: 1, compliance: 2 },
         }
     }
@@ -101,6 +112,9 @@ impl std::fmt::Display for ApprovalActionType {
             Self::CostThreshold => "CostThreshold",
             Self::FileDelete => "FileDelete",
             Self::ConfigChange => "ConfigChange",
+            Self::WebSearch => "WebSearch",
+            Self::WebFetch => "WebFetch",
+            Self::ApiCall => "ApiCall",
             Self::Custom(s) => s,
         })
     }
@@ -166,6 +180,22 @@ impl ApprovalRule {
                 action_type: ApprovalActionType::ConfigChange,
                 enabled: true, auto_approve_below_risk: 3, timeout_secs: 120,
                 reject_on_timeout: false, approver: "user".into(),
+                project_scope: None, enable_auditor_prescreen: false, auditor_risk_reduction: 0 },
+            // ── 外网信息获取规则：低风险自动放行 ──
+            Self { id: "rule-web-search".into(), name: "Web 搜索".into(),
+                action_type: ApprovalActionType::WebSearch,
+                enabled: true, auto_approve_below_risk: 5, timeout_secs: 60,
+                reject_on_timeout: false, approver: "user".into(),
+                project_scope: None, enable_auditor_prescreen: false, auditor_risk_reduction: 0 },
+            Self { id: "rule-web-fetch".into(), name: "网页抓取".into(),
+                action_type: ApprovalActionType::WebFetch,
+                enabled: true, auto_approve_below_risk: 4, timeout_secs: 90,
+                reject_on_timeout: false, approver: "user".into(),
+                project_scope: None, enable_auditor_prescreen: false, auditor_risk_reduction: 0 },
+            Self { id: "rule-api-call".into(), name: "API 调用".into(),
+                action_type: ApprovalActionType::ApiCall,
+                enabled: true, auto_approve_below_risk: 3, timeout_secs: 120,
+                reject_on_timeout: true, approver: "user".into(),
                 project_scope: None, enable_auditor_prescreen: false, auditor_risk_reduction: 0 },
         ]
     }
