@@ -170,8 +170,6 @@ pub struct ReferenceAnalysis {
 // ─── PPTX 生成引擎 ───────────────────────────────────────────────
 
 pub struct PptxEngine {
-    #[allow(dead_code)]
-    python_path: String,
     /// 输出目录
     output_dir: PathBuf,
 }
@@ -183,9 +181,7 @@ impl PptxEngine {
             .or_else(dirs::document_dir)
             .unwrap_or_else(|| std::env::temp_dir())
             .join("Chronos-PPT");
-        // 自动检测 Python 路径
-        let python_path = find_python();
-        Self { python_path, output_dir }
+        Self { output_dir }
     }
 
     /// 🔬 分析参考网页，提取设计风格
@@ -782,40 +778,6 @@ fn sanitize_filename(name: &str) -> String {
         .collect::<String>()
         .trim()
         .replace("  ", " ")
-}
-
-/// 确保 python-pptx 已安装
-#[allow(dead_code)]
-fn ensure_pptx_installed(python: &str) -> Result<(), String> {
-    // 检查是否已安装
-    let check = std::process::Command::new(python)
-        .args(["-c", "import pptx"])
-        .output();
-    if check.map(|o| o.status.success()).unwrap_or(false) {
-        return Ok(());
-    }
-    // 自动安装
-    tracing::info!("[PPTX] Installing python-pptx...");
-    let install = std::process::Command::new(python)
-        .args(["-m", "pip", "install", "python-pptx", "-q"])
-        .output()
-        .map_err(|e| format!("pip install failed: {}", e))?;
-    if install.status.success() {
-        tracing::info!("[PPTX] python-pptx installed successfully");
-        Ok(())
-    } else {
-        Err(format!("pip install python-pptx 失败: {}", String::from_utf8_lossy(&install.stderr)))
-    }
-}
-
-/// 自动检测 Python 路径 (python → python3 → py)
-fn find_python() -> String {
-    for cmd in &["python", "python3", "py"] {
-        if std::process::Command::new(cmd).arg("--version").output().is_ok() {
-            return cmd.to_string();
-        }
-    }
-    "python".into() // 兜底
 }
 
 /// 获取桌面目录 (跨平台)
