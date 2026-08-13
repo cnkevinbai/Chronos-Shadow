@@ -14,6 +14,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tauri::Manager;
 
 // ─── 类型定义 ──────────────────────────────────────────────────────
 
@@ -711,4 +712,54 @@ mod tests {
         let summary = glue.get_status_summary();
         assert!(summary.contains("ContextGlue"));
     }
+}
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_context_glue_status(state: tauri::State<crate::state::AppState>) -> ContextGlueStats {
+    state.context_glue.lock().unwrap().get_stats().clone()
+}
+
+#[tauri::command]
+pub fn add_app_binding(
+    state: tauri::State<crate::state::AppState>,
+    source_app: String,
+    target_app: String,
+    mapping_rule: String,
+) -> Result<String, String> {
+    state.context_glue.lock().unwrap().create_binding(
+        &source_app, &target_app, &mapping_rule, DataDirection::OneWay,
+    )
+}
+
+#[tauri::command]
+pub fn remove_app_binding(state: tauri::State<crate::state::AppState>, binding_id: String) -> bool {
+    state.context_glue.lock().unwrap().remove_binding(&binding_id)
+}
+
+#[tauri::command]
+pub fn get_app_bindings(state: tauri::State<crate::state::AppState>) -> Vec<AppBinding> {
+    state.context_glue.lock().unwrap().get_bindings().to_vec()
+}
+
+#[tauri::command]
+pub fn toggle_context_glue(state: tauri::State<crate::state::AppState>, enabled: bool) -> String {
+    state.context_glue.lock().unwrap().toggle(enabled);
+    format!("Context Glue: {}", if enabled { "ON" } else { "OFF" })
+}
+
+#[tauri::command]
+pub fn save_context_glue_bindings(app_handle: tauri::AppHandle, state: tauri::State<crate::state::AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    state.context_glue.lock().unwrap().save_bindings(&dir)?;
+    Ok("Context Glue bindings saved".into())
+}
+
+#[tauri::command]
+pub fn load_context_glue_bindings(app_handle: tauri::AppHandle, state: tauri::State<crate::state::AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    state.context_glue.lock().unwrap().load_bindings(&dir)?;
+    Ok("Context Glue bindings loaded".into())
 }

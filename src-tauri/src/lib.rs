@@ -65,56 +65,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── WorkBuddy: Context Glue ───────────────────────────────────
-
-#[tauri::command]
-fn get_context_glue_status(state: tauri::State<AppState>) -> ContextGlueStats {
-    state.context_glue.lock().unwrap().get_stats().clone()
-}
-
-#[tauri::command]
-fn add_app_binding(
-    state: tauri::State<AppState>,
-    source_app: String,
-    target_app: String,
-    mapping_rule: String,
-) -> Result<String, String> {
-    state.context_glue.lock().unwrap().create_binding(
-        &source_app, &target_app, &mapping_rule, DataDirection::OneWay,
-    )
-}
-
-#[tauri::command]
-fn remove_app_binding(state: tauri::State<AppState>, binding_id: String) -> bool {
-    state.context_glue.lock().unwrap().remove_binding(&binding_id)
-}
-
-#[tauri::command]
-fn get_app_bindings(state: tauri::State<AppState>) -> Vec<AppBinding> {
-    state.context_glue.lock().unwrap().get_bindings().to_vec()
-}
-
-#[tauri::command]
-fn toggle_context_glue(state: tauri::State<AppState>, enabled: bool) -> String {
-    state.context_glue.lock().unwrap().toggle(enabled);
-    format!("Context Glue: {}", if enabled { "ON" } else { "OFF" })
-}
-
-#[tauri::command]
-fn save_context_glue_bindings(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
-    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    state.context_glue.lock().unwrap().save_bindings(&dir)?;
-    Ok("Context Glue bindings saved".into())
-}
-
-#[tauri::command]
-fn load_context_glue_bindings(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
-    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    state.context_glue.lock().unwrap().load_bindings(&dir)?;
-    Ok("Context Glue bindings loaded".into())
-}
-
 // ─── Remote Cluster Manager ──────────────────────────────────
 
 #[tauri::command]
@@ -2584,13 +2534,13 @@ pub fn run() {
             agent::billing_engine::check_context_health,
             agent::scheduling_engine::analyze_task,
             agent::hallucination_guard::audit_hallucination,
-            get_context_glue_status,
-            add_app_binding,
-            remove_app_binding,
-            get_app_bindings,
-            toggle_context_glue,
-            save_context_glue_bindings,
-            load_context_glue_bindings,
+            agent::context_glue::get_context_glue_status,
+            agent::context_glue::add_app_binding,
+            agent::context_glue::remove_app_binding,
+            agent::context_glue::get_app_bindings,
+            agent::context_glue::toggle_context_glue,
+            agent::context_glue::save_context_glue_bindings,
+            agent::context_glue::load_context_glue_bindings,
             // general
             agent::sandbox::get_sandbox_status,
             agent::sandbox::sandbox_health_check,
