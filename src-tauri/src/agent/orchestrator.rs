@@ -777,6 +777,152 @@ impl Orchestrator {
             pipeline_running: self.running,
         }
     }
+
+    // ── 自动化调度矩阵 v2: 依赖图 + 并行分组 ──────────────────
+
+    /// 获取可执行任务（所有依赖已完成且未开始）
+    pub fn executable_tasks(&self) -> Vec<&KanbanTask> {
+        let completed_ids: std::collections::HashSet<&str> = self.tasks
+            .iter()
+            .filter(|t| matches!(t.status, TaskStatus::Completed))
+            .map(|t| t.id.as_str())
+            .collect();
+
+        self.tasks
+            .iter()
+            .filter(|t| {
+                matches!(t.status, TaskStatus::Pending | TaskStatus::Assigned(_))
+                    && t.dependencies.iter().all(|dep| completed_ids.contains(dep.as_str()))
+            })
+            .collect()
+    }
+
+    /// 依赖图拓扑排序（Kahn 算法），返回推荐执行顺序
+    pub fn topological_sort(&self) -> Vec<String> {
+        let mut in_degree: HashMap<&str, usize> = HashMap::new();
+        let mut adj: HashMap<&str, Vec<&str>> = HashMap::new();
+
+        for t in &self.tasks {
+            in_degree.entry(&t.id).or_insert(0);
+            for dep in &t.dependencies {
+                adj.entry(dep.as_str()).or_default().push(&t.id);
+                *in_degree.entry(&t.id).or_insert(0) += 1;
+            }
+        }
+
+        let mut queue: VecDeque<&str> = in_degree
+            .iter()
+            .filter(|(_, &deg)| deg == 0)
+            .map(|(&id, _)| id)
+            .collect();
+
+        let mut sorted = Vec::new();
+        while let Some(node) = queue.pop_front() {
+            sorted.push(node.to_string());
+            if let Some(neighbors) = adj.get(node) {
+                for &next in neighbors {
+                    if let Some(deg) = in_degree.get_mut(next) {
+                        *deg -= 1;
+                        if *deg == 0 { queue.push_back(next); }
+                    }
+                }
+            }
+        }
+
+        // 未排序的（循环依赖或孤立）追加
+        for t in &self.tasks {
+            if !sorted.contains(&t.id) { sorted.push(t.id.clone()); }
+        }
+        sorted
+    }
+
+    /// 并行执行分组：将无相互依赖的任务分组，每组可并行执行
+    pub fn parallel_groups(&self) -> Vec<Vec<&KanbanTask>> {
+        let sorted_ids = self.topological_sort();
+
+        let mut groups: Vec<Vec<&KanbanTask>> = Vec::new();
+        let mut assigned: HashMap<&str, usize> = HashMap::new(); // task_id → group_index
+
+        for id in &sorted_ids {
+            if let Some(task) = self.tasks.iter().find(|t| &t.id == id) {
+                // 找到该任务所有依赖的最晚分组
+                let mut max_dep_group: i32 = -1;
+                for dep in &task.dependencies {
+                    if let Some(&g) = assigned.get(dep.as_str()) {
+                        max_dep_group = max_dep_group.max(g as i32);
+                    }
+                }
+                let group = (max_dep_group + 1) as usize;
+                while groups.len() <= group { groups.push(Vec::new()); }
+                groups[group].push(task);
+                assigned.insert(id, group);
+            }
+        }
+        groups
+    }
+
+    /// 自动分配可执行任务（按优先级排序，优先级相同按创建时间）
+    pub fn auto_schedule(&mut self, available_agents: &[AgentRole]) -> Vec<String> {
+        let mut executable_ids: Vec<(String, u8, String)> = self.executable_tasks()
+            .iter()
+            .map(|t| (t.id.clone(), t.priority, t.created_at.clone()))
+            .collect();
+        executable_ids.sort_by_key(|(_, p, c)| (*p, c.clone()));
+
+        let mut scheduled = Vec::new();
+        for (id, _, _) in executable_ids {
+            if let Some(agent) = available_agents.first() {
+                let _ = self.assign_task(&id, agent.clone());
+                let _ = self.start_task(&id);
+                scheduled.push(id);
+            }
+        }
+        scheduled
+    }
+
+    /// 调度矩阵评分：综合成本/质量/并行度评估调度方案
+    pub fn schedule_quality_score(&self) -> f64 {
+        let total = self.tasks.len() as f64;
+        if total == 0.0 { return 100.0; }
+
+        let completed = self.tasks.iter().filter(|t| matches!(t.status, TaskStatus::Completed)).count() as f64;
+        let fused = self.tasks.iter().filter(|t| matches!(t.status, TaskStatus::Fused { .. })).count() as f64;
+
+        let completion_rate = completed / total * 50.0;
+        let fuse_penalty = (fused / total * 30.0).min(30.0);
+
+        let parallel_groups = self.parallel_groups();
+        let parallelism_bonus = if parallel_groups.len() > 1 {
+            (total / parallel_groups.len() as f64 * 10.0).min(20.0)
+        } else { 0.0 };
+
+        (completion_rate + parallelism_bonus - fuse_penalty).max(0.0).min(100.0)
+    }
+
+    /// 智能重试：对失败任务指数退避重试
+    pub fn smart_retry_failed(&mut self, max_retries: u32, base_delay_ms: u64) -> Vec<String> {
+        let mut retried = Vec::new();
+        let failed_info: Vec<(String, u32)> = self.tasks
+            .iter()
+            .filter(|t| matches!(&t.status, TaskStatus::Failed(_)))
+            .map(|t| (t.id.clone(), t.healing_count))
+            .collect();
+
+        for (i, (id, healing)) in failed_info.iter().enumerate() {
+            if *healing >= max_retries { continue; }
+            let delay = (base_delay_ms * 2u64.pow(i as u32)).min(30_000);
+
+            if let Some(task) = self.tasks.iter_mut().find(|t| &t.id == id) {
+                task.status = TaskStatus::Pending;
+                task.healing_count += 1;
+                if delay > 0 {
+                    tracing::info!("[Orchestrator] Retrying {} after {}ms (attempt {})", id, delay, task.healing_count);
+                }
+            }
+            retried.push(id.clone());
+        }
+        retried
+    }
 }
 
 impl Default for Orchestrator {
@@ -917,7 +1063,7 @@ mod tests {
     fn test_stats() {
         let mut orch = make_orchestrator();
         let id1 = orch.create_task("Task 1", "desc", vec![], 0);
-        let id2 = orch.create_task("Task 2", "desc", vec![], 0);
+        let _id2 = orch.create_task("Task 2", "desc", vec![], 0);
 
         orch.assign_task(&id1, AgentRole::Coder).unwrap();
         orch.start_task(&id1).unwrap();

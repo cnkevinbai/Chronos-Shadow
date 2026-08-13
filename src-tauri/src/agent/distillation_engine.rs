@@ -844,7 +844,7 @@ impl DistillationEngine {
 
         // 更新自适应策略
         let w_snapshot = w.clone();
-        drop(w);
+        let _ = w;
         self.update_strategy(content_type, quality_score);
 
         tracing::info!(
@@ -896,7 +896,7 @@ impl DistillationEngine {
         self.evolve_weights(content_type, quality_score, compression_success);
 
         // 更新缓存条目的隐含质量
-        if let Some(url_cache) = self.cache.get(url) {
+        if let Some(_url_cache) = self.cache.get(url) {
             tracing::info!("[Feedback] URL={} quality={:.2} type={}", url, quality_score, content_type);
         }
     }

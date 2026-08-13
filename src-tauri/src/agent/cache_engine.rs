@@ -190,6 +190,48 @@ impl UnifiedCache {
 
     // ── CRUD ────────────────────────────────────────────────────
 
+    /// 🔬 语义去重: 相似请求指纹匹配, 10s 窗口内复用响应
+    pub fn semantic_dedup_check(&mut self, request_fingerprint: &str, window_ms: u64) -> Option<String> {
+        if !self.enabled { return None; }
+        let now = now_secs() * 1000;
+        // 收集匹配的 key+value (避免同时持有不可变和可变借用)
+        let mut match_key: Option<(CacheCategory, String, String, usize)> = None;
+        for (&cat, entries) in self.store.iter() {
+            for (key, entry) in entries.iter() {
+                if key.contains(request_fingerprint) && !entry.is_expired() {
+                    let age_ms = now.saturating_sub(entry.created_at * 1000);
+                    if age_ms < window_ms {
+                        match_key = Some((cat, key.clone(), entry.value.clone(), entry.original_size));
+                        break;
+                    }
+                }
+            }
+            if match_key.is_some() { break; }
+        }
+        // 更新统计 (需要 &mut self)
+        if let Some((cat, key, value, size)) = match_key {
+            if let Some(entries) = self.store.get_mut(&cat) {
+                if let Some(entry) = entries.get_mut(&key) {
+                    entry.touch();
+                }
+            }
+            self.stats.total_hits += 1;
+            self.stats.api_calls_saved += 1;
+            self.stats.bytes_saved += size as u64;
+            return Some(value);
+        }
+        None
+    }
+
+    /// 带语义指纹的存储
+    pub fn set_with_fingerprint(
+        &mut self, category: CacheCategory, key: &str, fingerprint: &str,
+        value: String, original_size: usize, ttl_override: Option<u64>,
+    ) {
+        let composite = format!("{}|fp:{}", key, fingerprint);
+        self.set(category, &composite, value, original_size, ttl_override);
+    }
+
     /// 获取缓存条目
     pub fn get(&mut self, category: CacheCategory, key: &str) -> Option<String> {
         if !self.enabled { self.stats.total_misses += 1; return None; }
@@ -479,6 +521,7 @@ impl UnifiedCache {
 
     // ── 内部 ────────────────────────────────────────────────────
 
+    #[allow(dead_code)]
     fn update_category_stats(&mut self, category: CacheCategory, hit: bool) {
         let label = category.label().to_string();
         if let Some(stat) = self.stats.per_category.get_mut(&label) {
@@ -543,7 +586,7 @@ mod tests {
 
         let entry = cache.get(CacheCategory::WebSearch, "rust-async");
         assert!(entry.is_some());
-        assert_eq!(entry.unwrap().hit_count, 1);
+        assert!(entry.unwrap().contains("doc1"));
     }
 
     #[test]

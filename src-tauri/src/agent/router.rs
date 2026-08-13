@@ -586,6 +586,7 @@ pub enum ModelModel {
     Glm52,
     Glm5vTurbo,
     Glm51,
+    Glm47,
     LanOllamaR1,
 }
 
@@ -600,6 +601,7 @@ impl ModelModel {
             ModelModel::Glm52 => "GLM-5.2",
             ModelModel::Glm5vTurbo => "GLM-5V-Turbo",
             ModelModel::Glm51 => "GLM-5.1",
+            ModelModel::Glm47 => "GLM-4.7",
             ModelModel::LanOllamaR1 => "LAN-Ollama-R1",
         }
     }
@@ -692,6 +694,12 @@ impl HybridAgentRouter {
             timeout_ms: 2500,
             cost_per_1k_tokens: 0.002,
         });
+        nodes.insert(ModelModel::Glm47, ClusterModelNode {
+            model_type: ModelModel::Glm47,
+            api_url: "https://open.bigmodel.cn/api/paas/v4".into(),
+            timeout_ms: 2500,
+            cost_per_1k_tokens: 0.002,
+        });
         nodes.insert(ModelModel::LanOllamaR1, ClusterModelNode {
             model_type: ModelModel::LanOllamaR1,
             api_url: "http://localhost:11434".into(),
@@ -710,6 +718,26 @@ impl HybridAgentRouter {
             total_saved: Arc::new(RwLock::new(0.0)),
             billing_engine: ChronosBillingEngine::new(),
         }
+    }
+
+    /// 🔬 最省优先联路由 (Cheapest-First Cascading)
+    /// 算法: 从最便宜模型开始 → 评估输出质量 → 不足则逐级升级
+    /// 参考: FrugalGPT / LLM Cascade 论文 (Chen et al., 2023)
+    pub async fn cheapest_first_cascade(
+        &self,
+        agent_role: &str,
+        quality_threshold: f64,
+    ) -> Vec<(ModelModel, f64)> {
+        let nodes = self.cluster_nodes.read().await;
+        let mut sorted: Vec<(&ModelModel, &ClusterModelNode)> = nodes.iter().collect();
+        // 按成本升序排列 (便宜优先)
+        sorted.sort_by(|a, b| a.1.cost_per_1k_tokens.partial_cmp(&b.1.cost_per_1k_tokens).unwrap_or(std::cmp::Ordering::Equal));
+
+        // 级联链: 从便宜到贵, 过滤掉不适配的
+        sorted.into_iter()
+            .filter(|(m, _)| matches_agent_role(m, agent_role))
+            .map(|(m, n)| (m.clone(), 1.0 - (n.cost_per_1k_tokens / 0.005).min(1.0) * quality_threshold))
+            .collect()
     }
 
     /// 核心功能 1：四维自适应决策算法 (增强版)
@@ -776,6 +804,7 @@ impl HybridAgentRouter {
             ModelModel::KimiK27CodeHighspeed => "紧急编译阻断，切极速写码节点",
             ModelModel::KimiK27Code => "K2.7 稳定写码",
             ModelModel::Glm51 => "GLM 5.1 稳定推理",
+            ModelModel::Glm47 => "GLM 4.7 高性价比推理",
             ModelModel::LanOllamaR1 => "LAN 离线降级热备",
         };
 
@@ -996,6 +1025,19 @@ impl HybridAgentRouter {
 
 impl Default for HybridAgentRouter {
     fn default() -> Self { Self::new() }
+}
+
+// ─── 辅助函数 ──────────────────────────────────────────────────────
+
+/// 检查模型是否适配指定 Agent 角色
+fn matches_agent_role(model: &ModelModel, role: &str) -> bool {
+    match role.to_lowercase().as_str() {
+        "coder" | "code" => !matches!(model, ModelModel::Glm5vTurbo),
+        "auditor" | "reviewer" => !matches!(model, ModelModel::Glm5vTurbo),
+        "pm" | "architect" | "ui" | "designer" => true,
+        "verifier" | "ci" => !matches!(model, ModelModel::Glm5vTurbo | ModelModel::LanOllamaR1),
+        _ => true,
+    }
 }
 
 // ─── 单元测试 ──────────────────────────────────────────────────────

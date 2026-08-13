@@ -45,7 +45,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       case "error":
         return "border-red-500/40 bg-[#140c0c] text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.15)] animate-shake";
       default:
-        return "border-[#27272a] bg-[#121214] text-zinc-300 shadow-[0_0_12px_rgba(0,0,0,0.4)]";
+        return "border-cs-border bg-cs-header text-zinc-300 shadow-[0_0_12px_rgba(0,0,0,0.4)]";
     }
   };
 

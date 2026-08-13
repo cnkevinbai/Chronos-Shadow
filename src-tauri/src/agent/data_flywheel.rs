@@ -282,7 +282,7 @@ impl DataFlywheel {
     // ── 自动采集(从各引擎同步) ────────────────────────────────
 
     /// 从 WebIntelligence 同步指标
-    pub fn collect_from_web_intel(&mut self, search_count: u64, fetch_count: u64, bytes: u64, cache_hits: u64, cache_misses: u64) {
+    pub fn collect_from_web_intel(&mut self, search_count: u64, _fetch_count: u64, _bytes: u64, cache_hits: u64, cache_misses: u64) {
         self.record_metric("search_efficiency", search_count as f64);
         let hit_rate = if cache_hits + cache_misses > 0 {
             cache_hits as f64 / (cache_hits + cache_misses) as f64 * 100.0

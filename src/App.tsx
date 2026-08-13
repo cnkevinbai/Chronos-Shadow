@@ -3,6 +3,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { I18nProvider, useT } from "@/lib/i18n-context";
+import { getModel, getLLMs, getVLMs, classifyModelKeys } from "@/lib/models";
+import CommandPalette, { buildPaletteCommands } from "@/components/CommandPalette";
+import Modal from "@/components/Modal";
 import SdlcPipelinePanel from "@/views/SdlcPipelinePanel";
 import ProjectExplorer from "@/views/ProjectExplorer";
 import ChatPanel from "@/views/ChatPanel";
@@ -27,6 +30,7 @@ import {
   getSavingRate,
   getBuddySaved,
   loadSettings,
+  saveSettings,
   getSandboxStatus,
   getRedlineStatus,
   getPipelineStats,
@@ -41,20 +45,19 @@ import {
 } from "@/lib/tauri";
 import type { RedlineStatus, OrchestratorStats } from "@/lib/types";
 
+const SHORTCUTS: { keys: string[]; desc: string }[] = [
+  { keys: ["Ctrl", "K"], desc: "打开 / 关闭命令面板" },
+  { keys: ["Ctrl", "N"], desc: "新建会话" },
+  { keys: ["Ctrl", "S"], desc: "保存当前会话" },
+  { keys: ["Ctrl", "F"], desc: "搜索消息" },
+  { keys: ["Ctrl", "Shift", "E"], desc: "导出会话 JSON" },
+  { keys: ["Esc"], desc: "关闭面板 / 菜单 / 清空附件" },
+  { keys: ["↑", "↓"], desc: "命令面板内导航" },
+  { keys: ["↵"], desc: "执行选中命令" },
+];
+
 function modelLabel(m: string): string {
-  const labels: Record<string, string> = {
-    "deepseek-v4-pro": "DeepSeek V4-Pro (深度推理)",
-    "deepseek-v4-flash": "DeepSeek V4-Flash (代码生成)",
-    "kimi-k3": "Kimi K3 (超长项目分析)",
-    "kimi-k2.7-code": "Kimi K2.7-Code (代码专用)",
-    "kimi-k2.7-code-highspeed": "Kimi K2.7-Code-HS (极速编程)",
-    "glm-5.2": "GLM-5.2 (原生Agent规划)",
-    "glm-5v-turbo": "GLM-5V-Turbo (高精视觉)",
-    "glm-5.1": "GLM-5.1 (稳定推理)",
-    "glm-4.7": "GLM-4.7 (高性价比)",
-    "ollama-local": "Ollama Local (0资费)",
-  };
-  return labels[m] ?? m;
+  return getModel(m)?.display ?? m;
 }
 
 function AppInner() {
@@ -64,6 +67,9 @@ function AppInner() {
   const [activeView, setActiveView] = useState<"workbench" | "settings" | "evolution">("workbench");
   // Dock 导航
   const [dockView, setDockView] = useState<"chat" | "pipeline" | "glue" | "skills" | "webintel" | "autoroute" | "remote" | "explorer" | "approval">("chat");
+  // Command Palette
+  const [showPalette, setShowPalette] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // ── 模型配置 ────────────────────────────────────────────────────
   const [routeMode, setRouteMode] = useState<"auto" | "manual">("auto");
@@ -74,6 +80,13 @@ function AppInner() {
 
   // ── 项目状态 ────────────────────────────────────────────────────
   const [currentProject, setCurrentProject] = useState("Chronos-Core-Demo");
+  // 项目切换时持久化 (合并现有设置, 避免覆盖其他字段)
+  useEffect(() => {
+    if (currentProject === "Chronos-Core-Demo") return;
+    loadSettings().then(s => {
+      saveSettings({ ...s, current_project: currentProject } as any).catch(() => {});
+    }).catch(() => {});
+  }, [currentProject]);
   const [sandboxStatus, setSandboxStatus] = useState("Protected (Global Node.js Symlinked)");
 
   // ── 实时 IPC 数据 ───────────────────────────────────────────────
@@ -104,6 +117,7 @@ function AppInner() {
           kimi: s.has_key_kimi ?? false,
           glm: s.has_key_glm ?? false,
         });
+        if (s.current_project) setCurrentProject(s.current_project);
       } catch {
         tid2 = setTimeout(async () => {
           try {
@@ -140,8 +154,13 @@ function AppInner() {
 
   useEffect(() => {
     getAvailableModels().then((models) => {
-      setAvailableLLMs(models.filter((m) => !m.includes("vision")));
-      setAvailableVLMs(models.filter((m) => m.includes("vision")));
+      const { llms, vlms, unknown } = classifyModelKeys(models);
+      // 注册表缺失的模型降级为文本模型，避免丢失可选模型
+      setAvailableLLMs([...llms, ...unknown]);
+      setAvailableVLMs(vlms);
+      if (unknown.length > 0) {
+        console.warn("[models] Rust 返回了 models.ts 注册表中不存在的模型:", unknown);
+      }
     });
   }, []);
 
@@ -217,12 +236,46 @@ function AppInner() {
     },
   };
 
+  // ── 命令面板 (Ctrl+K) ──────────────────────────────────────────
+  const dispatchChatCommand = (cmd: string) => {
+    window.dispatchEvent(new CustomEvent("chronos:command", { detail: cmd }));
+  };
+  const goChatThen = (cmd: string) => {
+    setActiveView("workbench");
+    setDockView("chat");
+    setTimeout(() => dispatchChatCommand(cmd), 0);
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowPalette((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const paletteCommands = buildPaletteCommands({
+    onNavigate: (v) => { setActiveView("workbench"); setDockView(v as typeof dockView); setMinimized(false); },
+    onNewSession: () => goChatThen("new-session"),
+    onSaveSession: () => goChatThen("save-session"),
+    onExportSession: () => goChatThen("export-session"),
+    onClearAll: () => goChatThen("clear-all"),
+    onToggleSidebar: () => goChatThen("toggle-sidebar"),
+    onFocusInput: () => goChatThen("focus-input"),
+    onToggleRouteMode: () => syncRouteMode(routeMode === "auto" ? "manual" : "auto"),
+    onOpenSettings: () => setActiveView("settings"),
+    onShowShortcuts: () => setShowShortcuts(true),
+  });
+
   // ── 渲染 ────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-screen bg-[#09090b] text-[#fafafa] font-mono select-none">
+    <div className="flex flex-col h-screen bg-cs-bg text-cs-text font-mono select-none">
       {/* 1. Header — 全局主控栏 */}
-      <header className="flex items-center justify-between px-4 py-2.5 border-b border-[#27272a] bg-[#121214] shrink-0">
+      <header className="flex items-center justify-between px-4 py-2.5 border-b border-cs-border bg-cs-header shrink-0">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <ChronosLogo size={20} className="stroke-cyan-400" />
@@ -231,7 +284,7 @@ function AppInner() {
           <div className="h-4 w-[1px] bg-[#27272a]" />
 
           {/* 工作台 / 全局配置 路由切换 */}
-          <div className="flex border border-[#27272a] rounded p-0.5 bg-black">
+          <div className="flex border border-cs-border rounded p-0.5 bg-black">
             <button
               onClick={() => setActiveView("workbench")}
               className={`px-3 py-1 rounded transition-all duration-150 active:scale-95 text-xs ${activeView === "workbench" ? "bg-[#27272a] text-white font-bold" : "text-zinc-500 hover:text-zinc-300"}`}
@@ -267,7 +320,7 @@ function AppInner() {
 
         {/* 右侧：模型配置矩阵 + Console 按钮 */}
         <div className="flex items-center space-x-3 text-xs">
-          <div className="flex border border-[#27272a] rounded p-0.5 bg-black">
+          <div className="flex border border-cs-border rounded p-0.5 bg-black">
             <button onClick={() => syncRouteMode("auto")} className={`px-2.5 py-1 rounded transition-all duration-150 active:scale-95 text-[11px] ${routeMode === "auto" ? "bg-[#27272a] text-white font-bold" : "text-cs-muted"}`}>
               {t.auto_rule}
             </button>
@@ -279,8 +332,8 @@ function AppInner() {
           <div className="flex items-center space-x-1">
             <span className="text-cs-muted">{t.text_llm}</span>
             <select disabled={routeMode === "auto"} value={selectedLLM} onChange={(e) => onLLMChange(e.target.value)}
-              className="bg-black border border-[#27272a] rounded px-1.5 py-1 text-white disabled:opacity-40 disabled:cursor-not-allowed outline-none text-[11px]">
-              {(availableLLMs.length > 0 ? availableLLMs : ["deepseek-v4-pro","deepseek-v4-flash","kimi-k3","kimi-k2.7-code","kimi-k2.7-code-highspeed","glm-5.2","glm-5.1","glm-4.7"]).map(m => (
+              className="bg-black border border-cs-border rounded px-1.5 py-1 text-white disabled:opacity-40 disabled:cursor-not-allowed outline-none text-[11px]">
+              {(availableLLMs.length > 0 ? availableLLMs : getLLMs().map(m => m.key)).map(m => (
                 <option key={m} value={m}>{modelLabel(m)}</option>
               ))}
             </select>
@@ -289,8 +342,8 @@ function AppInner() {
           <div className="flex items-center space-x-1">
             <span className="text-cs-muted">{t.vision_vlm}</span>
             <select value={selectedVLM} onChange={(e) => onVLMChange(e.target.value)}
-              className="bg-black border border-[#27272a] rounded px-1.5 py-1 text-white outline-none text-[11px]">
-              {(availableVLMs.length > 0 ? availableVLMs : ["glm-5v-turbo"]).map(m => (
+              className="bg-black border border-cs-border rounded px-1.5 py-1 text-white outline-none text-[11px]">
+              {(availableVLMs.length > 0 ? availableVLMs : getVLMs().map(m => m.key)).map(m => (
                 <option key={m} value={m}>{modelLabel(m)}</option>
               ))}
             </select>
@@ -329,7 +382,7 @@ function AppInner() {
           /* 工作台：左 Dock + 中央画布 + 右安全面板 */
           <div className="flex flex-1 overflow-hidden animate-fadeIn">
             {/* 左侧垂直 Dock 导航 */}
-            <nav className="w-12 border-r border-[#27272a] bg-[#0c0c0e] flex flex-col items-center py-3 space-y-1.5 shrink-0 overflow-y-auto">
+            <nav className="w-12 border-r border-cs-border bg-cs-surface flex flex-col items-center py-3 space-y-1.5 shrink-0 overflow-y-auto">
               {/* 核心面板 */}
               <DockButton active={dockView === "chat"} tip="沉浸对话" onClick={() => setDockView("chat")}>
                 <ChatIcon size={18} className={dockView === "chat" ? "stroke-white" : "stroke-zinc-500"} />
@@ -378,9 +431,9 @@ function AppInner() {
             </nav>
 
             {/* 中央画布 — 根据 Dock 切换 */}
-            <section className="flex-1 bg-[#09090b] overflow-hidden flex flex-col">
+            <section className="flex-1 bg-cs-bg overflow-hidden flex flex-col">
               {dockView === "chat" && (
-                <div className="flex-1 overflow-hidden"><ChatPanel selectedModel={selectedLLM} apiKey="" hasKeys={hasKeys} currentProject={currentProject} /></div>
+                <div className="flex-1 overflow-hidden"><ChatPanel selectedModel={selectedLLM} apiKey="" hasKeys={hasKeys} currentProject={currentProject} onProjectChange={setCurrentProject} /></div>
               )}
               {dockView === "pipeline" && (
                 <div className="flex-1 overflow-hidden">
@@ -419,8 +472,8 @@ function AppInner() {
             </section>
 
             {/* 右侧安全风控面板 */}
-            <aside className="w-[280px] border-l border-[#27272a] bg-[#0c0c0e] flex flex-col overflow-hidden shrink-0">
-              <div className="flex-1 border-b border-[#27272a] overflow-hidden">
+            <aside className="w-[280px] border-l border-cs-border bg-cs-surface flex flex-col overflow-hidden shrink-0">
+              <div className="flex-1 border-b border-cs-border overflow-hidden">
                 <RedlineGuardPanel redlineStatus={redlineStatus} />
               </div>
               <div className="flex-1 overflow-hidden">
@@ -445,6 +498,25 @@ function AppInner() {
       <FooterBar sessionCost={sessionCost} savedCost={savedCost} savingRate={savingRate} routeMode={routeMode} buddySaved={buddySaved} />
         </>
       )}
+
+      {/* 命令面板 (Ctrl+K) */}
+      <CommandPalette commands={paletteCommands} open={showPalette} onClose={() => setShowPalette(false)} />
+
+      {/* 快捷键帮助浮层 */}
+      <Modal open={showShortcuts} onClose={() => setShowShortcuts(false)} title="快捷键 (Keyboard Shortcuts)">
+        <div className="grid grid-cols-1 gap-1.5">
+          {SHORTCUTS.map((s) => (
+            <div key={s.desc} className="flex items-center justify-between px-2 py-1.5 rounded bg-black/40 border border-cs-border/50">
+              <span className="text-[11px] text-zinc-400">{s.desc}</span>
+              <span className="flex items-center space-x-1">
+                {s.keys.map((k) => (
+                  <kbd key={k} className="text-[10px] font-mono text-zinc-300 bg-cs-surface border border-cs-border px-1.5 py-0.5 rounded">{k}</kbd>
+                ))}
+              </span>
+            </div>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }

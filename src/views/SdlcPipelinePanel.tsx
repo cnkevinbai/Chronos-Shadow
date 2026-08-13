@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useT } from "@/lib/i18n-context";
 import { getAgentRoster, type AgentRosterEntry, createTask, assignTask, completeTask, failTask, getEventMetrics } from "@/lib/tauri";
+import { getModelDisplay } from "@/lib/models";
 import {
   User,
   Palette,
@@ -30,12 +31,7 @@ const COLOR_MAP: Record<string, string> = {
 };
 
 function modelShortName(model: string): string {
-  const m: Record<string, string> = {
-    "deepseek-v4-pro": "DeepSeek V4-Pro", "deepseek-v4-flash": "DeepSeek V4-Flash",
-    "kimi-k3": "Kimi K3", "kimi-k2.7-code": "Kimi K2.7-Code", "kimi-k2.7-code-highspeed": "Kimi K2.7-Code-HS",
-    "glm-5.2": "GLM-5.2", "glm-5v-turbo": "GLM-5V-Turbo", "glm-5.1": "GLM-5.1", "glm-4.7": "GLM-4.7",
-  };
-  return m[model] ?? model;
+  return getModelDisplay(model);
 }
 
 function buildAgents(roster: AgentRosterEntry[]): AgentNode[] {
@@ -160,7 +156,7 @@ export default function SdlcPipelinePanel({
               <input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleQuickCreateTask()}
                 placeholder="任务标题…" autoFocus
-                className="bg-black border border-[#27272a] rounded px-2 py-1 text-[10px] text-white w-36 outline-none focus:border-cyan-500" />
+                className="bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white w-36 outline-none focus:border-cyan-500" />
               <button onClick={handleQuickCreateTask}
                 className="text-[9px] bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 px-2 py-1 rounded">创建</button>
               <button onClick={() => setShowTaskForm(false)}
@@ -168,7 +164,7 @@ export default function SdlcPipelinePanel({
             </div>
           ) : (
             <button onClick={() => setShowTaskForm(true)}
-              className="text-[9px] bg-black border border-[#27272a] hover:border-zinc-500 text-zinc-400 hover:text-white px-2 py-0.5 rounded transition-colors">
+              className="text-[9px] bg-black border border-cs-border hover:border-zinc-500 text-zinc-400 hover:text-white px-2 py-0.5 rounded transition-colors">
               + 任务
             </button>
           )}
@@ -178,7 +174,7 @@ export default function SdlcPipelinePanel({
             className={`text-[8px] px-1.5 py-0.5 rounded border transition-colors ${
               detectorOn
                 ? "bg-purple-950/40 border-purple-500/40 text-purple-400"
-                : "bg-black border-[#27272a] text-zinc-500"
+                : "bg-black border-cs-border text-zinc-500"
             }`}
             title="零 Token 本地技能检测拦截"
           >

@@ -141,9 +141,9 @@ export default function ApprovalPanel() {
   const highRiskCount = pending.filter(r => r.risk_level >= 7).length;
 
   return (
-    <div className="flex flex-col h-full bg-[#0c0c0e] text-[11px]">
+    <div className="flex flex-col h-full bg-cs-surface text-[11px]">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#27272a] bg-[#121214] shrink-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-cs-border bg-cs-header shrink-0">
         <div className="flex items-center space-x-1.5">
           <Shield className={`w-3 h-3 ${highRiskCount > 0 ? "text-red-400 animate-pulse" : "text-red-400"}`} />
           <span className="font-bold text-zinc-200">第四红线</span>
@@ -157,7 +157,7 @@ export default function ApprovalPanel() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-[#27272a] bg-[#0c0c0e] shrink-0">
+      <div className="flex border-b border-cs-border bg-cs-surface shrink-0">
         {([
           { id: "pending" as const, icon: Clock, label: "待审批" },
           { id: "log" as const, icon: History, label: "审计" },
@@ -169,7 +169,7 @@ export default function ApprovalPanel() {
           return (
             <button key={tab.id} onClick={() => setView(tab.id)}
               className={`flex-1 flex items-center justify-center space-x-1 py-1.5 text-[10px] transition-colors ${
-                active ? "text-white bg-[#121214] border-b border-red-400" : "text-zinc-500 hover:text-zinc-300"
+                active ? "text-white bg-cs-header border-b border-red-400" : "text-zinc-500 hover:text-zinc-300"
               }`}>
               <Icon className={`w-3 h-3 ${active ? "text-red-400" : ""}`} />
               <span>{tab.label}</span>
@@ -190,7 +190,7 @@ export default function ApprovalPanel() {
         {showSubmitForm && (
           <div className="p-2 border border-red-500/20 rounded bg-red-950/5 space-y-1.5">
             <select value={submitAction} onChange={e => setSubmitAction(e.target.value)}
-              className="w-full bg-[#09090b] border border-[#27272a] rounded px-2 py-1 text-[10px] text-zinc-200">
+              className="w-full bg-cs-bg border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-200">
               <option value="worktree_merge">Worktree 合并</option>
               <option value="pipeline_advance">流水线跃迁</option>
               <option value="ssh_exec">远程命令</option>
@@ -200,14 +200,14 @@ export default function ApprovalPanel() {
             </select>
             <input type="text" placeholder="目标 ID (如 wt-0001)" value={submitTarget}
               onChange={e => setSubmitTarget(e.target.value)}
-              className="w-full bg-[#09090b] border border-[#27272a] rounded px-2 py-1 text-[10px] text-zinc-200 placeholder-zinc-600" />
+              className="w-full bg-cs-bg border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-200 placeholder-zinc-600" />
             <input type="text" placeholder="描述 (如: 合并 feature-x 到 main)" value={submitDesc}
               onChange={e => setSubmitDesc(e.target.value)}
-              className="w-full bg-[#09090b] border border-[#27272a] rounded px-2 py-1 text-[10px] text-zinc-200 placeholder-zinc-600" />
+              className="w-full bg-cs-bg border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-200 placeholder-zinc-600" />
             <div className="flex space-x-1">
               <input type="number" placeholder="预估费用 ¥ (可选)" value={submitCost}
                 onChange={e => setSubmitCost(e.target.value)}
-                className="flex-1 bg-[#09090b] border border-[#27272a] rounded px-2 py-1 text-[10px] text-zinc-200 placeholder-zinc-600" />
+                className="flex-1 bg-cs-bg border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-200 placeholder-zinc-600" />
               <button onClick={handleSubmitApproval}
                 className="px-3 py-1 bg-red-950/60 border border-red-500/40 text-red-400 rounded text-[10px] hover:bg-red-900/60">
                 提交审批
@@ -228,8 +228,8 @@ export default function ApprovalPanel() {
               const expanded = expandedReq === req.id;
               return (
                 <div key={req.id}
-                  className={`p-2.5 border rounded bg-[#121214] space-y-2 cursor-pointer ${
-                    req.risk_level >= 7 ? "border-red-900/60" : "border-[#27272a]"
+                  className={`p-2.5 border rounded bg-cs-header space-y-2 cursor-pointer ${
+                    req.risk_level >= 7 ? "border-red-900/60" : "border-cs-border"
                   }`}
                   onClick={() => setExpandedReq(expanded ? null : req.id)}
                 >
@@ -282,7 +282,7 @@ export default function ApprovalPanel() {
                         <input type="text" placeholder="审批备注" value={comment}
                           onChange={e => setComment(e.target.value)}
                           onClick={e => e.stopPropagation()}
-                          className="flex-1 bg-[#09090b] border border-[#27272a] rounded px-2 py-1 text-[10px] text-zinc-300 placeholder-zinc-600" />
+                          className="flex-1 bg-cs-bg border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-300 placeholder-zinc-600" />
                         <button onClick={e => { e.stopPropagation(); handleDecide(req.id, "Approve"); }}
                           className="px-2.5 py-1 bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 rounded text-[10px] hover:bg-emerald-900/60">
                           <Check className="w-3 h-3 inline mr-0.5" />通过</button>
@@ -309,7 +309,7 @@ export default function ApprovalPanel() {
               return (
                 <div key={req.id} className={`p-2 border rounded text-[10px] ${
                   isOk ? "border-emerald-900/30 bg-emerald-950/5" :
-                  isBad ? "border-red-900/30 bg-red-950/5" : "border-[#27272a] bg-[#121214]"
+                  isBad ? "border-red-900/30 bg-red-950/5" : "border-cs-border bg-cs-header"
                 }`}>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-zinc-400 font-bold">{ACTION_LABEL[req.action_type] ?? req.action_type}</span>
@@ -339,12 +339,12 @@ export default function ApprovalPanel() {
         {view === "rules" && (
           <>
             <button onClick={handleAddRule}
-              className="w-full flex items-center justify-center space-x-1 py-1.5 border border-dashed border-[#27272a] rounded text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors">
+              className="w-full flex items-center justify-center space-x-1 py-1.5 border border-dashed border-cs-border rounded text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors">
               <Plus className="w-3 h-3" /><span>添加规则</span>
             </button>
             {rules.map(rule => (
               <div key={rule.id} className={`p-2 border rounded text-[10px] ${
-                rule.enabled ? "border-[#27272a] bg-[#121214]" : "border-[#1a1a1e] bg-[#0a0a0c] opacity-60"
+                rule.enabled ? "border-cs-border bg-cs-header" : "border-[#1a1a1e] bg-[#0a0a0c] opacity-60"
               }`}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-zinc-300 font-bold">{rule.name}</span>
@@ -391,7 +391,7 @@ export default function ApprovalPanel() {
         )}
       </div>
 
-      <div className="px-3 py-1.5 border-t border-[#27272a] bg-[#121214] text-[9px] text-zinc-600 flex items-center justify-between shrink-0">
+      <div className="px-3 py-1.5 border-t border-cs-border bg-cs-header text-[9px] text-zinc-600 flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-3">
           <Settings className="w-2.5 h-2.5" />
           <span>{rules.length} 规则</span>

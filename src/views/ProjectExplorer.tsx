@@ -2,6 +2,13 @@
 // 真实文件树 + 检查点捕获/恢复/删除 + 项目健康 + Worktree 状态
 
 import { useState, useEffect, useCallback } from "react";
+
+// OS 自适应默认工作区路径
+function defaultWorkspace(): string {
+  if (typeof window === "undefined") return ".";
+  const isWin = navigator.platform.toLowerCase().includes("win");
+  return isWin ? "C:\\Chronos-Workspace" : "~/Chronos-Workspace";
+}
 import { useT } from "@/lib/i18n-context";
 import {
   cvfsGetCheckpoints,
@@ -58,7 +65,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
   const [wtStats, setWtStats] = useState<WorktreeStats>({ total: 0, active: 0, completed: 0, merged: 0, errors: 0 });
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjId, setNewProjId] = useState("");
-  const [newProjPath, setNewProjPath] = useState("C:\\Chronos-Workspace");
+  const [newProjPath, setNewProjPath] = useState(defaultWorkspace());
   const [snapshotLabel, setSnapshotLabel] = useState("");
   const [showSnapshot, setShowSnapshot] = useState(false);
   const [activeTab, setActiveTab] = useState<"files" | "checkpoints" | "health">("files");
@@ -149,9 +156,9 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
   const displayProjects = projects.length > 0 ? projects : [];
 
   return (
-    <div className="h-full flex flex-col bg-[#0c0c0e] font-mono text-xs text-zinc-400 select-none overflow-hidden">
+    <div className="h-full flex flex-col bg-cs-surface font-mono text-xs text-zinc-400 select-none overflow-hidden">
       {/* 1. 项目主切换枢纽 */}
-      <div className="p-3 border-b border-[#27272a] bg-[#121214] flex flex-col space-y-2 shrink-0">
+      <div className="p-3 border-b border-cs-border bg-cs-header flex flex-col space-y-2 shrink-0">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">📁 {t.workspace}</span>
           <div className="flex items-center space-x-1">
@@ -159,7 +166,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
               className="text-[9px] bg-black border border-amber-500/30 hover:border-amber-400 text-amber-400 px-1.5 py-0.5 rounded transition-all" title="手动快照">
               <Camera className="w-2.5 h-2.5 inline mr-0.5" />快照</button>
             <button onClick={() => setShowNewProject(!showNewProject)}
-              className="text-[10px] bg-black border border-[#27272a] hover:border-zinc-500 text-white px-1.5 py-0.5 rounded font-bold transition-all active:scale-95">
+              className="text-[10px] bg-black border border-cs-border hover:border-zinc-500 text-white px-1.5 py-0.5 rounded font-bold transition-all active:scale-95">
               <Plus className="w-2.5 h-2.5 inline mr-0.5" />{t.new_button}</button>
           </div>
         </div>
@@ -167,7 +174,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
         {showSnapshot && (
           <div className="flex space-x-1 animate-fadeIn">
             <input value={snapshotLabel} onChange={(e) => setSnapshotLabel(e.target.value)}
-              placeholder="快照标签" className="flex-1 bg-black border border-[#27272a] rounded px-2 py-1 text-[10px] text-white outline-none focus:border-amber-500" />
+              placeholder="快照标签" className="flex-1 bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white outline-none focus:border-amber-500" />
             <button onClick={handleCaptureCheckpoint}
               className="bg-amber-800/50 hover:bg-amber-700 border border-amber-700/50 text-amber-300 text-[9px] px-2 py-1 rounded">捕获</button>
           </div>
@@ -176,9 +183,9 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
         {showNewProject && (
           <div className="space-y-1 animate-fadeIn">
             <input value={newProjId} onChange={(e) => setNewProjId(e.target.value)}
-              placeholder="项目 ID" className="w-full bg-black border border-[#27272a] rounded px-2 py-1 text-[10px] text-white outline-none focus:border-cyan-500" />
+              placeholder="项目 ID" className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white outline-none focus:border-cyan-500" />
             <input value={newProjPath} onChange={(e) => setNewProjPath(e.target.value)}
-              placeholder="物理路径" className="w-full bg-black border border-[#27272a] rounded px-2 py-1 text-[10px] text-white outline-none focus:border-cyan-500" />
+              placeholder="物理路径" className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white outline-none focus:border-cyan-500" />
             <button onClick={handleCreateProject}
               className="w-full bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 text-[9px] py-1 rounded font-bold">创建项目并锁定 Scope</button>
           </div>
@@ -186,7 +193,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
 
         <select value={displayProjects.find(p => p.name === currentProject)?.id || ""}
           onChange={e => { const s = displayProjects.find(p => p.id === e.target.value); if (s) onProjectChange(s.name); }}
-          className="bg-black border border-[#27272a] rounded px-2 py-1 text-xs text-white outline-none cursor-pointer w-full">
+          className="bg-black border border-cs-border rounded px-2 py-1 text-xs text-white outline-none cursor-pointer w-full">
           {displayProjects.length > 0 ? displayProjects.map(p => (
             <option key={p.id} value={p.id}>{p.name} [{p.path.slice(0, 30)}]</option>
           )) : <option value="">暂无项目 — 点击 + 新建</option>}
@@ -208,7 +215,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
       </div>
 
       {/* 2. Tab 切换：文件 / 检查点 / 健康 */}
-      <div className="flex border-b border-[#27272a] bg-[#0c0c0e] shrink-0">
+      <div className="flex border-b border-cs-border bg-cs-surface shrink-0">
         {([
           { id: "files" as const, icon: FolderTree, label: "文件" },
           { id: "checkpoints" as const, icon: Clock, label: `检查点(${checkpoints.length})` },
@@ -219,7 +226,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={`flex-1 flex items-center justify-center space-x-1 py-1 text-[10px] transition-colors ${
-                active ? "text-white bg-[#121214] border-b border-cyan-400" : "text-zinc-500 hover:text-zinc-300"}`}>
+                active ? "text-white bg-cs-header border-b border-cyan-400" : "text-zinc-500 hover:text-zinc-300"}`}>
               <Icon className={`w-2.5 h-2.5 ${active ? "text-cyan-400" : ""}`} />
               <span>{tab.label}</span>
             </button>
@@ -290,7 +297,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
           <div className="p-2 space-y-2">
             {/* 健康面板 */}
             {health ? (
-              <div className="p-2 border border-[#27272a] rounded bg-[#121214] space-y-1.5 text-[10px]">
+              <div className="p-2 border border-cs-border rounded bg-cs-header space-y-1.5 text-[10px]">
                 <div className="flex items-center justify-between">
                   <span className="text-zinc-400 font-bold">📊 项目健康</span>
                   <span className={`px-1 py-0.5 rounded text-[9px] ${
@@ -312,7 +319,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
             )}
 
             {/* Worktree 面板 */}
-            <div className="p-2 border border-[#27272a] rounded bg-[#121214] space-y-1.5 text-[10px]">
+            <div className="p-2 border border-cs-border rounded bg-cs-header space-y-1.5 text-[10px]">
               <div className="flex items-center justify-between">
                 <span className="text-zinc-400 font-bold">🌿 Worktrees</span>
                 <span className="text-zinc-600 text-[9px]">{wtStats.total} 总计</span>
@@ -347,7 +354,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
       </div>
 
       {/* Footer */}
-      <div className="h-5 border-t border-[#27272a] px-2.5 flex items-center text-[8px] text-zinc-500 shrink-0">
+      <div className="h-5 border-t border-cs-border px-2.5 flex items-center text-[8px] text-zinc-500 shrink-0">
         <HardDrive className="w-2 h-2 mr-1" />
         {sandboxStatus} · {checkpoints.length} 检查点 · {vfsTree.length} 文件 · {wtStats.total} WT
       </div>

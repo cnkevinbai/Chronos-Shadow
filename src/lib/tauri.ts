@@ -787,6 +787,7 @@ export interface AppSettings {
   has_key_deepseek?: boolean;
   has_key_kimi?: boolean;
   has_key_glm?: boolean;
+  current_project?: string;
 }
 
 export async function loadSettings(): Promise<AppSettings> {
@@ -1023,6 +1024,11 @@ export async function cvfsCreateProject(projectId: string, targetPath: string): 
 export async function cvfsVerifyScope(projectId: string, filePath: string): Promise<string> {
   try { return await invoke<string>("cvfs_verify_scope", { projectId, filePath }); }
   catch { return "Scope OK (mock)"; }
+}
+
+export async function cvfsReadFile(projectId: string, relativePath: string): Promise<string> {
+  try { return await invoke<string>("cvfs_read_file", { projectId, relativePath }); }
+  catch { return ""; }
 }
 
 export async function cvfsCaptureCheckpoint(projectId: string, checkpointId: string, description: string): Promise<string> {
@@ -1612,4 +1618,34 @@ export async function flywheelDashboard(): Promise<FlywheelDashboard> {
 export async function flywheelSpin(): Promise<Record<string, unknown>> {
   try { return await invoke("flywheel_spin"); }
   catch { return { cycles: 0 }; }
+}
+
+// ─── Cache Hit Statistics ───────────────────────────────────────────
+
+export interface CacheHitStats {
+  models: Array<{
+    model: string; total_requests: number; cache_hits: number;
+    cached_tokens: number; cost_saved: string; hit_rate: string;
+  }>;
+  total_cached_tokens: number; total_cost_saved: string;
+}
+
+export async function getCacheHitStats(): Promise<CacheHitStats> {
+  try { return await invoke<CacheHitStats>("get_cache_hit_stats"); }
+  catch { return { models: [], total_cached_tokens: 0, total_cost_saved: "0" }; }
+}
+
+// ─── PPT Generation ────────────────────────────────────────────────
+
+export async function pptxGenerate(req: {
+  title: string; subtitle?: string; author?: string; template?: string;
+  slides: Array<{ slide_type: string; title: string; subtitle?: string; body?: string; bullets?: string[]; speaker_notes?: string; }>;
+}): Promise<{ success: boolean; file_path?: string; slide_count: number; template_used: string; error?: string }> {
+  try { return await invoke("pptx_generate", { requestJson: JSON.stringify(req) }); }
+  catch (e) { return { success: false, slide_count: 0, template_used: "", error: String(e) }; }
+}
+
+export async function pptxAnalyzeReference(url: string): Promise<{ url: string; title?: string; primary_color?: string; recommended_template: string; content_summary: string; key_points: string[] }> {
+  try { return await invoke("pptx_analyze_reference", { url }); }
+  catch (e) { return { url, content_summary: "", key_points: [], recommended_template: "Corporate" }; }
 }

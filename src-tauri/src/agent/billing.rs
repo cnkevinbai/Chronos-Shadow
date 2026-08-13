@@ -79,6 +79,7 @@ impl ChronosBillingEngine {
         rates.insert(ModelModel::Glm52,       (1.00, 1.00, 2.00));
         rates.insert(ModelModel::Glm5vTurbo,  (3.00, 3.00, 5.00));
         rates.insert(ModelModel::Glm51,       (0.50, 0.50, 2.00));
+        rates.insert(ModelModel::Glm47,       (0.50, 0.50, 2.00));
 
         // LAN 离线: 0 资费
         rates.insert(ModelModel::LanOllamaR1, (0.00, 0.00, 0.00));

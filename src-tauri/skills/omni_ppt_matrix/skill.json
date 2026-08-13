@@ -1,0 +1,38 @@
+{
+  "name": "omni_ppt_matrix",
+  "description": "时空多维全自动专业 PPT 生成引擎。接收自然语言大纲，通过本地 Marp 引擎全自动将其编译为符合国际一线美学（Vercel极简/Linear暗黑风/Apple极简）的高保真 PPT 文件，并由本地 ONNX 视觉模型执行自动走查纠偏。",
+  "version": "1.0.0",
+  "author": "Chronos-Shadow Team",
+  "type": "builtin",
+  "category": "design",
+  "tags": ["PPT生成", "Marp编译", "高保真", "零资费", "设计系统", "ONNX走查"],
+  "executor": "native",
+  "script_path": "skills/omni_ppt_matrix/run.ps1",
+  "timeout_secs": 120,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "ppt_outline_markdown": {
+        "type": "string",
+        "description": "由 DeepSeek-V4-Flash 极速生成并清洗后的标准 Markdown 格式 PPT 结构化内容大纲"
+      },
+      "design_theme_profile": {
+        "type": "string",
+        "enum": ["vercel_monochrome", "linear_dark_neon", "apple_minimalist"],
+        "description": "PPT 主题审美风格：vercel_monochrome (工业单色黑白)，linear_dark_neon (极客暗黑霓虹发光质感)，apple_minimalist (苹果极简流体)"
+      },
+      "export_format": {
+        "type": "string",
+        "enum": ["pdf", "pptx", "html"],
+        "description": "最终输出文件的物理格式"
+      }
+    },
+    "required": ["ppt_outline_markdown", "design_theme_profile", "export_format"]
+  },
+  "benefits": {
+    "cost": "0 资费端侧生成",
+    "vision_tokens_saved": "100% (像素对齐本地完成)",
+    "design_systems": ["Vercel Monochrome", "Linear Dark Neon", "Apple Minimalist"],
+    "quality": "ONNX 视觉走查自动纠偏"
+  }
+}

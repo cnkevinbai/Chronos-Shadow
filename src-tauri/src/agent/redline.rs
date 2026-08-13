@@ -75,6 +75,21 @@ pub enum AgentAction {
         /// 可选：是否启用端侧蒸馏
         distill: Option<bool>,
     },
+    /// 环境检测
+    #[serde(rename = "check_environment")]
+    CheckEnvironment,
+    /// 自动安装依赖
+    #[serde(rename = "auto_install_deps")]
+    AutoInstallDeps,
+    /// PPT 生成
+    #[serde(rename = "pptx_generate")]
+    PptxGenerate {
+        title: String,
+        subtitle: Option<String>,
+        author: Option<String>,
+        template: Option<String>,
+        slides: serde_json::Value, // Vec<SlideContent>
+    },
 }
 
 /// 大模型完整输出 — 入口 Schema
@@ -309,6 +324,9 @@ impl RedlineGuard {
                     "mcp_call".into(),
                     "web_search".into(),
                     "web_fetch".into(),
+                    "pptx_generate".into(),
+                    "check_environment".into(),
+                    "auto_install_deps".into(),
                 ],
                 project_root,
                 blocked_path_count: 0,
@@ -329,8 +347,12 @@ impl RedlineGuard {
             return Err(RedlineError::FormatViolation(raw_llm_output.to_string()));
         }
 
-        let action: AgentAction = serde_json::from_str(trimmed)
-            .map_err(|e| RedlineError::FormatViolation(format!("{}: {}", e, &trimmed[..200.min(trimmed.len())])))?;
+        // 预处理：修复 LLM 在 JSON 字符串内输出的字面换行
+        // 将 JSON 值中的真实换行转义为 \n
+        let normalized = normalize_json_newlines(trimmed);
+
+        let action: AgentAction = serde_json::from_str(&normalized)
+            .map_err(|e| RedlineError::FormatViolation(format!("{}: {}", e, &normalized[..200.min(normalized.len())])))?;
 
         // 级联触发红线二校验
         match &action {
@@ -358,7 +380,6 @@ impl RedlineGuard {
                 if url.trim().is_empty() {
                     return Err(RedlineError::FormatViolation("WebFetch url must not be empty".into()));
                 }
-                // URL 安全检查：协议必须是 https
                 let lower_url = url.to_lowercase();
                 if !lower_url.starts_with("https://") {
                     return Err(RedlineError::FormatViolation(
@@ -521,6 +542,9 @@ impl RedlineGuard {
                     });
                 }
             }
+            AgentAction::PptxGenerate { .. } => {}
+            AgentAction::CheckEnvironment => {}
+            AgentAction::AutoInstallDeps => {}
         }
         Ok(())
     }
@@ -580,6 +604,25 @@ impl Default for RedlineGuard {
     fn default() -> Self {
         Self::new(PathBuf::from("."))
     }
+}
+
+// ─── JSON 换行修复 ──────────────────────────────────────────────
+
+/// 修复 LLM 在 JSON 字符串值中输出的字面换行符
+/// 将字符串值内的 \r\n 和 \n 替换为转义形式 \\n
+fn normalize_json_newlines(json: &str) -> String {
+    let mut result = String::with_capacity(json.len());
+    let mut in_string = false;
+    let mut escape_next = false;
+    for ch in json.chars() {
+        if escape_next { escape_next = false; result.push(ch); continue; }
+        if ch == '\\' && in_string { escape_next = true; result.push(ch); continue; }
+        if ch == '"' { in_string = !in_string; result.push(ch); continue; }
+        if in_string && ch == '\n' { result.push_str("\\n"); continue; }
+        if in_string && ch == '\r' { continue; }
+        result.push(ch);
+    }
+    result
 }
 
 // ─── 单元测试 ──────────────────────────────────────────────────────

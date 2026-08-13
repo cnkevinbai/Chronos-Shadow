@@ -8,6 +8,7 @@ import { useLang, useT } from "@/lib/i18n-context";
 import { useToast } from "@/components/ToastProvider";
 import { loadSettings, saveSettings, checkLanHealth } from "@/lib/tauri";
 import { ChronosLogo, KeyIcon, GlobeIcon, ShieldIcon, CoinsIcon } from "@/components/SvgIcons";
+import { MODELS } from "@/lib/models";
 
 type Tab = "api" | "cost" | "lan" | "security" | "lang" | "about";
 
@@ -102,9 +103,9 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
   ];
 
   return (
-    <div className="flex h-full bg-[#09090b] font-mono text-sm text-[#fafafa] select-none">
+    <div className="flex h-full bg-cs-bg font-mono text-sm text-cs-text select-none">
       {/* Left nav */}
-      <div className="w-48 border-r border-[#27272a] bg-[#0c0c0e] p-2 flex flex-col">
+      <div className="w-48 border-r border-cs-border bg-cs-surface p-2 flex flex-col">
         <div className="px-3 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
           {t.settings}
         </div>
@@ -125,7 +126,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
           ))}
         </div>
 
-        <div className="p-2 border-t border-[#27272a]">
+        <div className="p-2 border-t border-cs-border">
           <button
             onClick={handleSave}
             disabled={saving || activeTab === "about"}
@@ -165,10 +166,12 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                       toast.showToast("error", "VAULT FAILED", "凭据写入失败，请检查系统权限。");
                     }
                   }}
-                  className="bg-black border border-[#27272a] rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none"
+                  className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none"
                 />
               </div>
             ))}
+
+            <ModelMatrix />
           </SettingsSection>
         )}
 
@@ -187,7 +190,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                 disabled={!costCapEnabled}
                 value={costCap}
                 onChange={(e) => setCostCap(Number(e.target.value))}
-                className="bg-black border border-[#27272a] rounded px-3 py-1.5 text-xs text-white disabled:opacity-30 focus:border-zinc-500 outline-none w-28"
+                className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white disabled:opacity-30 focus:border-zinc-500 outline-none w-28"
               />
             </div>
             <ToggleRow
@@ -212,7 +215,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                   value={ollamaUrl}
                   onChange={(e) => setOllamaUrl(e.target.value)}
                   placeholder="http://localhost:11434"
-                  className="flex-1 bg-black border border-[#27272a] rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none"
+                  className="flex-1 bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none"
                 />
                 <button
                   onClick={async () => {
@@ -303,7 +306,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                 type="text"
                 value={lanModel}
                 onChange={(e) => setLanModel(e.target.value)}
-                className="bg-black border border-[#27272a] rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none"
+                className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none"
               />
             </div>
 
@@ -313,7 +316,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                 type="number"
                 value={lanTimeout}
                 onChange={(e) => setLanTimeout(Number(e.target.value))}
-                className="bg-black border border-[#27272a] rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none w-28"
+                className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none w-28"
               />
             </div>
             <ToggleRow label={t.settings_fallback_label} sub={t.settings_fallback_desc} enabled={autoFallback} onChange={setAutoFallback} />
@@ -325,7 +328,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
             <div className="flex flex-col space-y-1">
               <label className="text-[11px] font-medium text-zinc-400">{t.settings_healing_label}</label>
               <input type="number" value={maxHealing} onChange={(e) => setMaxHealing(Number(e.target.value))}
-                className="bg-black border border-[#27272a] rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none w-20" />
+                className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none w-20" />
               <span className="text-[10px] text-zinc-600">{t.settings_healing_desc}</span>
             </div>
             <ToggleRow label={t.settings_ast_label} sub={t.settings_ast_desc} enabled={astAudit} onChange={setAstAudit} />
@@ -345,7 +348,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                   key={code}
                   onClick={() => setLang(code)}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded border text-left text-xs transition-all ${
-                    lang === code ? "border-emerald-500/50 bg-emerald-950/20 text-emerald-400" : "border-[#27272a] text-zinc-400 hover:border-zinc-500"
+                    lang === code ? "border-emerald-500/50 bg-emerald-950/20 text-emerald-400" : "border-cs-border text-zinc-400 hover:border-zinc-500"
                   }`}
                 >
                   <div>
@@ -458,7 +461,7 @@ function ToggleRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-[#27272a]/50">
+    <div className="flex items-center justify-between py-2 border-b border-cs-border/50">
       <div className="flex flex-col space-y-0.5">
         <span className="text-[11px] font-medium text-white">{label}</span>
         <span className="text-[10px] text-zinc-500">{sub}</span>
@@ -475,6 +478,60 @@ function ToggleRow({
           }`}
         />
       </button>
+    </div>
+  );
+}
+
+function ModelMatrix() {
+  const providerLabel: Record<string, string> = {
+    deepseek: "DeepSeek", kimi: "Kimi", glm: "GLM", ollama: "Ollama",
+  };
+  const tierBadge: Record<string, { label: string; cls: string }> = {
+    premium: { label: "旗舰", cls: "text-amber-400 border-amber-500/40 bg-amber-950/20" },
+    standard: { label: "标准", cls: "text-cyan-400 border-cyan-500/40 bg-cyan-950/20" },
+    budget: { label: "经济", cls: "text-emerald-400 border-emerald-500/40 bg-emerald-950/20" },
+    free: { label: "免费", cls: "text-zinc-400 border-zinc-600/40 bg-zinc-900/40" },
+  };
+  const providers = ["deepseek", "kimi", "glm", "ollama"] as const;
+
+  return (
+    <div className="pt-3 border-t border-cs-border/50">
+      <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
+        模型能力矩阵 (Provider / Cost)
+      </div>
+      <div className="space-y-3">
+        {providers.map((p) => {
+          const list = MODELS.filter((m) => m.provider === p);
+          if (list.length === 0) return null;
+          return (
+            <div key={p}>
+              <div className="text-[10px] font-bold text-zinc-400 mb-1">{providerLabel[p]}</div>
+              <div className="space-y-1">
+                {list.map((m) => {
+                  const tb = tierBadge[m.costTier] ?? tierBadge.standard;
+                  return (
+                    <div key={m.key} className="flex items-center justify-between px-2 py-1 rounded bg-black/40 border border-cs-border/50">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <span className="text-[11px] text-zinc-300 truncate">{m.shortDisplay}</span>
+                        {m.isVision && (
+                          <span className="text-[9px] text-purple-400 border border-purple-500/40 bg-purple-950/20 px-1 rounded">视觉</span>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-1.5 shrink-0">
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded border ${tb.cls}`}>{tb.label}</span>
+                        <span className="text-[9px] text-zinc-600" title="上下文窗口 (tokens)">{(m.contextWindow / 1000).toFixed(0)}K ctx</span>
+                        {m.supportsCache && (
+                          <span className="text-[9px] text-emerald-400" title="支持 Context Caching">⚡缓存</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

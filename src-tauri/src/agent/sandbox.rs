@@ -1036,7 +1036,6 @@ impl ChronosVirtualFileSystem {
             return self.save_state_to(&dir).await;
         }
         drop(pool);
-        // 没有项目时也尝试保存空状态到默认位置
         Ok(())
     }
 

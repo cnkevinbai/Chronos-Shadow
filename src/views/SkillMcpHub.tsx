@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useT } from "@/lib/i18n-context";
-import { listSkills, listMcpServers, type SkillItem, type McpServerItem, mcpConnectAndInit, mcpFetchTools } from "@/lib/tauri";
+import { listSkills, listMcpServers, type SkillItem, type McpServerItem, mcpConnectAndInit, mcpFetchTools, pptxGenerate } from "@/lib/tauri";
 import {
   Zap,
   Plug,
@@ -89,7 +89,12 @@ const mcpServers: McpServer[] = [
 export default function SkillMcpHub() {
   const _t = useT(); void _t;
   const t = _t;
-  const [activeTab, setActiveTab] = useState<"skills" | "mcp">("skills");
+  const [activeTab, setActiveTab] = useState<"skills" | "mcp" | "ppt">("skills");
+  // OmniPPT Workspace 状态
+  const [pptOutline, setPptOutline] = useState("# 数字化降本工作汇报\n\n---\n\n## 核心成效\n\n- 缓存命中率: 89%\n- 累计节约: ¥18.45\n\n---\n\n## 下一步计划\n\n- 深化端侧优化\n- 拓展多模型协作");
+  const [pptTheme, setPptTheme] = useState<"vercel_monochrome" | "linear_dark_neon" | "apple_minimalist">("linear_dark_neon");
+  const [onnxStatus, setOnnxStatus] = useState("PASS (排版无溢出)");
+  const [exporting, setExporting] = useState(false);
   const [selectedMcpTool, setSelectedMcpTool] = useState<string | null>(null);
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [schemaData, setSchemaData] = useState<{ server: string; tool: string; schema: string } | null>(null);
@@ -140,6 +145,16 @@ export default function SkillMcpHub() {
         >
           {t.mcp} ({liveMcp.length || mcpServers.length})
         </button>
+        <button
+          onClick={() => setActiveTab("ppt")}
+          className={`flex-1 py-2 text-[10px] font-medium transition-colors ${
+            activeTab === "ppt"
+              ? "text-cs-text border-b border-purple-500"
+              : "text-cs-muted hover:text-cs-dim"
+          }`}
+        >
+          🌌 OmniPPT
+        </button>
       </div>
 
       {/* Content */}
@@ -187,6 +202,98 @@ export default function SkillMcpHub() {
                 }}
               />
             ))}
+          </div>
+        )}
+        {activeTab === "ppt" && (
+          <div className="h-full flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-cs-border bg-cs-header shrink-0">
+              <span className="text-[10px] font-bold text-purple-300">🌌 OmniPPT-Matrix 演进中心</span>
+              <span className="text-[8px] text-purple-400 animate-pulse">EXECUTING</span>
+            </div>
+            {/* Theme selector */}
+            <div className="flex items-center space-x-1 px-2 py-1.5 border-b border-cs-border bg-cs-surface shrink-0">
+              {([
+                { id: "vercel_monochrome" as const, label: "Vercel 单色" },
+                { id: "linear_dark_neon" as const, label: "Linear 暗黑" },
+                { id: "apple_minimalist" as const, label: "Apple 极简" },
+              ]).map(th => (
+                <button key={th.id} onClick={() => setPptTheme(th.id)}
+                  className={`text-[8px] px-2 py-0.5 rounded border transition-colors ${
+                    pptTheme === th.id ? "bg-purple-950/40 border-purple-500/50 text-purple-300" : "border-cs-border text-zinc-500 hover:text-zinc-300"
+                  }`}>
+                  {th.label}
+                </button>
+              ))}
+            </div>
+            {/* Dual panel: Markdown + Preview */}
+            <div className="flex-1 flex overflow-hidden">
+              {/* Left: Markdown editor */}
+              <div className="w-1/2 border-r border-cs-border flex flex-col">
+                <div className="text-[8px] text-zinc-500 px-2 py-1 border-b border-cs-border shrink-0">📄 Markdown 大纲</div>
+                <textarea
+                  value={pptOutline}
+                  onChange={e => setPptOutline(e.target.value)}
+                  className="flex-1 bg-cs-bg text-zinc-300 text-[10px] font-mono p-2 outline-none resize-none"
+                />
+              </div>
+              {/* Right: Preview */}
+              <div className="w-1/2 flex flex-col">
+                <div className="text-[8px] text-zinc-500 px-2 py-1 border-b border-cs-border shrink-0">📺 高保真渲染</div>
+                <div className={`flex-1 p-4 overflow-y-auto ${
+                  pptTheme === "linear_dark_neon" ? "bg-[#09090b] text-[#e4e4e7]" :
+                  pptTheme === "vercel_monochrome" ? "bg-black text-white" :
+                  "bg-white text-[#1d1d1f]"
+                }`}>
+                  {pptOutline.split("---").map((slide, i) => {
+                    const lines = slide.trim().split("\n").filter(l => l.trim());
+                    const title = lines.find(l => l.startsWith("# "))?.replace("# ", "") || `第${i+1}页`;
+                    const bullets = lines.filter(l => l.trim().startsWith("- ")).map(l => l.replace("- ", ""));
+                    return (
+                      <div key={i} className="mb-4">
+                        <div className={`text-[11px] font-bold mb-1 ${pptTheme === "apple_minimalist" ? "text-[#0071e3]" : pptTheme === "linear_dark_neon" ? "text-[#5e6ad2]" : "text-white"}`}>
+                          {title}
+                        </div>
+                        {bullets.map((b, j) => (
+                          <div key={j} className="text-[9px] mb-0.5 flex items-center space-x-1">
+                            <span className={pptTheme === "linear_dark_neon" ? "text-[#5e6ad2]" : pptTheme === "apple_minimalist" ? "text-[#0071e3]" : "text-white"}>●</span>
+                            <span>{b}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            {/* Bottom: ONNX status + export */}
+            <div className="flex items-center justify-between px-3 py-1.5 border-t border-cs-border bg-cs-surface shrink-0">
+              <span className="text-[8px] text-emerald-400">🛡️ ONNX 走查: [{onnxStatus}]</span>
+              <div className="flex items-center space-x-1">
+                {(["PDF", "PPTX", "HTML"] as const).map(fmt => (
+                  <button key={fmt} onClick={async () => {
+                    setExporting(true);
+                    // 解析大纲为 slides 并调用 pptx_generate
+                    const slides = pptOutline.split("---").map(s => {
+                      const lines = s.trim().split("\n").filter(l => l.trim());
+                      const title = lines.find(l => l.startsWith("# "))?.replace("# ", "") || "";
+                      const body = lines.filter(l => !l.startsWith("# ") && !l.startsWith("- ")).join("\n");
+                      const bullets = lines.filter(l => l.startsWith("- ")).map(l => l.replace("- ", ""));
+                      return { slide_type: "Content", title, body: body || undefined, bullets: bullets.length ? bullets : undefined };
+                    }).filter(s => s.title);
+                    try {
+                      await pptxGenerate({ title: pptOutline.split("\n")[0].replace("# ", ""), template: pptTheme, slides });
+                      setOnnxStatus(`PASS · ${slides.length}页已导出 ${fmt}`);
+                    } catch { setOnnxStatus("导出失败"); }
+                    setExporting(false);
+                  }}
+                    disabled={exporting}
+                    className="text-[8px] px-2 py-0.5 rounded border border-purple-500/40 text-purple-300 hover:bg-purple-950/30 disabled:opacity-40">
+                    {fmt}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -13,7 +13,6 @@ use agent::api_client::{ApiClient, ApiResponse, ChatMessage};
 use agent::orchestrator::{AgentRole, Orchestrator, OrchestratorStats};
 use agent::redline::{RedlineGuard, RedlineStatus};
 #[allow(deprecated)]
-#[allow(deprecated)]
 use agent::router::{ModelConfig, RouteMode, Router};
 use agent::router::HybridAgentRouter;
 use agent::sandbox::{Sandbox, ChronosVirtualFileSystem};
@@ -103,6 +102,7 @@ struct AppState {
     predictive: Mutex<PredictiveAnalyticsEngine>,
     evolution_bus: Mutex<EvolutionBus>,
     flywheel: Mutex<DataFlywheel>,
+    context_cache: Mutex<agent::context_cache::ContextCacheEngine>,
 }
 
 impl AppState {
@@ -143,6 +143,7 @@ impl AppState {
             predictive: Mutex::new(PredictiveAnalyticsEngine::new()),
             evolution_bus: Mutex::new(EvolutionBus::new()),
             flywheel: Mutex::new(DataFlywheel::new()),
+            context_cache: Mutex::new(agent::context_cache::ContextCacheEngine::new()),
         }
     }
 }
@@ -173,6 +174,62 @@ fn reset_fuse(state: tauri::State<AppState>) -> String {
 #[tauri::command]
 fn get_pipeline_stats(state: tauri::State<AppState>) -> OrchestratorStats {
     state.orchestrator.lock().unwrap().stats()
+}
+
+// ─── 自动化调度矩阵 ────────────────────────────────────────────────
+
+#[tauri::command]
+fn orch_topological_sort(state: tauri::State<AppState>) -> Vec<String> {
+    state.orchestrator.lock().unwrap().topological_sort()
+}
+
+#[tauri::command]
+fn orch_parallel_groups(state: tauri::State<AppState>) -> serde_json::Value {
+    let orch = state.orchestrator.lock().unwrap();
+    let groups = orch.parallel_groups();
+    serde_json::json!({
+        "total_groups": groups.len(),
+        "groups": groups.iter().enumerate().map(|(i, g)| {
+            serde_json::json!({
+                "group": i,
+                "tasks": g.iter().map(|t| serde_json::json!({
+                    "id": t.id, "title": t.title, "priority": t.priority,
+                    "dependencies": t.dependencies, "status": format!("{:?}", t.status),
+                })).collect::<Vec<_>>()
+            })
+        }).collect::<Vec<_>>()
+    })
+}
+
+#[tauri::command]
+fn orch_executable_tasks(state: tauri::State<AppState>) -> serde_json::Value {
+    let orch = state.orchestrator.lock().unwrap();
+    let tasks = orch.executable_tasks();
+    serde_json::json!({
+        "count": tasks.len(),
+        "tasks": tasks.iter().map(|t| serde_json::json!({
+            "id": t.id, "title": t.title, "priority": t.priority, "dependencies": t.dependencies,
+        })).collect::<Vec<_>>()
+    })
+}
+
+#[tauri::command]
+fn orch_schedule_quality(state: tauri::State<AppState>) -> serde_json::Value {
+    let orch = state.orchestrator.lock().unwrap();
+    let score = orch.schedule_quality_score();
+    let groups = orch.parallel_groups();
+    serde_json::json!({
+        "quality_score": format!("{:.1}", score),
+        "parallel_groups": groups.len(),
+        "completion_rate": format!("{:.1}%",
+            orch.tasks.iter().filter(|t| matches!(t.status, agent::orchestrator::TaskStatus::Completed)).count() as f64
+            / orch.tasks.len().max(1) as f64 * 100.0),
+    })
+}
+
+#[tauri::command]
+fn orch_smart_retry(state: tauri::State<AppState>) -> Vec<String> {
+    state.orchestrator.lock().unwrap().smart_retry_failed(3, 1000)
 }
 
 #[tauri::command]
@@ -293,6 +350,7 @@ fn fail_task(state: tauri::State<AppState>, task_id: String, error: String) -> R
 // ─── API Client Commands ──────────────────────────────────────────
 
 static LAST_API_CALL: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+static CANCEL_STREAM: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[tauri::command]
 async fn chat_api(
@@ -324,6 +382,10 @@ When you need to SEARCH the web:
 
 When you need to FETCH a URL:
 {"action":"web_fetch","params":{"url":"https://..."}}
+
+When the user asks you to CREATE a PPT/PowerPoint presentation, output:
+{"action":"pptx_generate","params":{"title":"Title","slides":[{"slide_type":"TitleSlide","title":"Title","subtitle":"Subtitle"},{"slide_type":"Content","title":"Slide","body":"Content","bullets":["Point1"]},{"slide_type":"ThankYou","title":"Thank You"}]}}
+Templates: Corporate,TechMinimal,Creative,Academic,MinimalWhite,DarkMode
 
 IMPORTANT: Put the JSON on its own line. Write REAL code, not placeholders. Create complete, working files."#;
 
@@ -434,6 +496,53 @@ IMPORTANT: Put the JSON on its own line. Write REAL code, not placeholders. Crea
     Ok(response)
 }
 
+// ─── Cancel Stream ────────────────────────────────────────────
+
+// ─── 缓存命中统计 ──────────────────────────────────────────────────
+
+#[tauri::command]
+fn get_cache_hit_stats(state: tauri::State<AppState>) -> serde_json::Value {
+    let ctx = state.context_cache.lock().unwrap();
+    let models = ["deepseek-v4-pro", "deepseek-v4-flash", "kimi-k3", "kimi-k2.7-code",
+        "glm-5.2", "glm-5.1", "glm-4.7"];
+    let entries: Vec<serde_json::Value> = models.iter().map(|&m| {
+        let stats = ctx.get_stats(m);
+        serde_json::json!({
+            "model": m,
+            "total_requests": stats.total_requests,
+            "cache_hits": stats.cache_hits,
+            "cached_tokens": stats.cached_tokens,
+            "cost_saved": format!("{:.4}", stats.cost_saved),
+            "hit_rate": format!("{:.1}", stats.hit_rate),
+        })
+    }).collect();
+    let (total_tokens, total_cost) = ctx.total_savings();
+    serde_json::json!({
+        "models": entries,
+        "total_cached_tokens": total_tokens,
+        "total_cost_saved": format!("{:.4}", total_cost),
+    })
+}
+
+// ─── 环境检测 ──────────────────────────────────────────────────────
+
+#[tauri::command]
+fn check_dev_environment() -> agent::env_checker::EnvReport {
+    agent::env_checker::check_environment()
+}
+
+#[tauri::command]
+fn auto_install_deps() -> Vec<String> {
+    let report = agent::env_checker::check_environment();
+    agent::env_checker::auto_install_missing(&report)
+}
+
+#[tauri::command]
+fn cancel_chat_stream() {
+    CANCEL_STREAM.store(true, std::sync::atomic::Ordering::Relaxed);
+    tracing::info!("[STREAM] User cancelled active stream");
+}
+
 // ─── Streaming API ────────────────────────────────────────────
 
 #[tauri::command]
@@ -454,18 +563,35 @@ async fn chat_api_stream(
         })
         .collect();
 
-    // 注入系统指令
-    let action_instructions = r#"You are Chronos-Shadow, an AI coding assistant with file system access.
-When you need to CREATE or MODIFY files, output a JSON action block:
-{"action":"file_edit","params":{"path":"relative/path.ext","content":"file content here"}}
+    // 注入系统指令 — 全能力清单
+    let action_instructions = r#"You are Chronos-Shadow. You can CREATE files, GENERATE PPTs, CHECK & INSTALL tools, SEARCH the web.
 
-When you need to READ a file:
-{"action":"file_read","params":{"path":"relative/path.ext"}}
+## Available Actions (output as JSON on its own line)
 
-When you need to SEARCH the web:
+### File Operations
+{"action":"file_edit","params":{"path":"file.ext","content":"..."}}
+{"action":"file_read","params":{"path":"file.ext"}}
+
+### Web Operations
 {"action":"web_search","params":{"query":"search terms"}}
+{"action":"web_fetch","params":{"url":"https://..."}}
 
-IMPORTANT: Put JSON on its own line. Write REAL complete code, not placeholders."#;
+### PPT Generation (auto-installs python-pptx if needed)
+{"action":"pptx_generate","params":{"title":"Title","template":"Corporate","slides":[
+  {"slide_type":"TitleSlide","title":"T","subtitle":"S"},
+  {"slide_type":"Content","title":"T","body":"B","bullets":["p1","p2"]},
+  {"slide_type":"ThankYou","title":"Thanks"}
+]}}
+Templates: Corporate,TechMinimal,Creative,Academic,MinimalWhite,DarkMode
+SlideTypes: TitleSlide,SectionHeader,Content,TwoColumn,QuoteSlide,TableSlide,ChartSlide,ThankYou
+
+### Environment Check & Auto-Install
+{"action":"check_environment"}  → returns installed/missing tools
+{"action":"auto_install_deps"}  → installs python-pptx etc.
+
+### Code blocks (```language ... ```) are auto-saved as files.
+
+IMPORTANT: JSON on its own line. Complete code, real content, no placeholders."#;
 
     if msgs.first().map(|m| m.role.as_str()) == Some("system") {
         msgs[0].content = format!("{}\n\n{}", msgs[0].content, action_instructions);
@@ -490,6 +616,9 @@ IMPORTANT: Put JSON on its own line. Write REAL complete code, not placeholders.
     }
     LAST_API_CALL.store(now, std::sync::atomic::Ordering::Relaxed);
 
+    // Reset cancel flag at start of new stream
+    CANCEL_STREAM.store(false, std::sync::atomic::Ordering::Relaxed);
+
     // 原子化预占: 防止并发调用超额
     let estimated_cost = 0.05;
     if !state.billing_engine.try_reserve(estimated_cost) {
@@ -501,23 +630,75 @@ IMPORTANT: Put JSON on its own line. Write REAL complete code, not placeholders.
         ));
     }
 
+    // 上下文窗口智能截断 (保留 system + 最近消息，不超窗口 80%)
+    msgs = agent::api_client::trim_context(msgs, &model, 2048);
+
     // Resolve API key from vault
     let resolved_key = if api_key.is_empty() { resolve_key_from_vault(&model) } else { api_key };
     if resolved_key.is_empty() {
         state.billing_engine.settle(estimated_cost, 0.0);
         return Err("[VAULT EMPTY] API Key 未找到。".into());
     }
+    // 🔬 上下文缓存检测: DeepSeek 一折缓存前缀标记
+    let session_id = format!("stream-{}", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs());
+    let (cached_tokens, _cache_mask) = {
+        let mut ctx_cache = state.context_cache.lock().unwrap();
+        ctx_cache.detect_cacheable_prefix(&session_id, &msgs, &model)
+    };
+
+    // 🔬 前缀稳定化: DeepSeek 缓存最优化消息顺序
+    if model.starts_with("deepseek") {
+        let ctx_cache = state.context_cache.lock().unwrap();
+        msgs = ctx_cache.stabilize_prefix(&msgs);
+    }
+
+    // 🔬 提示词规范化: 剥离时间戳/UUID, 提升哈希命中率
+    msgs = agent::context_cache::ContextCacheEngine::canonicalize_messages(&msgs);
+
+    // 🔬 Kimi/GLM 智能截断 (无原生缓存, 激进裁剪降本)
+    if model.starts_with("kimi") || model.starts_with("glm") {
+        let ctx_cache = state.context_cache.lock().unwrap();
+        msgs = ctx_cache.optimize_kimi_context(&msgs);
+        // 批量合并: 连续短提问合并为单次请求
+        msgs = agent::kimi_glm_optimizer::BatchMerger::merge_consecutive_users(&msgs);
+    }
+
+    // 🔬 模型级联: GLM 按任务复杂度自动选型 (降低成本)
+    let effective_model = if model.starts_with("glm") && !model.contains("5v") {
+        let complexity = estimate_task_complexity(&msgs);
+        let cascade = agent::kimi_glm_optimizer::GlmCascadeRouter::route_by_complexity(complexity, false);
+        if cascade != model {
+            tracing::info!("[GLM Cascade] {} → {} (complexity={:.2})", model, cascade, complexity);
+        }
+        cascade.to_string()
+    } else {
+        model.clone()
+    };
+
     let mut client = state.api_client.lock().await;
+    let app_handle2 = app_handle.clone();
+    let retry_cfg = agent::api_client::RetryConfig::default();
     let response = client
-        .chat_stream(&endpoint, &resolved_key, &model, msgs, max_tokens,
-            |chunk| { let _ = app_handle.emit("chat-stream-chunk", chunk); },
+        .chat_stream_with_retry(&endpoint, &resolved_key, &effective_model, msgs.clone(), max_tokens,
+            move |chunk| {
+                if CANCEL_STREAM.load(std::sync::atomic::Ordering::Relaxed) {
+                    return;
+                }
+                let _ = app_handle2.emit("chat-stream-chunk", chunk);
+            },
+            &retry_cfg,
         ).await;
 
-    // 结算实际费用
+    // 结算实际费用 (含缓存折扣)
     let actual_cost = if response.success {
-        let model_enum = parse_model_to_enum(&model);
+        let model_enum = parse_model_to_enum(&effective_model);
         let (prompt, completion) = split_tokens(response.tokens_used, &response.content);
-        let cost = state.billing_engine.estimate_cost(&model_enum, prompt, completion);
+        let mut cost = state.billing_engine.estimate_cost(&model_enum, prompt, completion);
+        if cached_tokens > 0 && effective_model.starts_with("deepseek") {
+            let discount = cached_tokens as f64 / 1_000_000.0 * 0.9;
+            cost = (cost - discount).max(0.0);
+        }
         state.billing_engine.record(&model_enum, prompt, completion, None);
         cost
     } else { 0.0 };
@@ -1095,6 +1276,26 @@ async fn cvfs_create_project(
         let _ = cvfs.save_state_to(&app_data).await;
     }
     Ok(format!("Project '{}' created at {:?}", project_id, path))
+}
+
+#[tauri::command]
+async fn cvfs_read_file(
+    state: tauri::State<'_, AppState>,
+    project_id: String,
+    relative_path: String,
+) -> Result<String, String> {
+    let cvfs = state.cvfs.lock().await;
+    let projects = cvfs.get_projects().await;
+    let project_root = projects.iter()
+        .find(|(id, _)| id == &project_id)
+        .map(|(_, r)| r.clone())
+        .ok_or_else(|| format!("项目 {} 不存在", project_id))?;
+    let full_path = project_root.join(&relative_path);
+    if !full_path.exists() {
+        return Err(format!("文件不存在: {}", relative_path));
+    }
+    std::fs::read_to_string(&full_path)
+        .map_err(|e| format!("读取失败: {}", e))
 }
 
 #[tauri::command]
@@ -1846,6 +2047,17 @@ fn get_global_quality_report(
 
 /// 将 API 调用中的模型字符串映射到 ModelModel 枚举
 /// 委托给 billing::parse_model_string（全项目唯一权威来源）
+/// 估算任务复杂度 (基于消息长度和关键词)
+fn estimate_task_complexity(messages: &[ChatMessage]) -> f64 {
+    let total_len: usize = messages.iter().map(|m| m.content.len()).sum();
+    let has_architecture = messages.iter().any(|m| {
+        let c = &m.content;
+        c.contains("架构") || c.contains("设计") || c.contains("重构") || c.contains("architecture")
+    });
+    let base = (total_len as f64 / 5000.0).min(0.6);
+    if has_architecture { (base + 0.3).min(1.0) } else { base }
+}
+
 fn parse_model_to_enum(model: &str) -> agent::router::ModelModel {
     agent::billing::parse_model_string(model)
 }
@@ -1991,7 +2203,11 @@ struct AppSettings {
     has_key_kimi: bool,
     #[serde(default)]
     has_key_glm: bool,
+    #[serde(default = "default_project")]
+    current_project: String,
 }
+
+fn default_project() -> String { "Chronos-Core-Demo".into() }
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -2015,6 +2231,7 @@ impl Default for AppSettings {
             has_key_deepseek: false,
             has_key_kimi: false,
             has_key_glm: false,
+            current_project: "Chronos-Core-Demo".into(),
         }
     }
 }
@@ -2148,6 +2365,56 @@ fn get_agent_roster(state: tauri::State<AppState>) -> Vec<AgentRosterEntry> {
             model,
         }
     }).collect()
+}
+
+// ─── 永不言弃链接抓取 ──────────────────────────────────────────────
+
+#[tauri::command]
+async fn indomitable_fetch_url(
+    _state: tauri::State<'_, AppState>,
+    url: String,
+    follow_depth: Option<u8>,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build().map_err(|e| e.to_string())?;
+    let mut domain_states = std::collections::HashMap::new();
+    let result = agent::indomitable_fetcher::indomitable_fetch(
+        &url, &client, &mut domain_states, follow_depth.unwrap_or(0),
+    ).await;
+    Ok(serde_json::json!(result))
+}
+
+#[tauri::command]
+fn extract_urls_from_text(text: String) -> Vec<String> {
+    agent::indomitable_fetcher::extract_urls(&text)
+}
+
+// ─── PPT 生成引擎 ──────────────────────────────────────────────────
+
+#[tauri::command]
+async fn pptx_generate(
+    request_json: String,
+) -> Result<serde_json::Value, String> {
+    let req: agent::pptx_engine::PptGenerationRequest = serde_json::from_str(&request_json)
+        .map_err(|e| format!("Invalid request: {}", e))?;
+    let engine = agent::pptx_engine::PptxEngine::new();
+    let result = engine.generate(&req);
+    Ok(serde_json::json!(result))
+}
+
+#[tauri::command]
+async fn pptx_analyze_reference(
+    url: String,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build().map_err(|e| e.to_string())?;
+    let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    let html = resp.text().await.map_err(|e| e.to_string())?;
+    let engine = agent::pptx_engine::PptxEngine::new();
+    let analysis = engine.analyze_reference(&url, &html).await;
+    Ok(serde_json::json!(analysis))
 }
 
 #[tauri::command]
@@ -2502,9 +2769,28 @@ async fn dispatch_action(
         }
         AgentAction::WebFetch { url, distill } => {
             tracing::info!("[DISPATCH] WebFetch: {}", url);
-            let mut wi = state.web_intelligence.lock().await;
-            let result = wi.fetch(url, distill.unwrap_or(true)).await?;
-            Ok(format_fetch_for_llm(&result))
+            // 用户显式要求抓取 → 用永不言弃抓取器 (无白名单限制, 多策略降级)
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(20))
+                .build().map_err(|e| e.to_string())?;
+            let mut domain_states = std::collections::HashMap::new();
+            let result = agent::indomitable_fetcher::indomitable_fetch(
+                url, &client, &mut domain_states, 0,
+            ).await;
+            if result.success {
+                let _ = distill;
+                Ok(format!(
+                    "✅ 抓取成功: {}\n标题: {}\n\n{}",
+                    result.url,
+                    result.title.as_deref().unwrap_or("(无标题)"),
+                    &result.main_content.chars().take(4000).collect::<String>()
+                ))
+            } else {
+                // 回退到白名单 web_intelligence 抓取
+                let mut wi = state.web_intelligence.lock().await;
+                let r = wi.fetch(url, distill.unwrap_or(true)).await?;
+                Ok(format_fetch_for_llm(&r))
+            }
         }
         AgentAction::FileRead { path, range: _ } => {
             let guard = state.cvfs.lock().await;
@@ -2534,10 +2820,10 @@ async fn dispatch_action(
         AgentAction::ExecuteSkill { name, args } => {
             // Skill execution via sync blocking to avoid Send issues
             let name_c = name.clone();
-            let args_c = args.clone();
+            let _args_c = args.clone();
             let result = tokio::task::spawn_blocking(move || {
                 // Use a fresh SkillEngine for this blocking call
-                let engine = agent::skill_engine::SkillEngine::new();
+                let _engine = agent::skill_engine::SkillEngine::new();
                 // Note: in production this should use the real engine from state
                 // For now, return a placeholder since skills require filesystem access
                 Err::<String, String>(format!("Skill '{}' requires local filesystem access", name_c))
@@ -2556,6 +2842,71 @@ async fn dispatch_action(
                 }
             } else {
                 Err(result.error.unwrap_or_else(|| format!("MCP call '{}' on '{}' failed", tool_name, server_id)))
+            }
+        }
+        AgentAction::CheckEnvironment => {
+            let profile = agent::env_checker::get_environment_profile();
+            let tool_status: Vec<String> = profile.tools.iter().map(|t| {
+                format!("{} {}: {}", if t.installed { "✅" } else { "❌" }, t.name,
+                    t.version.as_deref().unwrap_or(if t.installed { "已安装" } else { "未安装" }))
+            }).collect();
+            Ok(format!(
+                "🖥️ 环境剖面:\n\
+                OS: {} ({})\n\
+                主机: {} @ {}\n\
+                主目录: {}\n\
+                CPU核心: {} | 磁盘剩余: {:.1}GB\n\n\
+                🔧 工具:\n{}\n\n\
+                💡 缺失 {} 项工具, 需要安装请告诉我。",
+                profile.os, profile.arch, profile.user, profile.hostname,
+                profile.home_dir, profile.cpu_cores, profile.disk_free_gb,
+                tool_status.join("\n"),
+                profile.tools.iter().filter(|t| !t.installed).count()
+            ))
+        }
+        AgentAction::AutoInstallDeps => {
+            let report = agent::env_checker::check_environment();
+            let results = agent::env_checker::auto_install_missing(&report);
+            Ok(format!("🔧 自动安装:\n{}", results.join("\n")))
+        }
+        AgentAction::PptxGenerate { title, subtitle, author, template, slides } => {
+            tracing::info!("[DISPATCH] PptxGenerate: {} ({} slides)", title, slides.as_array().map(|a| a.len()).unwrap_or(0));
+            let req = agent::pptx_engine::PptGenerationRequest {
+                title: title.clone(),
+                subtitle: subtitle.clone(),
+                author: author.clone(),
+                template: template.as_deref().map(|t| match t {
+                    "Corporate"|"企业商务" => agent::pptx_engine::PptTemplate::Corporate,
+                    "TechMinimal"|"科技极简" => agent::pptx_engine::PptTemplate::TechMinimal,
+                    "Creative"|"创意设计" => agent::pptx_engine::PptTemplate::Creative,
+                    "Academic"|"学术答辩" => agent::pptx_engine::PptTemplate::Academic,
+                    "MinimalWhite"|"极简白" => agent::pptx_engine::PptTemplate::MinimalWhite,
+                    "DarkMode"|"暗夜模式" => agent::pptx_engine::PptTemplate::DarkMode,
+                    "vercel_monochrome"|"Vercel"|"VercelMonochrome" => agent::pptx_engine::PptTemplate::VercelMonochrome,
+                    "linear_dark_neon"|"Linear"|"LinearDarkNeon" => agent::pptx_engine::PptTemplate::LinearDarkNeon,
+                    "apple_minimalist"|"Apple"|"AppleMinimalist" => agent::pptx_engine::PptTemplate::AppleMinimalist,
+                    _ => agent::pptx_engine::PptTemplate::Corporate,
+                }),
+                slides: serde_json::from_value(slides.clone()).unwrap_or_default(),
+                reference_url: None,
+                output_path: {
+                    let cvfs = state.cvfs.lock().await;
+                    cvfs.get_projects().await.first().map(|(_, r)| {
+                        let safe_name: String = title.chars()
+                            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' { c } else { '_' })
+                            .collect();
+                        r.join(format!("{}.pptx", safe_name.trim())).to_string_lossy().to_string()
+                    })
+                },
+            };
+            let engine = agent::pptx_engine::PptxEngine::new();
+            let result = engine.generate(&req);
+            if result.success {
+                Ok(format!("✅ PPT 已生成!\n📄 文件: {}\n📊 模板: {}\n📝 幻灯片: {} 页\n💡 安装 python-pptx 后自动生成 .pptx 文件: pip install python-pptx",
+                    result.file_path.as_deref().unwrap_or("output.pptx"),
+                    result.template_used, result.slide_count))
+            } else {
+                Err(result.error.unwrap_or_else(|| "PPT 生成失败".into()))
             }
         }
         AgentAction::FileEdit { path, content } => {
@@ -2611,6 +2962,101 @@ async fn execute_agent_action(
     dispatch_action(&state, &action).await
 }
 
+/// 从 LLM 响应中提取代码块并自动保存为文件
+async fn extract_and_save_code_blocks(
+    _state: &AppState,
+    text: &str,
+) -> Vec<String> {
+    let mut files = Vec::new();
+    let re = regex::Regex::new(r"```(\w+)?(?:\s+(.+))?\n([\s\S]*?)```").unwrap();
+
+    for cap in re.captures_iter(text) {
+        let lang = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        let hint = cap.get(2).map(|m| m.as_str()).unwrap_or("").trim();
+        let code = cap[3].trim();
+
+        if code.len() < 20 { continue; } // 跳过太短的片段
+
+        // 推断文件名
+        let filename = infer_filename(lang, hint, code);
+        let path = std::path::Path::new(&filename);
+        // 获取 C-VFS 项目根目录 (首个项目路径)
+        let project_root = {
+            let cvfs = _state.cvfs.lock().await;
+            cvfs.get_projects().await.first()
+                .map(|(_, r)| r.clone())
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+        };
+        let full_path = project_root.join(path);
+
+        if let Some(parent) = full_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if std::fs::write(&full_path, code).is_ok() {
+            // 返回相对路径 (相对于项目根), 便于后续 cvfs_read_file 回读
+            let rel = filename.clone();
+            tracing::info!("[AutoSave] Code block → {} (full: {})", rel, full_path.to_string_lossy());
+            files.push(rel);
+        }
+    }
+    files
+}
+
+/// 根据语言和内容推断文件名 — 支持任意文件类型，无格式限制
+fn infer_filename(lang: &str, hint: &str, code: &str) -> String {
+    // 1. 用户明确指定文件名 (含扩展名) → 直接使用
+    if !hint.is_empty() && hint.contains('.') {
+        return hint.to_string();
+    }
+    // 2. 用户指定文件名但无扩展名 → 用语言作为扩展名
+    if !hint.is_empty() && !hint.contains('.') {
+        let ext = if lang.is_empty() { "txt" } else { lang };
+        return format!("{}.{}", hint, ext);
+    }
+
+    // 3. 常见语言映射 (仅作友好别名)
+    let ext = match lang {
+        "rust" | "rs" => "rs",
+        "python" | "py" => "py",
+        "javascript" | "js" => "js",
+        "typescript" | "ts" => "ts",
+        "tsx" => "tsx",
+        "jsx" => "jsx",
+        "html" => "html",
+        "css" => "css",
+        "json" => "json",
+        "toml" => "toml",
+        "yaml" | "yml" => "yml",
+        "markdown" | "md" => "md",
+        "sql" => "sql",
+        "sh" | "bash" => "sh",
+        "powershell" | "ps1" => "ps1",
+        "java" => "java",
+        "go" => "go",
+        "cpp" | "c++" => "cpp",
+        "c" => "c",
+        "svg" => "svg",
+        "xml" => "xml",
+        "ini" | "conf" => "ini",
+        "csv" => "csv",
+        "log" => "log",
+        "txt" | "text" | "" => "txt",
+        // 未知语言 → 直接用语言名作为扩展名，不强制限制
+        _ => lang,
+    };
+
+    // 4. 尝试从代码首行注释推断具体文件名
+    let first_line = code.lines().next().unwrap_or("");
+    if first_line.starts_with("//") || first_line.starts_with("#") {
+        let comment = first_line.trim_start_matches("//").trim_start_matches("#").trim();
+        if comment.len() > 3 && comment.len() < 60 && !comment.contains(' ') {
+            return format!("{}.{}", comment, ext);
+        }
+    }
+
+    format!("generated_{}.{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"), ext)
+}
+
 /// Tauri Command: 从 LLM 响应中提取并执行所有动作，返回纯文本结果
 /// 如果响应中不含动作块，返回原始文本
 #[tauri::command]
@@ -2620,11 +3066,29 @@ async fn extract_and_execute_actions(
 ) -> Result<serde_json::Value, String> {
     let blocks = extract_action_blocks(&llm_response);
 
+    // 🔬 代码块自动保存 — 无论是否有 JSON 动作都执行
+    let auto_files = extract_and_save_code_blocks(&state, &llm_response).await;
+
     if blocks.is_empty() {
+        // 无 JSON 动作, 但可能已保存代码块
+        if auto_files.is_empty() {
+            return Ok(serde_json::json!({
+                "has_actions": false,
+                "text_response": llm_response,
+                "action_results": []
+            }));
+        }
+        let summary = auto_files.iter()
+            .map(|f| format!("  ✅ {}", f))
+            .collect::<Vec<_>>()
+            .join("\n");
         return Ok(serde_json::json!({
-            "has_actions": false,
+            "has_actions": true,
             "text_response": llm_response,
-            "action_results": []
+            "action_results": [],
+            "combined_context": format!("✅ 自动保存文件:\n{}", summary),
+            "files_created": auto_files,
+            "files_summary": format!("📁 自动保存 {} 个代码文件:\n{}", auto_files.len(), summary),
         }));
     }
 
@@ -2645,6 +3109,14 @@ async fn extract_and_execute_actions(
                         if let Some(path) = action["params"]["path"].as_str() {
                             files_created.push(path.to_string());
                         }
+                    } else if action["action"] == "pptx_generate" {
+                        let name = action["params"]["title"].as_str().unwrap_or("presentation");
+                        let safe: String = name.chars()
+                            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == ' ' { c } else { '_' })
+                            .collect();
+                        files_created.push(format!("{}.pptx", safe.trim()));
+                    } else if action["action"] == "check_environment" || action["action"] == "auto_install_deps" {
+                        // 环境检测/安装不产生文件
                     } else if action["action"] == "file_read" {
                         if let Some(path) = action["params"]["path"].as_str() {
                             files_read.push(path.to_string());
@@ -2663,6 +3135,9 @@ async fn extract_and_execute_actions(
             }
         }
     }
+
+    // 代码块已在函数开头自动保存, 这里合并到 files_created
+    for f in &auto_files { files_created.push(f.clone()); }
 
     // Build file operations summary
     let mut summary = String::new();
@@ -2842,11 +3317,118 @@ fn predictive_analyze_enhanced(
 
 #[tauri::command]
 fn scheduling_analyze_enhanced(
-    state: tauri::State<AppState>,
+    _state: tauri::State<AppState>,
     message: String,
 ) -> Result<serde_json::Value, String> {
     let engine = agent::scheduling_engine::AgentSchedulingEngine::new();
     Ok(engine.analyze_enhanced(&message))
+}
+
+// ─── Build Status ───────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+struct BuildFileStatus {
+    path: String,
+    name: String,
+    ext: String,
+    size_bytes: u64,
+    gzip_size: Option<u64>,
+    status: String,
+    warnings_count: u32,
+    errors_count: u32,
+}
+
+#[derive(serde::Serialize)]
+struct BuildSummary {
+    total_files: usize,
+    compiled_files: usize,
+    warning_files: usize,
+    error_files: usize,
+    total_size_bytes: u64,
+    total_gzip_bytes: u64,
+    total_compile_time_ms: u64,
+    build_timestamp: String,
+    files: Vec<BuildFileStatus>,
+}
+
+#[tauri::command]
+fn get_build_status() -> Result<BuildSummary, String> {
+    let mut files = Vec::new();
+    let dist_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().map(|p| p.join("dist"));
+    let target_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release");
+
+    // Scan dist/
+    if let Some(ref dist) = dist_dir {
+        if dist.exists() {
+            scan_dir(dist, "dist", &mut files);
+        }
+    }
+
+    // Scan target/release for exe/msi
+    if target_dir.exists() {
+        if let Ok(entries) = std::fs::read_dir(&target_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if name.ends_with(".exe") || name.ends_with(".msi") {
+                    let meta = entry.metadata().ok();
+                    files.push(BuildFileStatus {
+                        path: format!("target/release/{}", name),
+                        name: name.into(),
+                        ext: path.extension().and_then(|e| e.to_str()).unwrap_or("").into(),
+                        size_bytes: meta.as_ref().map(|m| m.len()).unwrap_or(0),
+                        gzip_size: None,
+                        status: "ok".into(),
+                        warnings_count: 0,
+                        errors_count: 0,
+                    });
+                }
+            }
+        }
+    }
+
+    let total = files.len();
+    let warnings = files.iter().filter(|f| f.status == "warning").count();
+    let errors = files.iter().filter(|f| f.status == "error").count();
+    let total_size: u64 = files.iter().map(|f| f.size_bytes).sum();
+    let total_gzip: u64 = files.iter().filter_map(|f| f.gzip_size).sum();
+
+    Ok(BuildSummary {
+        total_files: total,
+        compiled_files: total - errors,
+        warning_files: warnings,
+        error_files: errors,
+        total_size_bytes: total_size,
+        total_gzip_bytes: total_gzip,
+        total_compile_time_ms: 0,
+        build_timestamp: chrono::Utc::now().to_rfc3339(),
+        files,
+    })
+}
+
+fn scan_dir(dir: &std::path::Path, prefix: &str, out: &mut Vec<BuildFileStatus>) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").into();
+            if path.is_dir() {
+                scan_dir(&path, &format!("{}/{}", prefix, name), out);
+            } else if let Ok(meta) = entry.metadata() {
+                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").into();
+                let rel = format!("{}/{}", prefix, name);
+                out.push(BuildFileStatus {
+                    path: rel,
+                    name,
+                    ext,
+                    size_bytes: meta.len(),
+                    gzip_size: None,
+                    status: "ok".into(),
+                    warnings_count: 0,
+                    errors_count: 0,
+                });
+            }
+        }
+    }
 }
 
 // ─── Distillation Evolution Commands ────────────────────────────────
@@ -2998,6 +3580,11 @@ pub fn run() {
             reset_fuse,
             // orchestrator
             get_pipeline_stats,
+            orch_topological_sort,
+            orch_parallel_groups,
+            orch_executable_tasks,
+            orch_schedule_quality,
+            orch_smart_retry,
             start_pipeline,
             pause_pipeline,
             resume_pipeline,
@@ -3009,6 +3596,10 @@ pub fn run() {
             // api client
             chat_api,
             chat_api_stream,
+            cancel_chat_stream,
+            get_cache_hit_stats,
+            check_dev_environment,
+            auto_install_deps,
             // sandbox
             init_sandbox,
             get_checkpoints,
@@ -3071,6 +3662,10 @@ pub fn run() {
             // agent roster + live windows + evolution
             get_agent_roster,
             list_live_windows,
+            indomitable_fetch_url,
+            extract_urls_from_text,
+            pptx_generate,
+            pptx_analyze_reference,
             get_evolution_stats,
             evo_validate_experience,
             evo_intercept_context,
@@ -3099,6 +3694,7 @@ pub fn run() {
             // cvfs
             cvfs_create_project,
             cvfs_verify_scope,
+            cvfs_read_file,
             cvfs_capture_checkpoint,
             cvfs_get_checkpoints,
             cvfs_get_projects,
@@ -3212,6 +3808,8 @@ pub fn run() {
             predictive_optimize_budget,
             predictive_analyze_enhanced,
             scheduling_analyze_enhanced,
+            // build status
+            get_build_status,
             // distillation evolution
             distill_evolution_report,
             distill_feedback,
@@ -3269,18 +3867,25 @@ pub fn run() {
                 }
             }
 
-            // 自动恢复 C-VFS 项目池（同步加载确保启动即就绪）
+            // 自动恢复 C-VFS 项目池
             {
                 if let Ok(app_data) = _app.handle().path().app_data_dir() {
                     let state = _app.state::<AppState>();
-                    let guard = state.cvfs.blocking_lock();
-                    // 使用 tokio runtime handle 来 block_on
-                    if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                        if let Err(e) = handle.block_on(guard.load_state(&app_data)) {
-                            tracing::warn!("[SETUP] C-VFS load_state failed: {}", e);
+                    // 使用 Tauri 的 async_runtime::block_on 确保正确阻塞
+                    let result: Result<(), String> = tauri::async_runtime::block_on(async {
+                        let cvfs = state.cvfs.lock().await;
+                        cvfs.load_state(&app_data).await
+                    });
+                    match result {
+                        Ok(()) => {
+                            let count = tauri::async_runtime::block_on(async {
+                                let cvfs = state.cvfs.lock().await;
+                                cvfs.get_projects().await.len()
+                            });
+                            tracing::info!("[SETUP] C-VFS state loaded with {} projects", count);
                         }
+                        Err(e) => tracing::warn!("[SETUP] C-VFS load_state failed: {}", e),
                     }
-                    tracing::info!("[SETUP] C-VFS state loaded");
                 }
             }
 
@@ -3345,7 +3950,6 @@ pub fn run() {
                     move |dir| h1.state::<AppState>().analytics.lock().unwrap().save_state(dir),
                     move |dir| h2.state::<AppState>().analytics.lock().unwrap().load_state(dir),
                 );
-
                 let _ = sm.init(&app_data);
             }
 

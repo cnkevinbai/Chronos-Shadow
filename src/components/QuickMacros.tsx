@@ -21,7 +21,7 @@ export default function QuickMacros({ onSelect, visible }: QuickMacrosProps) {
 
   return (
     <div className="absolute bottom-full left-0 right-0 mb-2 px-4 animate-slideLeft">
-      <div className="bg-[#121214]/98 border border-[#27272a] rounded-lg p-3 shadow-2xl backdrop-blur-md">
+      <div className="bg-cs-header/98 border border-cs-border rounded-lg p-3 shadow-2xl backdrop-blur-md">
         <div className="text-[10px] text-zinc-500 font-bold mb-2 uppercase tracking-wider">
           {t.macros_title}
         </div>
@@ -30,7 +30,7 @@ export default function QuickMacros({ onSelect, visible }: QuickMacrosProps) {
             <button
               key={m.id}
               onClick={() => onSelect(m.label)}
-              className="flex items-center space-x-1.5 bg-black border border-[#27272a] hover:border-emerald-500/50 hover:bg-emerald-950/20 text-zinc-300 hover:text-emerald-400 text-[11px] px-3 py-1.5 rounded-lg transition-all"
+              className="flex items-center space-x-1.5 bg-black border border-cs-border hover:border-emerald-500/50 hover:bg-emerald-950/20 text-zinc-300 hover:text-emerald-400 text-[11px] px-3 py-1.5 rounded-lg transition-all"
             >
               <span>{m.icon}</span>
               <span className="text-left">{m.label}</span>

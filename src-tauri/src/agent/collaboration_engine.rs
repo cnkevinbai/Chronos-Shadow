@@ -15,7 +15,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 // ─── 协作模式 ──────────────────────────────────────────────────────
 
@@ -403,8 +402,59 @@ impl CollaborationEngine {
 
     // ── 决策辅助 ──────────────────────────────────────────────
 
+    /// 🔬 Round-Robin 多模型投票 (Ensemble Voting)
+    /// 算法: 查询 N 个模型 → 提取关键回答 → 多数投票选出最终答案
+    /// 参考: LLM-Blender / Mixture-of-Agents 论文
+    pub fn voting_consensus(
+        &self,
+        outputs: &[(String, String)], // (model_name, response_text)
+        min_agreement: f64,
+    ) -> Option<(String, f64)> {
+        if outputs.is_empty() { return None; }
+        if outputs.len() == 1 { return Some((outputs[0].0.clone(), 1.0)); }
+
+        // 提取每个回答的关键句子作为投票依据
+        let extracts: Vec<Vec<String>> = outputs.iter()
+            .map(|(_, text)| {
+                text.split(|c: char| c == '.' || c == '\n')
+                    .map(|s| s.trim().to_lowercase())
+                    .filter(|s| s.len() > 10)
+                    .take(5)
+                    .collect()
+            })
+            .collect();
+
+        // 计算两两相似度 (Jaccard 简化)
+        let n = outputs.len();
+        let mut votes = vec![0u32; n];
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let set_i: std::collections::HashSet<_> = extracts[i].iter().collect();
+                let set_j: std::collections::HashSet<_> = extracts[j].iter().collect();
+                let intersection = set_i.intersection(&set_j).count();
+                let union = set_i.union(&set_j).count();
+                let sim = if union > 0 { intersection as f64 / union as f64 } else { 0.0 };
+                if sim > 0.3 {
+                    votes[i] += 1;
+                    votes[j] += 1;
+                }
+            }
+        }
+
+        // 找最高票
+        let max_votes = *votes.iter().max().unwrap_or(&0);
+        let max_idx = votes.iter().position(|&v| v == max_votes).unwrap_or(0);
+        let agreement = max_votes as f64 / (n - 1).max(1) as f64;
+
+        if agreement >= min_agreement {
+            Some((outputs[max_idx].0.clone(), agreement))
+        } else {
+            None // 未达成共识
+        }
+    }
+
     /// 决定使用哪种协作模式
-    pub fn decide_mode(&self, task_type: &str, task_complexity: f64, is_critical: bool) -> CollaborationMode {
+    pub fn decide_mode(&self, _task_type: &str, task_complexity: f64, is_critical: bool) -> CollaborationMode {
         if is_critical && task_complexity > 0.7 {
             return CollaborationMode::Voting;
         }

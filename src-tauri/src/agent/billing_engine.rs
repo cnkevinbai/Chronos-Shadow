@@ -73,27 +73,27 @@ impl ModelModel {
         match self {
             ModelModel::DeepSeekV4Pro => ModelProfile {
                 model_key: "deepseek-v4-pro".into(), display: "DeepSeek V4-Pro".into(),
-                context_window: 128000, supports_cache: true, cost_tier: "standard",
+                context_window: 131072, supports_cache: true, cost_tier: "premium",
                 best_for: "深度推理 · 架构设计 · 代码审查",
             },
             ModelModel::DeepSeekV4Flash => ModelProfile {
                 model_key: "deepseek-v4-flash".into(), display: "DeepSeek V4-Flash".into(),
-                context_window: 128000, supports_cache: true, cost_tier: "budget",
+                context_window: 65536, supports_cache: true, cost_tier: "budget",
                 best_for: "代码生成 · 日常对话 · 批量任务 (1折缓存)",
             },
             ModelModel::KimiK3 => ModelProfile {
                 model_key: "kimi-k3".into(), display: "Kimi K3".into(),
-                context_window: 1000000, supports_cache: false, cost_tier: "premium",
+                context_window: 65536, supports_cache: false, cost_tier: "premium",
                 best_for: "1M 超长文档分析 · 合同审查 · 项目全局理解",
             },
             ModelModel::KimiK27Code => ModelProfile {
                 model_key: "kimi-k2.7-code".into(), display: "Kimi K2.7-Code".into(),
-                context_window: 128000, supports_cache: false, cost_tier: "standard",
+                context_window: 65536, supports_cache: false, cost_tier: "standard",
                 best_for: "代码专用 · 算法实现",
             },
             ModelModel::KimiK27CodeHighspeed => ModelProfile {
                 model_key: "kimi-k2.7-code-highspeed".into(), display: "Kimi K2.7-Code-HS".into(),
-                context_window: 128000, supports_cache: false, cost_tier: "standard",
+                context_window: 65536, supports_cache: false, cost_tier: "standard",
                 best_for: "极速编程 · 低延迟场景",
             },
             ModelModel::Glm52 => ModelProfile {
@@ -103,7 +103,7 @@ impl ModelModel {
             },
             ModelModel::Glm5vTurbo => ModelProfile {
                 model_key: "glm-5v-turbo".into(), display: "GLM-5V-Turbo".into(),
-                context_window: 32000, supports_cache: false, cost_tier: "premium",
+                context_window: 32768, supports_cache: false, cost_tier: "premium",
                 best_for: "视觉理解 · 多模态分析",
             },
             ModelModel::Glm51 => ModelProfile {
@@ -111,9 +111,14 @@ impl ModelModel {
                 context_window: 128000, supports_cache: false, cost_tier: "standard",
                 best_for: "稳定推理 · 生产环境",
             },
+            ModelModel::Glm47 => ModelProfile {
+                model_key: "glm-4.7".into(), display: "GLM-4.7".into(),
+                context_window: 32768, supports_cache: false, cost_tier: "budget",
+                best_for: "高性价比 · 日常推理",
+            },
             ModelModel::LanOllamaR1 => ModelProfile {
                 model_key: "ollama-local".into(), display: "Ollama Local".into(),
-                context_window: 8192, supports_cache: false, cost_tier: "budget",
+                context_window: 8192, supports_cache: false, cost_tier: "free",
                 best_for: "离线场景 · 零资费 · 隐私优先",
             },
         }
@@ -215,6 +220,7 @@ impl ChronosParallelBillingEngine {
             ModelModel::Glm52       => 0.004,
             ModelModel::Glm5vTurbo  => 0.005,
             ModelModel::Glm51       => 0.002,
+            ModelModel::Glm47       => 0.002,
             ModelModel::LanOllamaR1 => 0.0,
         };
         (prompt_tokens + completion_tokens) as f64 * rate / 1000.0

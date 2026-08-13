@@ -70,6 +70,11 @@ pub mod session_db;
 
 // ─── 对外信息搜索抓取与智能分析引擎 ────────────────────────
 pub mod web_intelligence;
+pub mod indomitable_fetcher;
+pub mod pptx_engine;
+pub mod context_cache;
+pub mod kimi_glm_optimizer;
+pub mod env_checker;
 
 // ─── 多级语义蒸馏引擎 ──────────────────────────────────────
 pub mod distillation_engine;

@@ -404,7 +404,7 @@ impl AgentSchedulingEngine {
     /// 估算任务紧急度 (0-1)，影响调度优先级和模型选择
     pub fn estimate_urgency(&self, text: &str) -> (f32, String) {
         let lower = text.to_lowercase();
-        let mut urgency: f32 = 0.3; // 默认基准
+        let mut urgency: f32 = 0.3_f32; // 默认基准
 
         let urgent_signals = [
             ("urgent", 0.4), ("asap", 0.5), ("紧急", 0.5), ("尽快", 0.4),
@@ -417,7 +417,7 @@ impl AgentSchedulingEngine {
             if lower.contains(signal) { urgency += weight; }
         }
 
-        urgency = urgency.min(1.0);
+        urgency = urgency.min(1.0_f32);
 
         let label = if urgency > 0.8 { "🔴 紧急" }
             else if urgency > 0.6 { "🟠 高优先级" }

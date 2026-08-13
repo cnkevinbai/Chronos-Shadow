@@ -3,7 +3,8 @@
 
 import { useState, useEffect } from "react";
 import { useT } from "@/lib/i18n-context";
-import { getEvolutionStats, evoValidateExperience, evoInterceptContext, getApprovalSuggestions, getAgentQualityScores, evobusHealthReport } from "@/lib/tauri";
+import { getEvolutionStats, evoValidateExperience, evoInterceptContext, getApprovalSuggestions, getAgentQualityScores, evobusHealthReport, getCacheHitStats } from "@/lib/tauri";
+import type { CacheHitStats } from "@/lib/tauri";
 import { Database, TrendingUp, ExternalLink, Shield, Cpu, Activity, Zap } from "lucide-react";
 
 interface DeltaLog {
@@ -41,6 +42,7 @@ export default function EvolutionConsole() {
   const [agentScores, setAgentScores] = useState<{ agent_role: string; rigor_score: number }[]>([]);
   const [approvalSuggestions, setApprovalSuggestions] = useState<{ rule_name: string; reason: string; confidence: number }[]>([]);
   const [evoHealth, setEvoHealth] = useState<{ avg_advancement: string; engines: Array<{ engine: string; advancement_score: string; evolution_count: number; is_degrading: boolean }> } | null>(null);
+  const [cacheStats, setCacheStats] = useState<CacheHitStats | null>(null);
   void agentScores; void approvalSuggestions;
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export default function EvolutionConsole() {
     evobusHealthReport().then((r) => {
       setEvoHealth({ avg_advancement: r.average_advancement, engines: (r.engines || []).slice(0, 9) });
     }).catch(() => {});
+    getCacheHitStats().then(setCacheStats).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -130,10 +133,10 @@ export default function EvolutionConsole() {
   };
 
   return (
-    <div className="flex h-full bg-[#09090b] text-[#fafafa] font-mono select-none overflow-hidden animate-fadeIn">
+    <div className="flex h-full bg-cs-bg text-cs-text font-mono select-none overflow-hidden animate-fadeIn">
       {/* 左：错题本 + Delta Logs */}
-      <div className="w-72 border-r border-[#27272a] bg-[#0c0c0e] flex flex-col overflow-hidden shrink-0">
-        <div className="p-3 border-b border-[#27272a] bg-[#121214] flex items-center justify-between">
+      <div className="w-72 border-r border-cs-border bg-cs-surface flex flex-col overflow-hidden shrink-0">
+        <div className="p-3 border-b border-cs-border bg-cs-header flex items-center justify-between">
           <span className="text-[11px] font-bold text-zinc-400">{t.evo_error_log}</span>
           <span className="text-[9px] bg-amber-950/40 border border-amber-900/50 text-amber-400 px-1.5 py-0.5 rounded animate-pulse">
             {logs.filter((l) => l.status === "Pending Commit").length} {t.evo_pending}
@@ -145,7 +148,7 @@ export default function EvolutionConsole() {
               key={log.id}
               onClick={() => setSelectedLog(log)}
               className={`p-2.5 border rounded cursor-pointer transition-all ${
-                selectedLog?.id === log.id ? "border-zinc-500 bg-zinc-900/40" : "border-[#27272a] bg-black/20 hover:border-zinc-800"
+                selectedLog?.id === log.id ? "border-zinc-500 bg-zinc-900/40" : "border-cs-border bg-black/20 hover:border-zinc-800"
               }`}
             >
               <div className="flex items-center justify-between text-[9px] mb-1">
@@ -165,7 +168,7 @@ export default function EvolutionConsole() {
           ))}
         </div>
         {/* Stats footer */}
-        <div className="flex items-center space-x-4 px-3 py-2 border-t border-[#27272a] text-[9px]">
+        <div className="flex items-center space-x-4 px-3 py-2 border-t border-cs-border text-[9px]">
           <StatBadge icon={Database} label="Skills" value={`${evoActive}/${evoTotalSkills}`} color="text-zinc-400" />
           <StatBadge icon={TrendingUp} label="Saved" value={`${evoTokensSaved > 0 ? evoTokensSaved : logs.reduce((s, l) => s + l.tokensSaved, 0)}t`} color="text-emerald-400" />
           {/* Validation sandbox status */}
@@ -182,8 +185,8 @@ export default function EvolutionConsole() {
       </div>
 
       {/* 中：SVG 游戏化科技树 */}
-      <div className="flex-1 flex flex-col bg-[#09090b] overflow-hidden relative">
-        <div className="p-3 border-b border-[#27272a] bg-[#0c0c0e] flex items-center justify-between text-[11px] z-10 shrink-0">
+      <div className="flex-1 flex flex-col bg-cs-bg overflow-hidden relative">
+        <div className="p-3 border-b border-cs-border bg-cs-surface flex items-center justify-between text-[11px] z-10 shrink-0">
           <span className="font-bold text-zinc-300">{t.evo_skill_tree}</span>
           <span className="text-[9px] text-zinc-600">{t.evo_aura_connected}</span>
         </div>
@@ -222,8 +225,8 @@ export default function EvolutionConsole() {
       </div>
 
       {/* 右：记忆解构审查 + 导出 */}
-      <div className="w-72 border-l border-[#27272a] bg-[#0c0c0e] flex flex-col overflow-hidden shrink-0">
-        <div className="p-3 border-b border-[#27272a] bg-[#121214] shrink-0">
+      <div className="w-72 border-l border-cs-border bg-cs-surface flex flex-col overflow-hidden shrink-0">
+        <div className="p-3 border-b border-cs-border bg-cs-header shrink-0">
           <span className="text-[11px] font-bold text-zinc-400">{t.evo_inspector}</span>
         </div>
         <div className="flex-1 p-3 overflow-y-auto space-y-3 text-[10px]">
@@ -321,6 +324,30 @@ export default function EvolutionConsole() {
                 </div>
               )}
 
+              {/* 缓存命中仪表台 */}
+              {cacheStats && cacheStats.models.length > 0 && (
+                <div className="mt-2 p-2 border border-emerald-900/40 bg-emerald-950/15 rounded space-y-1.5">
+                  <div className="flex items-center space-x-1.5 text-[9px]">
+                    <Zap className="w-2.5 h-2.5 text-emerald-400" />
+                    <span className="text-emerald-400 font-bold">缓存命中统计</span>
+                    <span className="text-[7px] text-emerald-600 ml-auto">省 ¥{cacheStats.total_cost_saved}</span>
+                  </div>
+                  {cacheStats.models.filter(m => m.total_requests > 0).map((m) => (
+                    <div key={m.model} className="space-y-0.5">
+                      <div className="flex items-center justify-between text-[7px]">
+                        <span className="text-zinc-400 truncate max-w-[90px]">{m.model}</span>
+                        <span className={Number(m.hit_rate) > 50 ? "text-emerald-400 font-bold" : Number(m.hit_rate) > 20 ? "text-amber-400" : "text-zinc-500"}>
+                          {m.hit_rate}%
+                        </span>
+                        <span className="text-zinc-600">{m.cache_hits}/{m.total_requests}</span>
+                      </div>
+                      <div className="w-full h-1 bg-[#121214] rounded overflow-hidden">
+                        <div className="h-full bg-emerald-500/60 rounded transition-all" style={{ width: `${Math.min(Number(m.hit_rate), 100)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               {/* 2.0: Contract hot-compile badge */}
               {contractsCompiled > 0 && (
                 <div className="mt-2 p-1.5 border border-cyan-900/40 bg-cyan-950/20 rounded text-[9px]">

@@ -624,7 +624,7 @@ impl WebIntelligence {
                 }
                 // Related topics
                 if let Some(topics) = json["RelatedTopics"].as_array() {
-                    for (i, topic) in topics.iter().enumerate() {
+                    for (_i, topic) in topics.iter().enumerate() {
                         if let Some(text) = topic["Text"].as_str() {
                             results.push(SearchResult {
                                 title: text.split(" - ").next().unwrap_or(text).to_string(),
@@ -933,7 +933,7 @@ impl WebIntelligence {
         engine: Option<&str>,
         max_results: Option<u32>,
     ) -> Result<Vec<WebSearchResult>, String> {
-        let provider = engine.unwrap_or("bing");
+        let provider = engine.unwrap_or("duckduckgo");
         let cache_key = format!("search:{}:{}:{}", provider, query, max_results.unwrap_or(5));
 
         // 尝试缓存命中
@@ -1082,7 +1082,7 @@ impl WebIntelligence {
     /// 获取统计
     pub fn get_stats(&self) -> WebIntelStats {
         let allowed = self.domain_whitelist.iter().filter(|e| e.allowed).count();
-        let total = self.audit_log.len();
+        let _total = self.audit_log.len();
         let failed = self.audit_log.iter().filter(|e| e.error.is_some()).count();
         WebIntelStats {
             total_searches: self.audit_log.iter().filter(|e| e.operation == "web_search").count() as u64,
@@ -1256,7 +1256,7 @@ fn remove_tags(html: &str, tags: &[&str]) -> String {
 
         while let Some(start) = result.to_lowercase().find(&open) {
             if let Some(tag_end) = result[start..].find('>') {
-                let mut end_search = start + tag_end + 1;
+                let end_search = start + tag_end + 1;
                 // 找对应的关闭标签
                 if let Some(close_pos) = result[end_search..].to_lowercase().find(&close) {
                     let end = end_search + close_pos + close.len();
@@ -1300,6 +1300,7 @@ fn extract_title(html: &str) -> Option<String> {
 
 // ─── 蒸馏 ─────────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 fn distill_content(content: &str, max_bytes: usize) -> String {
     if content.len() <= max_bytes {
         return content.to_string();

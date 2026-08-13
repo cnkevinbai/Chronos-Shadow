@@ -1,7 +1,7 @@
 // 云端大模型 API 客户端
 //
 // 负责通过 HTTP 调用 DeepSeek / Kimi / GLM / OpenAI 等云端大模型 API
-// 支持：流式响应、超时控制、自动重试、LAN 降级
+// 支持：流式响应、超时控制、指数退避重试、模型降级链、上下文窗口感知
 
 use serde::{Deserialize, Serialize};
 use crate::agent::billing::estimate_cost_from_model_name;
@@ -64,6 +64,90 @@ pub enum VisionContent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageUrl {
     pub url: String,
+}
+
+// ─── 重试与降级配置 ──────────────────────────────────────────────
+
+/// 指数退避重试配置
+#[derive(Debug, Clone)]
+pub struct RetryConfig {
+    pub max_retries: u32,
+    pub base_delay_ms: u64,
+    pub max_delay_ms: u64,
+    /// 降级模型链 (按优先级排列，失败后依次尝试)
+    pub fallback_models: Vec<String>,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: 2,
+            base_delay_ms: 1000,
+            max_delay_ms: 10000,
+            fallback_models: vec![
+                "deepseek-v4-flash".into(),
+                "glm-5.1".into(),
+                "ollama-local".into(),
+            ],
+        }
+    }
+}
+
+/// 上下文窗口限制 (tokens, 保守估计: 1 token ≈ 4 chars)
+const CONTEXT_WINDOW_LIMITS: &[(&str, usize)] = &[
+    ("deepseek-v4-pro", 120_000),
+    ("deepseek-v4-flash", 60_000),
+    ("kimi-k3", 60_000),
+    ("kimi-k2.7-code", 60_000),
+    ("kimi-k2.7-code-highspeed", 60_000),
+    ("glm-5.2", 120_000),
+    ("glm-5v-turbo", 30_000),
+    ("glm-5.1", 120_000),
+    ("glm-4.7", 30_000),
+    ("ollama-local", 8_000),
+];
+
+/// 获取模型上下文窗口大小 (tokens)
+pub fn get_context_window(model: &str) -> usize {
+    CONTEXT_WINDOW_LIMITS.iter()
+        .find(|(prefix, _)| model.starts_with(prefix))
+        .map(|(_, limit)| *limit)
+        .unwrap_or(60_000)
+}
+
+/// 估算消息列表的 token 数 (粗略: 1 token ≈ 4 chars)
+pub fn estimate_tokens(messages: &[ChatMessage]) -> usize {
+    messages.iter().map(|m| m.content.len() / 4).sum()
+}
+
+/// 智能截断上下文：当接近窗口限制时，保留 system + 最近 N 条
+pub fn trim_context(mut messages: Vec<ChatMessage>, model: &str, reserve_for_output: usize) -> Vec<ChatMessage> {
+    let limit = get_context_window(model).saturating_sub(reserve_for_output);
+    let estimated = estimate_tokens(&messages);
+    if estimated <= limit { return messages; }
+
+    // 保留 system prompt + 从尾部开始裁剪
+    let system_msg = if messages.first().map(|m| m.role.as_str()) == Some("system") {
+        Some(messages.remove(0))
+    } else {
+        None
+    };
+
+    // 从尾部保留，直到接近限制
+    let mut kept = Vec::new();
+    let mut token_sum = 0;
+    for msg in messages.into_iter().rev() {
+        let t = msg.content.len() / 4;
+        if token_sum + t > limit { break; }
+        token_sum += t;
+        kept.push(msg);
+    }
+    kept.reverse();
+
+    if let Some(sys) = system_msg {
+        kept.insert(0, sys);
+    }
+    kept
 }
 
 // ─── API 客户端 ────────────────────────────────────────────────────
@@ -328,6 +412,53 @@ impl ApiClient {
         }
     }
 
+    /// 带指数退避重试 + 模型降级链的流式调用
+    pub async fn chat_stream_with_retry(
+        &mut self,
+        endpoint: &str,
+        api_key: &str,
+        model: &str,
+        messages: Vec<ChatMessage>,
+        max_tokens: Option<u32>,
+        on_chunk: impl FnMut(&str) + Clone,
+        retry: &RetryConfig,
+    ) -> ApiResponse {
+        let mut last_error = String::new();
+        let models_to_try: Vec<&str> = std::iter::once(model)
+            .chain(retry.fallback_models.iter().map(|s| s.as_str()))
+            .collect();
+
+        for &try_model in &models_to_try {
+            for attempt in 0..=retry.max_retries {
+                if attempt > 0 {
+                    let delay = (retry.base_delay_ms * 2u64.pow(attempt - 1)).min(retry.max_delay_ms);
+                    tracing::info!("[API] Retry {} for {} after {}ms", attempt, try_model, delay);
+                    tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                }
+
+                let result = self.chat_stream(
+                    if try_model == model { endpoint } else { get_fallback_endpoint(try_model, endpoint) },
+                    api_key, try_model, messages.clone(), max_tokens, on_chunk.clone(),
+                ).await;
+
+                if result.success {
+                    tracing::info!("[API] Success with model={} (attempt {})", try_model, attempt + 1);
+                    return result;
+                }
+                last_error = result.error.unwrap_or_else(|| "Unknown error".into());
+                if last_error.contains("401") || last_error.contains("403") {
+                    break; // Auth errors won't be fixed by retrying
+                }
+            }
+        }
+
+        ApiResponse {
+            success: false, content: String::new(), model: model.into(),
+            tokens_used: 0, cost_estimate: 0.0,
+            error: Some(format!("All retries exhausted. Last error: {}", last_error)),
+        }
+    }
+
     /// 获取统计信息
     pub fn stats(&self) -> ApiStats {
         ApiStats {
@@ -347,6 +478,15 @@ pub struct ApiStats {
 }
 
 // ─── 工具函数 ─────────────────────────────────────────────────
+
+/// 获取降级模型的端点 URL
+fn get_fallback_endpoint(model: &str, _original: &str) -> &'static str {
+    if model.starts_with("deepseek") { "https://api.deepseek.com" }
+    else if model.starts_with("kimi") { "https://api.moonshot.cn/v1" }
+    else if model.starts_with("glm") { "https://open.bigmodel.cn/api/paas/v4" }
+    else if model.starts_with("ollama") { "http://localhost:11434" }
+    else { "https://api.deepseek.com" }
+}
 
 /// UTF-8-safe string truncation for error messages
 fn truncate_str(s: &str, max_chars: usize) -> String {

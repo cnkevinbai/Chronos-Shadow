@@ -140,12 +140,15 @@ impl SkillEngine {
         let manifest: SkillManifest = serde_json::from_str(manifest_json)
             .map_err(|e| format!("Invalid skill manifest JSON: {}", e))?;
 
-        if self.skills.contains_key(&manifest.id) {
-            return Err(format!("Skill '{}' is already loaded", manifest.id));
+        // 若 id 为空则回退使用 name 作为唯一标识
+        let skill_id = if manifest.id.is_empty() { manifest.name.clone() } else { manifest.id.clone() };
+
+        if self.skills.contains_key(&skill_id) {
+            return Err(format!("Skill '{}' is already loaded", skill_id));
         }
 
         self.skills.insert(
-            manifest.id.clone(),
+            skill_id,
             SkillInstance {
                 manifest,
                 state: SkillState::Loaded,

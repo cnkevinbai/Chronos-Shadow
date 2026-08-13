@@ -148,7 +148,7 @@ export function renderMarkdown(
           props: {
             key: i,
             className:
-              "bg-[#121214] border border-[#27272a] rounded px-1 py-0.5 text-[11px] text-emerald-400 font-mono",
+              "bg-cs-header border border-cs-border rounded px-1 py-0.5 text-[11px] text-emerald-400 font-mono",
             children: block.content,
           },
         };

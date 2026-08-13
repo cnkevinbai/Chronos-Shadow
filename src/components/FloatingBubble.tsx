@@ -56,7 +56,7 @@ export default function FloatingBubble({ currentAgent, savedCost, onMaximize }: 
       className="fixed bottom-12 right-6 z-50 flex items-center font-mono select-none"
     >
       {isHovered && (
-        <div className="mr-2 bg-[#121214]/95 border border-[#27272a] rounded px-3 py-1.5 shadow-2xl backdrop-blur-md flex items-center space-x-3 text-[11px] text-zinc-300 animate-slideLeft">
+        <div className="mr-2 bg-cs-header/95 border border-cs-border rounded px-3 py-1.5 shadow-2xl backdrop-blur-md flex items-center space-x-3 text-[11px] text-zinc-300 animate-slideLeft">
           <div className="flex flex-col space-y-0.5">
             <span className="text-zinc-500 font-bold">{t.bubble_shadow_pilot}</span>
             <span className="text-white font-medium">{agentLabel()}</span>
@@ -77,7 +77,7 @@ export default function FloatingBubble({ currentAgent, savedCost, onMaximize }: 
 
       <div
         onClick={onMaximize}
-        className="w-10 h-10 rounded-full bg-black border-2 border-[#27272a] flex items-center justify-center cursor-pointer hover:border-zinc-500 shadow-2xl transition-all relative group"
+        className="w-10 h-10 rounded-full bg-black border-2 border-cs-border flex items-center justify-center cursor-pointer hover:border-zinc-500 shadow-2xl transition-all relative group"
       >
         <span className={`absolute inset-0.5 rounded-full ${agentColor()} opacity-20 group-hover:opacity-40 animate-ping`} />
         <span className={`w-2.5 h-2.5 rounded-full ${agentColor()} shadow-md transition-all`} />

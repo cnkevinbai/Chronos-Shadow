@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useT } from "@/lib/i18n-context";
 import { useToast } from "@/components/ToastProvider";
+import { getModelDisplay } from "@/lib/models";
 import QuickMacros from "@/components/QuickMacros";
 import {
   chatApiStream,
@@ -23,6 +24,8 @@ import {
   importChatSession,
   extractAndExecuteActions,
   cvfsListProjectFiles,
+  cvfsGetProjects,
+  cvfsReadFile,
 } from "@/lib/tauri";
 
 // 真实文件对话框（Tauri 环境可用，浏览器降级为 mock）
@@ -76,25 +79,27 @@ interface Message {
 interface ChatPanelProps {
   selectedModel: string;
   apiKey?: string;
-  /** Per-provider key presence — drives welcome message + status bar */
   hasKeys?: { deepseek: boolean; kimi: boolean; glm: boolean };
-  /** Current project name — binds sessions to real project for scoped recall */
   currentProject?: string;
+  onProjectChange?: (project: string) => void;
 }
 
 function modelDisplayName(model: string): string {
-  const m: Record<string, string> = {
-    "deepseek-v4-pro": "DeepSeek V4-Pro",
-    "deepseek-v4-flash": "DeepSeek V4-Flash",
-    "kimi-k3": "Kimi K3",
-    "kimi-k2.7-code": "Kimi K2.7-Code",
-    "kimi-k2.7-code-highspeed": "Kimi K2.7-Code-HS",
-    "glm-5.2": "GLM-5.2",
-    "glm-5v-turbo": "GLM-5V-Turbo",
-    "glm-5.1": "GLM-5.1",
-    "glm-4.7": "GLM-4.7",
-  };
-  return m[model] ?? model;
+  return getModelDisplay(model);
+}
+
+// 动态文件扩展名颜色 — 支持任意类型, 哈希映射保证稳定
+function extColor(ext: string): string {
+  const palette = [
+    'text-cyan-400', 'text-emerald-400', 'text-amber-400', 'text-purple-400',
+    'text-rose-400', 'text-blue-400', 'text-lime-400', 'text-orange-400',
+    'text-teal-400', 'text-pink-400', 'text-indigo-400', 'text-yellow-400',
+  ];
+  let hash = 0;
+  for (let i = 0; i < ext.length; i++) {
+    hash = (hash * 31 + ext.charCodeAt(i)) >>> 0;
+  }
+  return palette[hash % palette.length];
 }
 
 function deriveTitle(messages: Message[]): string {
@@ -141,6 +146,7 @@ export default function ChatPanel({
   apiKey = "",
   hasKeys = { deepseek: false, kimi: false, glm: false },
   currentProject = "default",
+  onProjectChange,
 }: ChatPanelProps) {
   const keyForModel = (m: string) => m.startsWith("deepseek") ? hasKeys.deepseek : m.startsWith("kimi") ? hasKeys.kimi : m.startsWith("glm") ? hasKeys.glm : false;
   const currentHasKey = keyForModel(selectedModel);
@@ -168,6 +174,11 @@ export default function ChatPanel({
   useEffect(() => {
     refreshManifests();
   }, [refreshManifests]);
+
+  // 加载项目列表
+  useEffect(() => {
+    cvfsGetProjects().then(p => { if (p.length) setProjectList(p); }).catch(() => {});
+  }, []);
 
   // 当项目切换时，自动刷新该项目关联的会话列表
   useEffect(() => {
@@ -231,6 +242,7 @@ export default function ChatPanel({
   const [showFileExplorer, setShowFileExplorer] = useState(false);
   const [projectFiles, setProjectFiles] = useState<Array<{name:string;is_dir:boolean;relative_path:string}>>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [projectList, setProjectList] = useState<Array<{id:string;name:string;path:string}>>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const msgContainerRef = useRef<HTMLDivElement>(null);
@@ -243,6 +255,11 @@ export default function ChatPanel({
   const [stagedAttachments, setStagedAttachments] = useState<
     Attachment[]
   >([]);
+
+  // ── 成品文件登记追踪 ───────────────────────────────────────
+  const [artifacts, setArtifacts] = useState<Array<{path:string; type:string; createdAt:string; versions:number}>>([]);
+  const [editingFile, setEditingFile] = useState<string | null>(null);
+  const [fileContent, setFileContent] = useState("");
 
   // ── 键盘快捷键 ─────────────────────────────────────────────
   useEffect(() => {
@@ -809,26 +826,38 @@ export default function ChatPanel({
             model: `${modelDisplayName(selectedModel)} (API)`,
           }];
 
-          // Scan for and execute embedded actions (all AgentAction types)
-          if (finalContent.includes('"action"')) {
+          // 扫描并执行动作 + 自动保存代码块 (始终执行, 不再依赖 "action" 关键词)
+          {
             try {
               const execResult = await extractAndExecuteActions(finalContent);
-              if (execResult.has_actions && execResult.combined_context) {
+              if (execResult.has_actions) {
                 // Build action summary message
                 const filesCreated = (execResult as any).files_created as string[] | undefined;
                 const filesSummary = (execResult as any).files_summary as string | undefined;
-                const actionCount = execResult.action_results.filter((a: any) => a.success).length;
-                const failCount = execResult.action_results.filter((a: any) => !a.success).length;
+                const actionResults = execResult.action_results || [];
+                const actionCount = actionResults.filter((a: any) => a.success).length;
+                const failCount = actionResults.filter((a: any) => !a.success).length;
 
                 let summaryText = '';
                 if (filesCreated && filesCreated.length > 0) {
+                  // 登记成品文件
+                  const newArtifacts = filesCreated.map(f => ({
+                    path: f, type: f.split('.').pop() || 'file',
+                    createdAt: new Date().toLocaleTimeString(), versions: 1,
+                  }));
+                  setArtifacts(prev => [...prev, ...newArtifacts]);
                   summaryText = `📁 **文件已生成** (${filesCreated.length} files)\n\n${filesSummary || filesCreated.map((f: string) => `✅ ${f}`).join('\n')}`;
-                } else if (execResult.combined_context?.includes('Web Search')) {
-                  summaryText = `🔍 **搜索完成**\n\n${execResult.action_results.map((a: any, i: number) =>
-                    `${i + 1}. ${a.success ? '✅' : '❌'} \`${(a.action || '').slice(0, 80)}...\``
-                  ).join('\n')}`;
+                } else if (execResult.combined_context) {
+                  // 显示动作执行结果 (搜索/抓取/环境检测等)
+                  summaryText = execResult.combined_context.slice(0, 2000);
+                } else if (failCount > 0) {
+                  // 动作失败: 显示错误信息
+                  const errors = actionResults.filter((a: any) => !a.success)
+                    .map((a: any, i: number) => `❌ ${i + 1}. ${(a.error || '未知错误')}`)
+                    .join('\n');
+                  summaryText = `⚠️ **动作执行失败** (${failCount} 个)\n\n${errors}`;
                 } else {
-                  summaryText = `⚡ **已执行 ${actionCount} 个操作**${failCount > 0 ? ` (${failCount} 失败)` : ''}`;
+                  summaryText = `⚡ **已执行 ${actionCount} 个操作**`;
                 }
 
                 const sysMsg: Message = {
@@ -879,13 +908,29 @@ export default function ChatPanel({
 
                 if (followUp.success) {
                   const fuFinal = followUp.content || followUpContent;
+                  // 🔬 follow-up 结果也可能包含新动作 (如 web_search) — 递归执行
+                  let fuProcessed = fuFinal;
+                  try {
+                    const fuExec = await extractAndExecuteActions(fuFinal);
+                    if (fuExec.has_actions && fuExec.combined_context) {
+                      fuProcessed = fuExec.combined_context.slice(0, 2000);
+                      const fuFiles = (fuExec as any).files_created as string[] | undefined;
+                      if (fuFiles && fuFiles.length > 0) {
+                        const newArtifacts = fuFiles.map(f => ({
+                          path: f, type: f.split('.').pop() || 'file',
+                          createdAt: new Date().toLocaleTimeString(), versions: 1,
+                        }));
+                        setArtifacts(prev => [...prev, ...newArtifacts]);
+                      }
+                    }
+                  } catch (e) { /* follow-up action failed, keep raw */ }
                   setMessages((prev) => prev.map((m) =>
-                    m.id === followUpPlaceholderId ? { ...m, content: fuFinal, costTokens: followUp.tokens_used, isCached: followUp.cached } : m
+                    m.id === followUpPlaceholderId ? { ...m, content: fuProcessed, costTokens: followUp.tokens_used, isCached: followUp.cached } : m
                   ));
                   allMessages.push({
                     id: followUpPlaceholderId, sender: "Coder" as const,
                     model: `${modelDisplayName(selectedModel)} (Research)`,
-                    content: fuFinal, costTokens: followUp.tokens_used, isCached: followUp.cached,
+                    content: fuProcessed, costTokens: followUp.tokens_used, isCached: followUp.cached,
                     timestamp: new Date().toLocaleTimeString(),
                   });
                   toast.showToast("success", "RESEARCH COMPLETE", "已自动搜索并整合信息到回复中。");
@@ -1019,6 +1064,24 @@ export default function ChatPanel({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [messages, persistCurrentSession]);
 
+  // ── 全局命令面板事件 (App.tsx Ctrl+K → CommandPalette) ─────
+  useEffect(() => {
+    const handleCommand = (e: Event) => {
+      const cmd = (e as CustomEvent<string>).detail;
+      switch (cmd) {
+        case "new-session": handleNewSession(); break;
+        case "save-session": handlePersistSession(); break;
+        case "export-session": handleExportSession(); break;
+        case "clear-all": handleClearAll(); break;
+        case "toggle-sidebar": setSidebarCollapsed(v => !v); break;
+        case "focus-input": inputRef.current?.focus(); break;
+        default: break;
+      }
+    };
+    window.addEventListener("chronos:command", handleCommand);
+    return () => window.removeEventListener("chronos:command", handleCommand);
+  }, [handleNewSession, handlePersistSession, handleExportSession, handleClearAll]);
+
   const getSenderStyle = (sender: string) => {
     switch (sender) {
       case "PM":
@@ -1030,16 +1093,16 @@ export default function ChatPanel({
       case "System":
         return "border-zinc-800 bg-zinc-900/40 text-zinc-400 text-xs";
       default:
-        return "border-zinc-700 bg-black text-[#fafafa]";
+        return "border-zinc-700 bg-black text-cs-text";
     }
   };
 
   return (
-    <div className="flex h-full bg-[#09090b] font-mono text-xs text-[#fafafa] overflow-hidden select-none">
+    <div className="flex h-full bg-cs-bg font-mono text-xs text-cs-text overflow-hidden select-none">
       {/* ═══ 左侧栏：会话历史 (可折叠) ═══ */}
       {!sidebarCollapsed && (
-      <div className="w-56 border-r border-[#27272a] bg-[#0c0c0e] flex flex-col shrink-0">
-        <div className="p-2.5 border-b border-[#27272a] bg-[#121214] flex items-center justify-between">
+      <div className="w-56 border-r border-cs-border bg-cs-surface flex flex-col shrink-0">
+        <div className="p-2.5 border-b border-cs-border bg-cs-header flex items-center justify-between">
           <span className="font-bold text-zinc-500 uppercase tracking-wider text-[10px]">
             🗂️ 项目会话矩阵
             {manifests.length > 0 && (
@@ -1087,14 +1150,14 @@ export default function ChatPanel({
                   );
                 }
               }}
-              className="text-[9px] bg-black border border-[#27272a] px-1.5 py-0.5 rounded hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors"
+              className="text-[9px] bg-black border border-cs-border px-1.5 py-0.5 rounded hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors"
               title="导入 JSON 会话"
             >
               📥
             </button>
             <button
               onClick={handleNewSession}
-              className="text-[9px] bg-black border border-[#27272a] px-1.5 py-0.5 rounded hover:border-zinc-500 text-white font-bold transition-colors"
+              className="text-[9px] bg-black border border-cs-border px-1.5 py-0.5 rounded hover:border-zinc-500 text-white font-bold transition-colors"
             >
               + NEW
             </button>
@@ -1103,12 +1166,12 @@ export default function ChatPanel({
 
         {/* 会话搜索过滤 */}
         {manifests.length > 0 && (
-          <div className="px-2 py-1.5 border-b border-[#27272a]">
+          <div className="px-2 py-1.5 border-b border-cs-border">
             <input
               value={sessionFilter}
               onChange={(e) => setSessionFilter(e.target.value)}
               placeholder="🔍 搜索会话…"
-              className="w-full bg-black border border-[#27272a] rounded px-2 py-1 text-[10px] text-zinc-300 placeholder-zinc-600 outline-none focus:border-zinc-500 transition-colors"
+              className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-300 placeholder-zinc-600 outline-none focus:border-zinc-500 transition-colors"
             />
           </div>
         )}
@@ -1240,7 +1303,7 @@ export default function ChatPanel({
 
         {/* 侧栏统计摘要 */}
         {manifests.length > 0 && (
-          <div className="p-2 border-t border-[#27272a] text-[9px] text-zinc-600 space-y-0.5 shrink-0">
+          <div className="p-2 border-t border-cs-border text-[9px] text-zinc-600 space-y-0.5 shrink-0">
             <div className="flex justify-between">
               <span>💬 会话</span>
               <span className="text-zinc-500">{manifests.length}</span>
@@ -1272,9 +1335,9 @@ export default function ChatPanel({
       )}
 
       {/* ═══ 右侧主栏：沉浸式对话 ═══ */}
-      <div className="flex-1 flex flex-col min-w-0 bg-[#09090b] relative h-full">
+      <div className="flex-1 flex flex-col min-w-0 bg-cs-bg relative h-full">
         {/* Header */}
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#27272a] bg-[#0c0c0e] shrink-0">
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-cs-border bg-cs-surface shrink-0">
           <div className="flex items-center space-x-2 text-xs">
             {/* 侧栏切换 */}
             <button
@@ -1329,18 +1392,31 @@ export default function ChatPanel({
                 {anyKey ? `(切换至 ${availableProvider})` : "(Demo)"}
               </span>
             )}
-            {/* 项目绑定指示 + 文件浏览器切换 */}
+            {/* 项目切换下拉框 */}
+            <select
+              value={currentProject || ""}
+              onChange={e => { if (e.target.value) { onProjectChange?.(e.target.value); cvfsListProjectFiles(e.target.value).then(setProjectFiles).catch(()=>{}); } }}
+              onFocus={() => { cvfsGetProjects().then(p => { if (p.length) setProjectList(p); }).catch(()=>{}); }}
+              className="text-[9px] bg-cs-header border border-cs-border rounded px-1.5 py-0.5 text-zinc-300 outline-none cursor-pointer max-w-[140px]"
+              title="切换项目"
+            >
+              <option value="">📁 选择项目</option>
+              {projectList.length > 0 ? projectList.map(p => (
+                <option key={p.id} value={p.name}>{p.name}</option>
+              )) : (currentProject && <option value={currentProject}>{currentProject}</option>)}
+            </select>
+            {/* 文件浏览器切换 */}
             {currentProject && currentProject !== "default" && (
               <button
                 onClick={() => { setShowFileExplorer(!showFileExplorer); if (!showFileExplorer) cvfsListProjectFiles(currentProject).then(setProjectFiles).catch(()=>{}); }}
-                className={`text-[9px] border px-1.5 py-0.5 rounded transition-colors ${
+                className={`text-[8px] border px-1 py-0.5 rounded transition-colors ${
                   showFileExplorer
                     ? "text-cyan-300 border-cyan-400/40 bg-cyan-950/30"
-                    : "text-cyan-500 border-cyan-500/20 bg-cyan-950/20 hover:border-cyan-500/40"
+                    : "text-zinc-500 border-cs-border hover:border-zinc-600"
                 }`}
-                title="点击切换项目文件浏览器"
+                title="项目文件"
               >
-                📁 {currentProject} ({projectFiles.length})
+                📂{projectFiles.length}
               </button>
             )}
           </div>
@@ -1364,7 +1440,7 @@ export default function ChatPanel({
 
         {/* 消息搜索栏 (Ctrl+F) */}
         {searchOpen && (
-          <div className="flex items-center space-x-2 px-4 py-1.5 border-b border-[#27272a] bg-[#121214] shrink-0 animate-fadeIn">
+          <div className="flex items-center space-x-2 px-4 py-1.5 border-b border-cs-border bg-cs-header shrink-0 animate-fadeIn">
             <span className="text-[10px] text-zinc-500">🔍</span>
             <input
               data-search-input
@@ -1446,7 +1522,7 @@ export default function ChatPanel({
                   {msg.sender}
                 </span>
                 <span>•</span>
-                <span className="bg-[#121214] border border-[#27272a] px-1 rounded text-[9px] text-zinc-300">
+                <span className="bg-cs-header border border-cs-border px-1 rounded text-[9px] text-zinc-300">
                   {msg.model}
                 </span>
                 {msg.costTokens != null && msg.costTokens > 0 && (
@@ -1551,8 +1627,8 @@ export default function ChatPanel({
 
         {/* 文件浏览器 (右侧面板) */}
         {showFileExplorer && currentProject !== "default" && (
-          <div className="w-48 border-l border-[#27272a] bg-[#0c0c0e] flex flex-col shrink-0 overflow-y-auto">
-            <div className="px-2 py-1.5 border-b border-[#27272a] text-[9px] text-zinc-500 flex items-center justify-between">
+          <div className="w-48 border-l border-cs-border bg-cs-surface flex flex-col shrink-0 overflow-y-auto">
+            <div className="px-2 py-1.5 border-b border-cs-border text-[9px] text-zinc-500 flex items-center justify-between">
               <span>📁 {currentProject}</span>
               <button onClick={() => setShowFileExplorer(false)} className="text-zinc-600 hover:text-zinc-400">✕</button>
             </div>
@@ -1598,7 +1674,7 @@ export default function ChatPanel({
 
           {/* 弹窗 A：快捷斜杠宏命令菜单 */}
           {showSlashMenu && (
-            <div className="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[#121214]/95 border border-[#27272a] rounded shadow-2xl z-30 backdrop-blur-md max-h-44 overflow-y-auto animate-slideLeft">
+            <div className="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-cs-header/95 border border-cs-border rounded shadow-2xl z-30 backdrop-blur-md max-h-44 overflow-y-auto animate-slideLeft">
               <div className="px-3 py-1.5 text-[9px] text-zinc-500 font-bold uppercase tracking-wider border-b border-zinc-900">
                 快捷斜杠宏命令 (Slash Macros)
               </div>
@@ -1621,7 +1697,7 @@ export default function ChatPanel({
 
           {/* 弹窗 B：@ 特种兵子智能体精准靶向选择菜单 */}
           {showAtMenu && (
-            <div className="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-[#121214]/95 border border-[#27272a] rounded shadow-2xl z-30 backdrop-blur-md max-h-44 overflow-y-auto animate-slideLeft">
+            <div className="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-cs-header/95 border border-cs-border rounded shadow-2xl z-30 backdrop-blur-md max-h-44 overflow-y-auto animate-slideLeft">
               <div className="px-3 py-1.5 text-[9px] text-zinc-500 font-bold uppercase tracking-wider border-b border-zinc-900">
                 唤醒专业特种子智能体 (Target Subagent)
               </div>
@@ -1673,7 +1749,7 @@ export default function ChatPanel({
           <form
             data-chat-form
             onSubmit={handleSend}
-            className="p-3 border-t border-[#27272a] bg-[#0c0c0e] flex items-center space-x-2"
+            className="p-3 border-t border-cs-border bg-cs-surface flex items-center space-x-2"
           >
             {/* 附件挂载按钮（真实文件对话框 + 浏览器降级 mock） */}
             <button
@@ -1714,7 +1790,7 @@ export default function ChatPanel({
                 }
               }}
               title="挂载本地文档/知识库"
-              className="w-7 h-7 flex items-center justify-center rounded bg-black border border-[#27272a] hover:border-zinc-500 text-xs transition-colors shrink-0"
+              className="w-7 h-7 flex items-center justify-center rounded bg-black border border-cs-border hover:border-zinc-500 text-xs transition-colors shrink-0"
             >
               <FileTextIcon size={14} className="stroke-zinc-400" />
             </button>
@@ -1759,12 +1835,12 @@ export default function ChatPanel({
                 }
               }}
               title="挂载多模态图片走查"
-              className="w-7 h-7 flex items-center justify-center rounded bg-black border border-[#27272a] hover:border-zinc-500 text-xs transition-colors shrink-0"
+              className="w-7 h-7 flex items-center justify-center rounded bg-black border border-cs-border hover:border-zinc-500 text-xs transition-colors shrink-0"
             >
               <ImageIcon size={14} className="stroke-zinc-400" />
             </button>
 
-            <div className="flex-1 relative flex items-center bg-black border border-[#27272a] rounded-lg px-3 py-2.5 focus-within:border-zinc-500 transition-colors">
+            <div className="flex-1 relative flex items-center bg-black border border-cs-border rounded-lg px-3 py-2.5 focus-within:border-zinc-500 transition-colors">
               <button
                 type="button"
                 onClick={() => setMacrosVisible(!macrosVisible)}
@@ -1786,7 +1862,7 @@ export default function ChatPanel({
                     ? "键入 / 触发宏命令，键入 @ 唤醒特种兵…"
                     : "⚙️ 请先在全局配置中填入 API Key…"
                 }
-                className="w-full bg-transparent text-sm text-[#fafafa] placeholder-zinc-600 outline-none border-none p-0"
+                className="w-full bg-transparent text-sm text-cs-text placeholder-zinc-600 outline-none border-none p-0"
                 disabled={isThinking}
               />
             </div>
@@ -1802,8 +1878,64 @@ export default function ChatPanel({
             </button>
           </form>
 
+          {/* 成品文件面板 */}
+          {artifacts.length > 0 && (
+            <div className="border-t border-cs-border bg-cs-surface px-3 py-1.5 shrink-0 max-h-32 overflow-y-auto">
+              <div className="flex items-center justify-between text-[8px] text-zinc-500 mb-1">
+                <span className="font-bold text-zinc-400">📦 本会话成品 ({artifacts.length})</span>
+                <button onClick={() => setArtifacts([])} className="text-zinc-600 hover:text-zinc-400">清空</button>
+              </div>
+              <div className="space-y-0.5">
+                {artifacts.map((a, i) => (
+                  <div key={i} className="flex items-center justify-between text-[8px] bg-cs-header border border-cs-border rounded px-2 py-1">
+                    <span className="text-zinc-300 truncate max-w-[200px] font-mono" title={a.path}>
+                      {a.path.split(/[\\/]/).pop()}
+                    </span>
+                    <span className={`px-1 rounded text-[7px] ${extColor(a.type)}`}>
+                      .{a.type}
+                    </span>
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => { setEditingFile(a.path); setFileContent(""); }}
+                        className="text-[7px] text-cyan-400 hover:text-cyan-300 px-1 rounded border border-cyan-800/30 hover:border-cyan-500/40"
+                        title="编辑文件"
+                      >✏️</button>
+                      <span className="text-zinc-600">v{a.versions}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 文件编辑模态框 */}
+          {editingFile && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={e => { if(e.target===e.currentTarget) setEditingFile(null); }}>
+              <div className="w-[600px] bg-cs-header border border-cs-border rounded-xl shadow-2xl overflow-hidden animate-fadeIn">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-cs-border">
+                  <span className="text-[11px] font-bold text-zinc-300">✏️ 编辑: {editingFile.split(/[\\/]/).pop()}</span>
+                  <button onClick={() => setEditingFile(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+                </div>
+                <textarea
+                  value={fileContent}
+                  onChange={e => setFileContent(e.target.value)}
+                  className="w-full h-64 bg-cs-bg text-zinc-200 text-[11px] font-mono p-3 outline-none resize-none"
+                  placeholder="点击下方「加载文件」读取当前内容…"
+                />
+                <div className="flex items-center justify-end space-x-2 px-4 py-2 border-t border-cs-border">
+                  <button onClick={() => { cvfsReadFile(currentProject, editingFile).then(content => setFileContent(content)).catch(() => {}); }}
+                    className="text-[9px] text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded border border-cs-border">📂 加载文件</button>
+                  <button onClick={() => setEditingFile(null)}
+                    className="text-[9px] text-zinc-500 hover:text-zinc-300 px-2 py-1">取消</button>
+                  <button onClick={() => { if (fileContent.trim()) { setInput(`请修改以下文件内容，并返回完整修改后的文件:\n\n文件: ${editingFile}\n\n${fileContent}`); setEditingFile(null); inputRef.current?.focus(); } }}
+                    className="text-[9px] bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 px-2 py-1 rounded font-bold">💬 让AI修改</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 状态栏：会话统计 + 审批指示 */}
-          <div className="flex items-center justify-between px-4 py-1 border-t border-[#1a1a1e] bg-[#0c0c0e] text-[9px] text-zinc-600 select-none">
+          <div className="flex items-center justify-between px-4 py-1 border-t border-[#1a1a1e] bg-cs-surface text-[9px] text-zinc-600 select-none">
             <div className="flex items-center space-x-3">
               <span>💬 {messages.length} 条</span>
               <span>|</span>
@@ -1825,37 +1957,37 @@ export default function ChatPanel({
           <div className="flex items-center justify-between px-4 pb-2 text-[9px] text-zinc-700 select-none">
             <div className="flex items-center space-x-3">
               <span>
-                <kbd className="px-1 py-0.5 bg-[#121214] border border-[#27272a] rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
                   Ctrl+Enter
                 </kbd>
                 发送
               </span>
               <span>
-                <kbd className="px-1 py-0.5 bg-[#121214] border border-[#27272a] rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
                   /
                 </kbd>
                 宏命令
               </span>
               <span>
-                <kbd className="px-1 py-0.5 bg-[#121214] border border-[#27272a] rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
                   @
                 </kbd>
                 特种兵
               </span>
               <span>
-                <kbd className="px-1 py-0.5 bg-[#121214] border border-[#27272a] rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
                   Ctrl+N
                 </kbd>
                 新建
               </span>
               <span>
-                <kbd className="px-1 py-0.5 bg-[#121214] border border-[#27272a] rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
                   Ctrl+S
                 </kbd>
                 保存
               </span>
               <span>
-                <kbd className="px-1 py-0.5 bg-[#121214] border border-[#27272a] rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
                   Esc
                 </kbd>
                 关闭

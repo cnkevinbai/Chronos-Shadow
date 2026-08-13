@@ -107,25 +107,25 @@ export default function AppGlueBinder() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-cs-border bg-[#121214] shrink-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-cs-border bg-cs-header shrink-0">
         <div className="flex items-center space-x-1.5">
           <Link2 className="w-3 h-3 text-cyan-400" />
           <span className="text-[10px] font-bold text-cs-text">{t.app_glue_binder}</span>
         </div>
         <div className="flex items-center space-x-1.5">
           <button onClick={async () => { const n = !buddyOn; setBuddyOn(n); try { await toggleBuddyScan(n); } catch {} }}
-            className={`text-[8px] px-1 py-0.5 rounded border transition-colors ${buddyOn ? "bg-cyan-950/40 border-cyan-500/50 text-cyan-400" : "bg-black border-[#27272a] text-zinc-500 hover:border-zinc-500"}`}>
+            className={`text-[8px] px-1 py-0.5 rounded border transition-colors ${buddyOn ? "bg-cyan-950/40 border-cyan-500/50 text-cyan-400" : "bg-black border-cs-border text-zinc-500 hover:border-zinc-500"}`}>
             {buddyOn ? "👁️ Scan ON" : "🔍 Scan OFF"}
           </button>
           <button onClick={async () => { const n = !glueOn; setGlueOn(n); try { await toggleContextGlue(n); await saveContextGlueBindings(); } catch {} }}
-            className={`text-[8px] px-1 py-0.5 rounded border transition-colors ${glueOn ? "bg-purple-950/40 border-purple-500/50 text-purple-400" : "bg-black border-[#27272a] text-zinc-500 hover:border-zinc-500"}`}>
+            className={`text-[8px] px-1 py-0.5 rounded border transition-colors ${glueOn ? "bg-purple-950/40 border-purple-500/50 text-purple-400" : "bg-black border-cs-border text-zinc-500 hover:border-zinc-500"}`}>
             {glueOn ? "🔗 Glue ON" : "🧩 Glue OFF"}
           </button>
         </div>
       </div>
 
       {/* View mode tabs */}
-      <div className="flex border-b border-cs-border bg-[#0c0c0e] shrink-0">
+      <div className="flex border-b border-cs-border bg-cs-surface shrink-0">
         {([
           { id: "cards" as const, icon: Monitor, label: t.view_cards },
           { id: "canvas" as const, icon: GitGraph, label: t.view_canvas },
@@ -136,7 +136,7 @@ export default function AppGlueBinder() {
           const on = viewMode === m.id;
           return (
             <button key={m.id} onClick={() => setViewMode(m.id)}
-              className={`flex-1 flex items-center justify-center space-x-1 py-1.5 text-[10px] transition-colors ${on ? "text-white bg-[#121214] border-b border-cyan-400" : "text-zinc-500 hover:text-zinc-300"}`}>
+              className={`flex-1 flex items-center justify-center space-x-1 py-1.5 text-[10px] transition-colors ${on ? "text-white bg-cs-header border-b border-cyan-400" : "text-zinc-500 hover:text-zinc-300"}`}>
               <Icon className={`w-3 h-3 ${on ? "text-cyan-400" : ""}`} />
               <span>{m.label}</span>
             </button>
@@ -154,7 +154,7 @@ export default function AppGlueBinder() {
               <span>{t.active_links}: <b className="text-cyan-400">{activeWindows}</b></span>
             </div>
             {windows.map((win) => (
-              <div key={win.id} className={`p-2 border rounded text-[10px] transition-all ${win.handleHijacked ? "border-cyan-500/30 bg-cyan-950/10" : "border-[#27272a] bg-black/20"}`}>
+              <div key={win.id} className={`p-2 border rounded text-[10px] transition-all ${win.handleHijacked ? "border-cyan-500/30 bg-cyan-950/10" : "border-cs-border bg-black/20"}`}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center space-x-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full ${win.status === "syncing" ? "bg-cyan-400 animate-pulse" : win.status === "active" ? "bg-emerald-400" : "bg-zinc-600"}`} />
@@ -249,7 +249,7 @@ export default function AppGlueBinder() {
           <div className="h-full overflow-y-auto p-2 space-y-2 text-[10px]">
             {selectedStream ? (
               <>
-                <div className="p-2 border border-[#27272a] rounded bg-black/20 space-y-1.5">
+                <div className="p-2 border border-cs-border rounded bg-black/20 space-y-1.5">
                   <span className="text-[9px] text-zinc-500 uppercase">{t.current_route}</span>
                   <div className="font-bold text-white text-[11px]">
                     {windows.find((w) => w.id === selectedStream.fromNode)?.processName}
@@ -274,7 +274,7 @@ export default function AppGlueBinder() {
 
                 <div>
                   <span className="text-[9px] text-zinc-500 uppercase">{t.workbuddy_audit_log}</span>
-                  <div className="mt-1 bg-black border border-[#27272a] rounded p-1.5 space-y-0.5 max-h-40 overflow-y-auto text-[8px] font-mono">
+                  <div className="mt-1 bg-black border border-cs-border rounded p-1.5 space-y-0.5 max-h-40 overflow-y-auto text-[8px] font-mono">
                     {logs.map((log, i) => (
                       <div key={i} className="flex space-x-1">
                         <span className="text-zinc-600 shrink-0">[{log.time}]</span>
@@ -295,7 +295,7 @@ export default function AppGlueBinder() {
         {viewMode === "design" && (
           <div className="h-full flex flex-col overflow-hidden">
             {/* 主题/平台选择器 */}
-            <div className="flex items-center justify-between px-2 py-1.5 border-b border-[#27272a] bg-[#0c0c0e] shrink-0">
+            <div className="flex items-center justify-between px-2 py-1.5 border-b border-cs-border bg-cs-surface shrink-0">
               <div className="flex items-center space-x-1.5">
                 <Palette className="w-3 h-3 text-purple-400" />
                 <span className="text-[9px] font-bold text-zinc-300">OmniDesign-Matrix</span>
@@ -305,7 +305,7 @@ export default function AppGlueBinder() {
                 {(["vercel_monochrome", "linear_metallic", "apple_fluid"] as const).map((t) => (
                   <button key={t} onClick={() => setDesignTheme(t)}
                     className={`px-1.5 py-0.5 rounded border transition-colors ${
-                      designTheme === t ? "bg-purple-950/40 border-purple-500/50 text-purple-300" : "border-[#27272a] text-zinc-500 hover:border-zinc-500"
+                      designTheme === t ? "bg-purple-950/40 border-purple-500/50 text-purple-300" : "border-cs-border text-zinc-500 hover:border-zinc-500"
                     }`}>
                     {t === "vercel_monochrome" ? "Vercel" : t === "linear_metallic" ? "Linear" : "Apple"}
                   </button>
@@ -316,8 +316,8 @@ export default function AppGlueBinder() {
             {/* 双端视窗 */}
             <div className="flex-1 grid grid-cols-2 gap-2 p-2 overflow-hidden">
               {/* PC 桌面端 */}
-              <div className="flex flex-col border border-[#27272a] rounded bg-black/20 overflow-hidden">
-                <div className="flex items-center space-x-1 px-2 py-1 bg-[#121214] border-b border-[#27272a] text-[8px] text-zinc-500">
+              <div className="flex flex-col border border-cs-border rounded bg-black/20 overflow-hidden">
+                <div className="flex items-center space-x-1 px-2 py-1 bg-cs-header border-b border-cs-border text-[8px] text-zinc-500">
                   <PcIcon className="w-2.5 h-2.5" />
                   <span>PC 桌面端 (Tauri/Win32)</span>
                   <span className="ml-auto text-[7px] text-zinc-600">1920×1080</span>
@@ -325,7 +325,7 @@ export default function AppGlueBinder() {
                 <div className="flex-1 p-2 flex items-center justify-center relative overflow-hidden">
                   <div className={`w-full h-full rounded border transition-all ${
                     designTheme === "vercel_monochrome" ? "bg-[#0a0a0a] border-zinc-800" :
-                    designTheme === "linear_metallic" ? "bg-[#0c0c0e] border-zinc-700 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)]" :
+                    designTheme === "linear_metallic" ? "bg-cs-surface border-zinc-700 shadow-[inset_0_0_30px_rgba(255,255,255,0.02)]" :
                     "bg-[#0a0a0f] border-zinc-700/50"
                   }`}>
                     {/* 模拟 IDE 布局 */}
@@ -354,8 +354,8 @@ export default function AppGlueBinder() {
               </div>
 
               {/* 移动端 */}
-              <div className="flex flex-col border border-[#27272a] rounded bg-black/20 overflow-hidden">
-                <div className="flex items-center space-x-1 px-2 py-1 bg-[#121214] border-b border-[#27272a] text-[8px] text-zinc-500">
+              <div className="flex flex-col border border-cs-border rounded bg-black/20 overflow-hidden">
+                <div className="flex items-center space-x-1 px-2 py-1 bg-cs-header border-b border-cs-border text-[8px] text-zinc-500">
                   <Smartphone className="w-2.5 h-2.5" />
                   <span>移动端 (React Native)</span>
                   <span className="ml-auto text-[7px] text-zinc-600">390×844</span>
@@ -363,7 +363,7 @@ export default function AppGlueBinder() {
                 <div className="flex-1 flex items-center justify-center p-2">
                   <div className={`w-24 h-40 rounded-2xl border-2 transition-all flex flex-col overflow-hidden ${
                     designTheme === "vercel_monochrome" ? "border-zinc-700 bg-[#0a0a0a]" :
-                    designTheme === "linear_metallic" ? "border-zinc-600 bg-[#0c0c0e] shadow-[0_0_20px_rgba(168,85,247,0.1)]" :
+                    designTheme === "linear_metallic" ? "border-zinc-600 bg-cs-surface shadow-[0_0_20px_rgba(168,85,247,0.1)]" :
                     "border-zinc-600 bg-[#0a0a0f]"
                   }`}>
                     {/* 灵动岛 */}
