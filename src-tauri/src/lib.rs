@@ -64,184 +64,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── Orchestrator Commands ─────────────────────────────────────────
-
-#[tauri::command]
-fn get_pipeline_stats(state: tauri::State<AppState>) -> OrchestratorStats {
-    state.orchestrator.lock().unwrap().stats()
-}
-
-// ─── 自动化调度矩阵 ────────────────────────────────────────────────
-
-#[tauri::command]
-fn orch_topological_sort(state: tauri::State<AppState>) -> Vec<String> {
-    state.orchestrator.lock().unwrap().topological_sort()
-}
-
-#[tauri::command]
-fn orch_parallel_groups(state: tauri::State<AppState>) -> serde_json::Value {
-    let orch = state.orchestrator.lock().unwrap();
-    let groups = orch.parallel_groups();
-    serde_json::json!({
-        "total_groups": groups.len(),
-        "groups": groups.iter().enumerate().map(|(i, g)| {
-            serde_json::json!({
-                "group": i,
-                "tasks": g.iter().map(|t| serde_json::json!({
-                    "id": t.id, "title": t.title, "priority": t.priority,
-                    "dependencies": t.dependencies, "status": format!("{:?}", t.status),
-                })).collect::<Vec<_>>()
-            })
-        }).collect::<Vec<_>>()
-    })
-}
-
-#[tauri::command]
-fn orch_executable_tasks(state: tauri::State<AppState>) -> serde_json::Value {
-    let orch = state.orchestrator.lock().unwrap();
-    let tasks = orch.executable_tasks();
-    serde_json::json!({
-        "count": tasks.len(),
-        "tasks": tasks.iter().map(|t| serde_json::json!({
-            "id": t.id, "title": t.title, "priority": t.priority, "dependencies": t.dependencies,
-        })).collect::<Vec<_>>()
-    })
-}
-
-#[tauri::command]
-fn orch_schedule_quality(state: tauri::State<AppState>) -> serde_json::Value {
-    let orch = state.orchestrator.lock().unwrap();
-    let score = orch.schedule_quality_score();
-    let groups = orch.parallel_groups();
-    serde_json::json!({
-        "quality_score": format!("{:.1}", score),
-        "parallel_groups": groups.len(),
-        "completion_rate": format!("{:.1}%",
-            orch.tasks.iter().filter(|t| matches!(t.status, agent::orchestrator::TaskStatus::Completed)).count() as f64
-            / orch.tasks.len().max(1) as f64 * 100.0),
-    })
-}
-
-#[tauri::command]
-fn orch_smart_retry(state: tauri::State<AppState>) -> Vec<String> {
-    state.orchestrator.lock().unwrap().smart_retry_failed(3, 1000)
-}
-
-#[tauri::command]
-fn start_pipeline(state: tauri::State<AppState>) -> String {
-    state.orchestrator.lock().unwrap().start_pipeline();
-    "Pipeline started".into()
-}
-
-#[tauri::command]
-fn pause_pipeline(state: tauri::State<AppState>) -> String {
-    state.orchestrator.lock().unwrap().pause_pipeline();
-    "Pipeline paused".into()
-}
-
-#[tauri::command]
-fn resume_pipeline(state: tauri::State<AppState>) -> String {
-    state.orchestrator.lock().unwrap().resume_pipeline();
-    "Pipeline resumed".into()
-}
-
-#[tauri::command]
-fn advance_pipeline(state: tauri::State<AppState>) -> Result<String, String> {
-    // 第四红线：关键阶段跃迁前检查审批状态
-    // 使用 AgentRole 枚举直接匹配，避免中文标签与英文常量比较的静默绕过
-    let (from_stage, to_stage, needs_approval) = {
-        let orch = state.orchestrator.lock().unwrap();
-        let current = &orch.active_role;
-        let next = match current {
-            AgentRole::PM => AgentRole::UIDesigner,
-            AgentRole::UIDesigner => AgentRole::Architect,
-            AgentRole::Architect => AgentRole::Planner,
-            AgentRole::Planner => AgentRole::Coder,
-            AgentRole::Coder => AgentRole::Auditor,
-            AgentRole::Auditor => AgentRole::ComplianceOfficer,
-            AgentRole::ComplianceOfficer => AgentRole::Verifier,
-            AgentRole::Verifier => AgentRole::PM,
-        };
-        // 枚举匹配 — 不受 label() 语言影响
-        let needs = matches!(current, AgentRole::Coder | AgentRole::Auditor);
-        // 用稳定英文标识符给审批门禁
-        let from_id = match current {
-            AgentRole::PM => "PM", AgentRole::UIDesigner => "UIDesigner",
-            AgentRole::Architect => "Architect", AgentRole::Planner => "Planner",
-            AgentRole::Coder => "Coder", AgentRole::Auditor => "Auditor",
-            AgentRole::ComplianceOfficer => "ComplianceOfficer",
-            AgentRole::Verifier => "Verifier",
-        };
-        let to_id = match &next {
-            AgentRole::PM => "PM", AgentRole::UIDesigner => "UIDesigner",
-            AgentRole::Architect => "Architect", AgentRole::Planner => "Planner",
-            AgentRole::Coder => "Coder", AgentRole::Auditor => "Auditor",
-            AgentRole::ComplianceOfficer => "ComplianceOfficer",
-            AgentRole::Verifier => "Verifier",
-        };
-        (from_id.to_string(), to_id.to_string(), needs)
-    };
-
-    if needs_approval {
-        state.approval_gate.lock().unwrap().check_pipeline_advance(&from_stage, &to_stage)?;
-    }
-
-    let role = state.orchestrator.lock().unwrap().advance_pipeline();
-    Ok(role.label().into())
-}
-
-#[tauri::command]
-fn create_task(
-    state: tauri::State<AppState>,
-    title: String,
-    description: String,
-    dependencies: Vec<String>,
-    priority: u8,
-) -> String {
-    state
-        .orchestrator
-        .lock()
-        .unwrap()
-        .create_task(&title, &description, dependencies, priority)
-}
-
-#[tauri::command]
-fn assign_task(state: tauri::State<AppState>, task_id: String, role: String) -> Result<String, String> {
-    let role = parse_role(&role)?;
-    state
-        .orchestrator
-        .lock()
-        .unwrap()
-        .assign_task(&task_id, role)
-        .map(|_| format!("Task {} assigned", task_id))
-}
-
-#[tauri::command]
-fn complete_task(state: tauri::State<AppState>, task_id: String) -> Result<String, String> {
-    state
-        .orchestrator
-        .lock()
-        .unwrap()
-        .complete_task(&task_id)
-        .map(|_| format!("Task {} completed", task_id))
-}
-
-#[tauri::command]
-fn fail_task(state: tauri::State<AppState>, task_id: String, error: String) -> Result<String, String> {
-    let can_retry = state
-        .orchestrator
-        .lock()
-        .unwrap()
-        .fail_task(&task_id, &error)
-        .map_err(|e| e)?;
-
-    if can_retry {
-        Ok(format!("Task {} failed — can retry", task_id))
-    } else {
-        Err(format!("Task {} FUSED — manual intervention required", task_id))
-    }
-}
-
 // ─── API Client Commands ──────────────────────────────────────────
 
 static LAST_API_CALL: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
@@ -2440,21 +2262,6 @@ fn mcp_cleanup_stale(state: tauri::State<AppState>) -> String {
     format!("MCP cleanup check: {} active servers (zombie detection pending)", count)
 }
 
-// ─── Helper ────────────────────────────────────────────────────────
-
-fn parse_role(s: &str) -> Result<AgentRole, String> {
-    match s.to_lowercase().as_str() {
-        "pm" => Ok(AgentRole::PM),
-        "ui" | "ui_designer" | "uidesigner" => Ok(AgentRole::UIDesigner),
-        "architect" | "arch" => Ok(AgentRole::Architect),
-        "planner" => Ok(AgentRole::Planner),
-        "coder" => Ok(AgentRole::Coder),
-        "auditor" => Ok(AgentRole::Auditor),
-        "verifier" => Ok(AgentRole::Verifier),
-        _ => Err(format!("Unknown role: {}", s)),
-    }
-}
-
 // ─── Web Intelligence Commands ─────────────────────────────────────
 
 #[tauri::command]
@@ -3458,20 +3265,20 @@ pub fn run() {
             agent::redline::validate_model_output,
             agent::redline::reset_fuse,
             // orchestrator
-            get_pipeline_stats,
-            orch_topological_sort,
-            orch_parallel_groups,
-            orch_executable_tasks,
-            orch_schedule_quality,
-            orch_smart_retry,
-            start_pipeline,
-            pause_pipeline,
-            resume_pipeline,
-            advance_pipeline,
-            create_task,
-            assign_task,
-            complete_task,
-            fail_task,
+            agent::orchestrator::get_pipeline_stats,
+            agent::orchestrator::orch_topological_sort,
+            agent::orchestrator::orch_parallel_groups,
+            agent::orchestrator::orch_executable_tasks,
+            agent::orchestrator::orch_schedule_quality,
+            agent::orchestrator::orch_smart_retry,
+            agent::orchestrator::start_pipeline,
+            agent::orchestrator::pause_pipeline,
+            agent::orchestrator::resume_pipeline,
+            agent::orchestrator::advance_pipeline,
+            agent::orchestrator::create_task,
+            agent::orchestrator::assign_task,
+            agent::orchestrator::complete_task,
+            agent::orchestrator::fail_task,
             // api client
             chat_api,
             chat_api_stream,
