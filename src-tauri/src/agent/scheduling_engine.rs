@@ -558,3 +558,11 @@ mod tests {
         assert_eq!(result["urgency"], "🔴 紧急");
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn analyze_task(user_message: String) -> SchedulingResult {
+    let engine = AgentSchedulingEngine::new();
+    engine.analyze(&user_message)
+}

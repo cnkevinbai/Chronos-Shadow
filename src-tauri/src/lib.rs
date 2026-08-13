@@ -65,90 +65,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── General Commands ──────────────────────────────────────────────
-
-#[tauri::command]
-fn get_session_cost(state: tauri::State<AppState>) -> f64 {
-    state.billing_engine.get_budget_total()
-}
-
-#[tauri::command]
-fn get_saved_cost(state: tauri::State<AppState>) -> f64 {
-    let scan = state.buddy_scan.lock().unwrap();
-    let glue = state.context_glue.lock().unwrap();
-    scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved
-}
-
-#[tauri::command]
-fn get_saving_rate(state: tauri::State<AppState>) -> u32 {
-    let scan = state.buddy_scan.lock().unwrap();
-    let glue = state.context_glue.lock().unwrap();
-    let total_saved = scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved;
-    if total_saved > 0.0 { (total_saved * 100.0) as u32 } else { 0 }
-}
-
-// ─── Billing stats (legacy compat) ────────────────────────────
-
-/// 向后兼容旧前端 — 返回 Budget 轨道数据
-#[tauri::command]
-fn get_billing_stats(state: tauri::State<AppState>) -> serde_json::Value {
-    let budget = state.billing_engine.get_ledger(agent::billing_engine::BillingTier::Budget);
-    let scan = state.buddy_scan.lock().unwrap();
-    let glue = state.context_glue.lock().unwrap();
-    let workbuddy_saved = scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved;
-    serde_json::json!({
-        "session_cost": budget.total_cost_rmb,
-        "saved_cost": workbuddy_saved,
-        "saving_rate": 0,
-        "cost_limit": state.billing_engine.get_cost_cap(),
-        "cost_cap_active": !state.billing_engine.is_over_cap() || state.billing_engine.get_budget_total() < state.billing_engine.get_cost_cap(),
-    })
-}
-
-/// 统一仪表盘 — 三轨并行数据一次查询
-#[tauri::command]
-fn get_billing_dashboard(state: tauri::State<AppState>) -> agent::billing_engine::BillingDashboard {
-    state.billing_engine.get_dashboard()
-}
-
-/// 模型降本推荐 — 根据消息长度推荐最优模型
-#[tauri::command]
-fn get_model_recommendation(message_length: usize) -> agent::billing_engine::ModelRecommendation {
-    let engine = agent::billing_engine::ChronosParallelBillingEngine::new();
-    engine.recommend_for_length(message_length)
-}
-
-/// 防幻觉审计 — 分析 LLM 输出，生成信任评分 + 问题清单 + 纠偏建议
-#[tauri::command]
-fn audit_hallucination(response: String) -> agent::hallucination_guard::HallucinationReport {
-    let guard = agent::hallucination_guard::HallucinationGuard::new();
-    guard.audit(&response)
-}
-
-/// 全自动Agent调度 — 分析用户输入，输出最优Agent+模型+技能建议
-#[tauri::command]
-fn analyze_task(user_message: String) -> agent::scheduling_engine::SchedulingResult {
-    let engine = agent::scheduling_engine::AgentSchedulingEngine::new();
-    engine.analyze(&user_message)
-}
-
-/// 上下文健康检查 — 当前 Token 使用占比与优化建议
-#[tauri::command]
-fn check_context_health(model: String, current_tokens: u32) -> agent::billing_engine::ContextHealth {
-    let model_enum = agent::billing::parse_model_string(&model);
-    let engine = agent::billing_engine::ChronosParallelBillingEngine::new();
-    engine.check_context_health(&model_enum, current_tokens)
-}
-
-/// 更新费用上限（同步到 billing_engine）
-#[tauri::command]
-fn update_cost_cap(state: tauri::State<AppState>, cap: f64, enabled: bool) -> Result<String, String> {
-    agent::input_guard::validate_cost(cap)?;
-    state.billing_engine.set_cost_cap(cap);
-    state.billing_engine.set_cost_cap_enabled(enabled);
-    Ok(format!("Cost cap set to ¥{:.2} ({})", cap, if enabled { "ON" } else { "OFF" }))
-}
-
 // ─── WorkBuddy: Context Glue ───────────────────────────────────
 
 #[tauri::command]
@@ -2661,13 +2577,13 @@ pub fn run() {
             agent::buddy_scan::run_buddy_scan,
             agent::buddy_scan::toggle_buddy_scan,
             agent::buddy_scan::get_buddy_saved_cost,
-            get_billing_stats,
-            get_billing_dashboard,
-            update_cost_cap,
-            get_model_recommendation,
-            check_context_health,
-            analyze_task,
-            audit_hallucination,
+            agent::billing_engine::get_billing_stats,
+            agent::billing_engine::get_billing_dashboard,
+            agent::billing_engine::update_cost_cap,
+            agent::billing_engine::get_model_recommendation,
+            agent::billing_engine::check_context_health,
+            agent::scheduling_engine::analyze_task,
+            agent::hallucination_guard::audit_hallucination,
             get_context_glue_status,
             add_app_binding,
             remove_app_binding,
@@ -2681,9 +2597,9 @@ pub fn run() {
             agent::sandbox::sandbox_audit_stats,
             agent::sandbox::sandbox_check_file_size,
             agent::sandbox::sandbox_cleanup_temp,
-            get_session_cost,
-            get_saved_cost,
-            get_saving_rate,
+            agent::billing_engine::get_session_cost,
+            agent::buddy_scan::get_saved_cost,
+            agent::buddy_scan::get_saving_rate,
             // security vault
             get_vault_status,
             vault_api_key,

@@ -544,3 +544,51 @@ mod tests {
         assert_eq!(dashboard.official.call_count, models.len() as u64);
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_session_cost(state: tauri::State<crate::state::AppState>) -> f64 {
+    state.billing_engine.get_budget_total()
+}
+
+#[tauri::command]
+pub fn get_billing_stats(state: tauri::State<crate::state::AppState>) -> serde_json::Value {
+    let budget = state.billing_engine.get_ledger(BillingTier::Budget);
+    let scan = state.buddy_scan.lock().unwrap();
+    let glue = state.context_glue.lock().unwrap();
+    let workbuddy_saved = scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved;
+    serde_json::json!({
+        "session_cost": budget.total_cost_rmb,
+        "saved_cost": workbuddy_saved,
+        "saving_rate": 0,
+        "cost_limit": state.billing_engine.get_cost_cap(),
+        "cost_cap_active": !state.billing_engine.is_over_cap() || state.billing_engine.get_budget_total() < state.billing_engine.get_cost_cap(),
+    })
+}
+
+#[tauri::command]
+pub fn get_billing_dashboard(state: tauri::State<crate::state::AppState>) -> BillingDashboard {
+    state.billing_engine.get_dashboard()
+}
+
+#[tauri::command]
+pub fn get_model_recommendation(message_length: usize) -> ModelRecommendation {
+    let engine = ChronosParallelBillingEngine::new();
+    engine.recommend_for_length(message_length)
+}
+
+#[tauri::command]
+pub fn check_context_health(model: String, current_tokens: u32) -> ContextHealth {
+    let model_enum = crate::agent::billing::parse_model_string(&model);
+    let engine = ChronosParallelBillingEngine::new();
+    engine.check_context_health(&model_enum, current_tokens)
+}
+
+#[tauri::command]
+pub fn update_cost_cap(state: tauri::State<crate::state::AppState>, cap: f64, enabled: bool) -> Result<String, String> {
+    crate::agent::input_guard::validate_cost(cap)?;
+    state.billing_engine.set_cost_cap(cap);
+    state.billing_engine.set_cost_cap_enabled(enabled);
+    Ok(format!("Cost cap set to ¥{:.2} ({})", cap, if enabled { "ON" } else { "OFF" }))
+}

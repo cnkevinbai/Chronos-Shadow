@@ -1020,3 +1020,11 @@ mod tests {
         assert!(report.findings.iter().any(|f| f.category == "编造谎言"));
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn audit_hallucination(response: String) -> HallucinationReport {
+    let guard = HallucinationGuard::new();
+    guard.audit(&response)
+}

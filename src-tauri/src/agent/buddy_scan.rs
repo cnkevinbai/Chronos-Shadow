@@ -592,3 +592,18 @@ pub fn get_buddy_saved_cost(state: tauri::State<crate::state::AppState>) -> f64 
     let glue = state.context_glue.lock().unwrap();
     scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved
 }
+
+#[tauri::command]
+pub fn get_saved_cost(state: tauri::State<crate::state::AppState>) -> f64 {
+    let scan = state.buddy_scan.lock().unwrap();
+    let glue = state.context_glue.lock().unwrap();
+    scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved
+}
+
+#[tauri::command]
+pub fn get_saving_rate(state: tauri::State<crate::state::AppState>) -> u32 {
+    let scan = state.buddy_scan.lock().unwrap();
+    let glue = state.context_glue.lock().unwrap();
+    let total_saved = scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved;
+    if total_saved > 0.0 { (total_saved * 100.0) as u32 } else { 0 }
+}
