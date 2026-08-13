@@ -493,3 +493,99 @@ mod tests {
         assert_eq!(tunnel.config.host, "127.0.0.1");
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn remote_connect(
+    state: tauri::State<'_, crate::state::AppState>,
+    host: String, port: u16, username: String,
+    auth_key_path: Option<String>, remote_project_root: String,
+) -> Result<String, String> {
+    let config = RemoteConfig { host, port, username, auth_key_path, remote_project_root };
+    let tunnel = RemoteProxyTunnel::new(config.clone());
+    tunnel.connect_server().await?;
+    *state.remote_proxy.lock().await = Some(tunnel);
+    Ok(format!("Connected to {}:{}", config.host, config.port))
+}
+
+#[tauri::command]
+pub async fn remote_disconnect(state: tauri::State<'_, crate::state::AppState>) -> Result<String, String> {
+    let mut proxy = state.remote_proxy.lock().await;
+    if let Some(ref mut tunnel) = *proxy {
+        tunnel.disconnect().await;
+    }
+    *proxy = None;
+    Ok("Disconnected".into())
+}
+
+#[tauri::command]
+pub async fn remote_list_files(
+    state: tauri::State<'_, crate::state::AppState>, subpath: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    let proxy = state.remote_proxy.lock().await;
+    let tunnel = proxy.as_ref().ok_or("Not connected")?;
+    let nodes = tunnel.list_remote_files(&subpath).await?;
+    Ok(nodes.iter().map(|n| serde_json::json!({
+        "name": n.name, "path": n.path, "is_dir": n.is_dir, "size": n.size,
+    })).collect())
+}
+
+#[tauri::command]
+pub async fn remote_read_file(
+    state: tauri::State<'_, crate::state::AppState>, path: String,
+) -> Result<String, String> {
+    let proxy = state.remote_proxy.lock().await;
+    let tunnel = proxy.as_ref().ok_or("Not connected")?;
+    tunnel.read_remote_file(&path).await
+}
+
+#[tauri::command]
+pub async fn remote_write_file(
+    state: tauri::State<'_, crate::state::AppState>, path: String, content: String,
+) -> Result<String, String> {
+    let proxy = state.remote_proxy.lock().await;
+    let tunnel = proxy.as_ref().ok_or("Not connected")?;
+    tunnel.remote_file_edit(&path, &content).await?;
+    Ok(format!("Written {} bytes to {}", content.len(), path))
+}
+
+#[tauri::command]
+pub async fn remote_compile(
+    state: tauri::State<'_, crate::state::AppState>, build_command: String,
+) -> Result<String, String> {
+    let proxy = state.remote_proxy.lock().await;
+    let tunnel = proxy.as_ref().ok_or("Not connected")?;
+    tunnel.execute_remote_compile(&build_command).await
+}
+
+#[tauri::command]
+pub async fn remote_snapshot(
+    state: tauri::State<'_, crate::state::AppState>, tag: String,
+) -> Result<String, String> {
+    let proxy = state.remote_proxy.lock().await;
+    let tunnel = proxy.as_ref().ok_or("Not connected")?;
+    tunnel.create_remote_snapshot(&tag).await
+}
+
+#[tauri::command]
+pub async fn remote_rewind(
+    state: tauri::State<'_, crate::state::AppState>, tag: String,
+) -> Result<String, String> {
+    let proxy = state.remote_proxy.lock().await;
+    let tunnel = proxy.as_ref().ok_or("Not connected")?;
+    tunnel.rewind_remote_snapshot(&tag).await
+}
+
+#[tauri::command]
+pub async fn get_remote_stats(state: tauri::State<'_, crate::state::AppState>) -> Result<RemoteSessionStats, String> {
+    let proxy = state.remote_proxy.lock().await;
+    match proxy.as_ref() {
+        Some(tunnel) => Ok(tunnel.get_stats().await),
+        None => Ok(RemoteSessionStats {
+            connected: false, host: String::new(),
+            files_synced: 0, builds_triggered: 0, builds_failed: 0,
+            bytes_transferred: 0, last_error: None,
+        }),
+    }
+}
