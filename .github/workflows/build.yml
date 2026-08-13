@@ -26,10 +26,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Add WiX Toolset to PATH
-        run: echo "$env:WIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-        env:
-          WIX: "C:\\Program Files (x86)\\WiX Toolset v3.11"
+      # WiX v3 is auto-downloaded by the Tauri CLI to %LOCALAPPDATA%\tauri\WixTools
+      # when bundling MSI — no manual install step needed (and setting WIX to a
+      # non-existent path would suppress the auto-download).
 
       - name: Build (frontend + Rust + MSI)
         run: node node_modules/@tauri-apps/cli/tauri.js build --bundles msi
