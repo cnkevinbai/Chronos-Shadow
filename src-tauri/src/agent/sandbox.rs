@@ -1220,3 +1220,34 @@ pub fn get_checkpoints(state: tauri::State<crate::state::AppState>) -> Vec<serde
     let sb = state.sandbox.lock().unwrap();
     sb.checkpoints.iter().map(|cp| serde_json::to_value(cp).unwrap_or_default()).collect()
 }
+
+#[tauri::command]
+pub fn get_sandbox_status(state: tauri::State<crate::state::AppState>) -> String {
+    let sandbox = state.sandbox.lock().unwrap();
+    format!("Protected ({} mounts, {} ops logged)", sandbox.mounts.len(), sandbox.audit_logs.len())
+}
+
+#[tauri::command]
+pub fn sandbox_health_check(state: tauri::State<crate::state::AppState>) -> Result<serde_json::Value, String> {
+    let sb = state.sandbox.lock().unwrap();
+    Ok(serde_json::to_value(sb.health_check()).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn sandbox_audit_stats(state: tauri::State<crate::state::AppState>) -> Result<serde_json::Value, String> {
+    let sb = state.sandbox.lock().unwrap();
+    Ok(sb.audit_stats())
+}
+
+#[tauri::command]
+pub fn sandbox_check_file_size(state: tauri::State<crate::state::AppState>, size: u64) -> Result<String, String> {
+    let sb = state.sandbox.lock().unwrap();
+    sb.check_file_size(size).map(|_| format!("File size {} OK", size))
+}
+
+#[tauri::command]
+pub fn sandbox_cleanup_temp(state: tauri::State<crate::state::AppState>) -> Result<String, String> {
+    let sb = state.sandbox.lock().unwrap();
+    let cleaned = sb.cleanup_temp_files();
+    Ok(format!("Cleaned {} temp files", cleaned))
+}

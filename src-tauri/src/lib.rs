@@ -68,37 +68,6 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder};
 // ─── General Commands ──────────────────────────────────────────────
 
 #[tauri::command]
-fn get_sandbox_status(state: tauri::State<AppState>) -> String {
-    let sandbox = state.sandbox.lock().unwrap();
-    format!("Protected ({} mounts, {} ops logged)", sandbox.mounts.len(), sandbox.audit_logs.len())
-}
-
-#[tauri::command]
-fn sandbox_health_check(state: tauri::State<AppState>) -> Result<serde_json::Value, String> {
-    let sb = state.sandbox.lock().unwrap();
-    Ok(serde_json::to_value(sb.health_check()).map_err(|e| e.to_string())?)
-}
-
-#[tauri::command]
-fn sandbox_audit_stats(state: tauri::State<AppState>) -> Result<serde_json::Value, String> {
-    let sb = state.sandbox.lock().unwrap();
-    Ok(sb.audit_stats())
-}
-
-#[tauri::command]
-fn sandbox_check_file_size(state: tauri::State<AppState>, size: u64) -> Result<String, String> {
-    let sb = state.sandbox.lock().unwrap();
-    sb.check_file_size(size).map(|_| format!("File size {} OK", size))
-}
-
-#[tauri::command]
-fn sandbox_cleanup_temp(state: tauri::State<AppState>) -> Result<String, String> {
-    let sb = state.sandbox.lock().unwrap();
-    let cleaned = sb.cleanup_temp_files();
-    Ok(format!("Cleaned {} temp files", cleaned))
-}
-
-#[tauri::command]
 fn get_session_cost(state: tauri::State<AppState>) -> f64 {
     state.billing_engine.get_budget_total()
 }
@@ -2742,11 +2711,11 @@ pub fn run() {
             save_context_glue_bindings,
             load_context_glue_bindings,
             // general
-            get_sandbox_status,
-            sandbox_health_check,
-            sandbox_audit_stats,
-            sandbox_check_file_size,
-            sandbox_cleanup_temp,
+            agent::sandbox::get_sandbox_status,
+            agent::sandbox::sandbox_health_check,
+            agent::sandbox::sandbox_audit_stats,
+            agent::sandbox::sandbox_check_file_size,
+            agent::sandbox::sandbox_cleanup_temp,
             get_session_cost,
             get_saved_cost,
             get_saving_rate,
