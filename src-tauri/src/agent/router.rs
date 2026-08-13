@@ -1179,3 +1179,43 @@ pub fn route_for_role(state: tauri::State<crate::state::AppState>, role: String)
     let router = state.router.lock().unwrap();
     router.route_text_model(&role).into()
 }
+
+#[tauri::command]
+pub fn get_model_endpoint(state: tauri::State<crate::state::AppState>, model_key: String) -> Result<String, String> {
+    let router = state.router.lock().unwrap();
+    match router.get_model(&model_key) {
+        Some(ModelConfig::Cloud { endpoint, .. }) => Ok(endpoint.clone()),
+        Some(ModelConfig::Local { endpoint, .. }) => Ok(endpoint.clone()),
+        None => Err(format!("Model '{}' not found", model_key)),
+    }
+}
+
+#[tauri::command]
+pub async fn hrouter_select_model(
+    state: tauri::State<'_, crate::state::AppState>,
+    agent_role: String,
+    is_high_urgency: bool,
+) -> Result<serde_json::Value, String> {
+    let decision = state.hybrid_router.select_optimal_model(&agent_role, is_high_urgency).await;
+    Ok(serde_json::json!({
+        "agent_role": decision.agent_role,
+        "selected_model": decision.selected_model.display(),
+        "is_cache_eligible": decision.is_cache_eligible,
+        "is_lan_fallback": decision.is_lan_fallback,
+        "reason": decision.reason,
+    }))
+}
+
+#[tauri::command]
+pub async fn hrouter_get_cluster_status(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<serde_json::Value, String> {
+    let nodes = state.hybrid_router.cluster_nodes.read().await;
+    let status: Vec<_> = nodes.iter().map(|(model, node)| {
+        serde_json::json!({
+            "model": model.display(), "api_url": node.api_url,
+            "timeout_ms": node.timeout_ms, "cost_per_1k": node.cost_per_1k_tokens,
+        })
+    }).collect();
+    Ok(serde_json::json!({ "nodes": status }))
+}

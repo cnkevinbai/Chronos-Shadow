@@ -10,6 +10,7 @@
 // - 唤醒词：用户可通过特定快捷键或语音唤醒
 
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 
 // ─── 类型定义 ──────────────────────────────────────────────────────
 
@@ -290,4 +291,43 @@ pub struct ShadowStats {
     pub suggestions_generated: u32,
     pub accepted: u32,
     pub dismissed: u32,
+}
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_shadow_stats(state: tauri::State<crate::state::AppState>) -> ShadowStats {
+    state.shadow.lock().unwrap().stats()
+}
+
+#[tauri::command]
+pub fn toggle_shadow(state: tauri::State<crate::state::AppState>, enabled: bool) -> String {
+    let mut shadow = state.shadow.lock().unwrap();
+    if enabled {
+        shadow.activate();
+    } else {
+        shadow.pause();
+    }
+    format!("Shadow mode: {}", if enabled { "ON" } else { "OFF" })
+}
+
+#[tauri::command]
+pub fn dismiss_shadow_suggestion(state: tauri::State<crate::state::AppState>, id: String) -> String {
+    state.shadow.lock().unwrap().dismiss_suggestion(&id);
+    format!("Suggestion {} dismissed", id)
+}
+
+#[tauri::command]
+pub fn save_shadow_state(app_handle: tauri::AppHandle, state: tauri::State<crate::state::AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    state.shadow.lock().unwrap().save_state(&dir)?;
+    Ok("Shadow state saved".into())
+}
+
+#[tauri::command]
+pub fn load_shadow_state(app_handle: tauri::AppHandle, state: tauri::State<crate::state::AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    state.shadow.lock().unwrap().load_state(&dir)?;
+    Ok("Shadow state loaded".into())
 }

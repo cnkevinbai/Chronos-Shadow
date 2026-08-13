@@ -65,87 +65,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── HybridAgentRouter Commands ──────────────────────────────
-
-#[tauri::command]
-async fn hrouter_select_model(
-    state: tauri::State<'_, AppState>,
-    agent_role: String,
-    is_high_urgency: bool,
-) -> Result<serde_json::Value, String> {
-    let decision = state.hybrid_router.select_optimal_model(&agent_role, is_high_urgency).await;
-    Ok(serde_json::json!({
-        "agent_role": decision.agent_role,
-        "selected_model": decision.selected_model.display(),
-        "is_cache_eligible": decision.is_cache_eligible,
-        "is_lan_fallback": decision.is_lan_fallback,
-        "reason": decision.reason,
-    }))
-}
-
-#[tauri::command]
-async fn hrouter_get_cluster_status(
-    state: tauri::State<'_, AppState>,
-) -> Result<serde_json::Value, String> {
-    let nodes = state.hybrid_router.cluster_nodes.read().await;
-    let status: Vec<_> = nodes.iter().map(|(model, node)| {
-        serde_json::json!({
-            "model": model.display(), "api_url": node.api_url,
-            "timeout_ms": node.timeout_ms, "cost_per_1k": node.cost_per_1k_tokens,
-        })
-    }).collect();
-    Ok(serde_json::json!({ "nodes": status }))
-}
-
-#[tauri::command]
-fn get_model_endpoint(state: tauri::State<AppState>, model_key: String) -> Result<String, String> {
-    let router = state.router.lock().unwrap();
-    match router.get_model(&model_key) {
-        Some(ModelConfig::Cloud { endpoint, .. }) => Ok(endpoint.clone()),
-        Some(ModelConfig::Local { endpoint, .. }) => Ok(endpoint.clone()),
-        None => Err(format!("Model '{}' not found", model_key)),
-    }
-}
-
-// ─── Shadow Mode Commands ─────────────────────────────────────────
-
-#[tauri::command]
-fn get_shadow_stats(state: tauri::State<AppState>) -> ShadowStats {
-    state.shadow.lock().unwrap().stats()
-}
-
-#[tauri::command]
-fn toggle_shadow(state: tauri::State<AppState>, enabled: bool) -> String {
-    let mut shadow = state.shadow.lock().unwrap();
-    if enabled {
-        shadow.activate();
-    } else {
-        shadow.pause();
-    }
-    format!("Shadow mode: {}", if enabled { "ON" } else { "OFF" })
-}
-
-#[tauri::command]
-fn dismiss_shadow_suggestion(state: tauri::State<AppState>, id: String) -> String {
-    state.shadow.lock().unwrap().dismiss_suggestion(&id);
-    format!("Suggestion {} dismissed", id)
-}
-
-#[tauri::command]
-fn save_shadow_state(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
-    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    state.shadow.lock().unwrap().save_state(&dir)?;
-    Ok("Shadow state saved".into())
-}
-
-#[tauri::command]
-fn load_shadow_state(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
-    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    state.shadow.lock().unwrap().load_state(&dir)?;
-    Ok("Shadow state loaded".into())
-}
-
 // ─── General Commands ──────────────────────────────────────────────
 
 #[tauri::command]
@@ -2707,10 +2626,10 @@ pub fn run() {
             agent::router::get_available_models,
             agent::router::set_model_api_key,
             agent::router::route_for_role,
-            get_model_endpoint,
+            agent::router::get_model_endpoint,
             // hybrid router
-            hrouter_select_model,
-            hrouter_get_cluster_status,
+            agent::router::hrouter_select_model,
+            agent::router::hrouter_get_cluster_status,
             // local analytics
             analytics_record,
             analytics_snapshot,
@@ -2743,11 +2662,11 @@ pub fn run() {
             scan_llm_boundary,
             get_security_report,
             // shadow
-            get_shadow_stats,
-            toggle_shadow,
-            dismiss_shadow_suggestion,
-            save_shadow_state,
-            load_shadow_state,
+            agent::shadow::get_shadow_stats,
+            agent::shadow::toggle_shadow,
+            agent::shadow::dismiss_shadow_suggestion,
+            agent::shadow::save_shadow_state,
+            agent::shadow::load_shadow_state,
             // agent roster + live windows + evolution
             get_agent_roster,
             list_live_windows,
