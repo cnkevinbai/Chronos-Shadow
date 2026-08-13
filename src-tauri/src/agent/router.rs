@@ -1219,3 +1219,8 @@ pub async fn hrouter_get_cluster_status(
     }).collect();
     Ok(serde_json::json!({ "nodes": status }))
 }
+
+#[tauri::command]
+pub async fn check_lan_health() -> Result<Vec<String>, String> {
+    Router::check_lan_health().await
+}

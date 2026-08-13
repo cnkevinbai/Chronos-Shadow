@@ -338,3 +338,18 @@ mod tests {
         });
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_detector_stats() -> Result<serde_json::Value, String> {
+    let detector = SkillAndMcpDetector::new();
+    let stats = detector.get_stats().await;
+    Ok(serde_json::json!({
+        "total_interceptions": stats.total_interceptions,
+        "total_hits": stats.total_hits,
+        "hit_rate": stats.hit_rate,
+        "tokens_saved": stats.tokens_saved,
+        "estimated_cost_saved": stats.estimated_cost_saved,
+    }))
+}

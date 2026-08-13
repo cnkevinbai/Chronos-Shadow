@@ -65,122 +65,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── Security Vault ────────────────────────────────────────
-
-#[tauri::command]
-fn get_vault_status() -> Result<serde_json::Value, String> {
-    let vault = agent::security_vault::NativeSecurityVault::new();
-    Ok(vault.get_security_status())
-}
-
-#[tauri::command]
-fn vault_api_key(target_model: String, secret_key: String) -> Result<String, String> {
-    // Cache in memory immediately — survives keyring failures
-    cache_key(&target_model, &secret_key);
-    // Also persist to Windows Credential Manager
-    let vault = agent::security_vault::NativeSecurityVault::new();
-    vault.vault_api_key_native(&target_model, &secret_key)?;
-    Ok(format!("[{}] 已存入 Windows 凭据保险箱", target_model))
-}
-
-#[tauri::command]
-fn fetch_api_key(target_model: String) -> Result<String, String> {
-    let vault = agent::security_vault::NativeSecurityVault::new();
-    vault.fetch_api_key_native(&target_model)
-}
-
-#[tauri::command]
-fn delete_api_key(target_model: String) -> Result<String, String> {
-    let vault = agent::security_vault::NativeSecurityVault::new();
-    vault.delete_api_key_native(&target_model)?;
-    Ok(format!("[{}] 已从凭据保险箱移除", target_model))
-}
-
-// ─── Detector Stats ────────────────────────────────────────
-
-#[tauri::command]
-async fn get_detector_stats() -> Result<serde_json::Value, String> {
-    let detector = SkillAndMcpDetector::new();
-    let stats = detector.get_stats().await;
-    Ok(serde_json::json!({
-        "total_interceptions": stats.total_interceptions,
-        "total_hits": stats.total_hits,
-        "hit_rate": stats.hit_rate,
-        "tokens_saved": stats.tokens_saved,
-        "estimated_cost_saved": stats.estimated_cost_saved,
-    }))
-}
-
-// ─── LAN Health ─────────────────────────────────────────────
-
-#[tauri::command]
-async fn check_lan_health() -> Result<Vec<String>, String> {
-    Router::check_lan_health().await
-}
-
-// ─── Worktree Commands ─────────────────────────────────────────────
-
-#[tauri::command]
-fn create_worktree(
-    state: tauri::State<AppState>,
-    task_id: String,
-    files: Vec<String>,
-    base_branch: String,
-) -> Result<String, String> {
-    let config = agent::worktree::WorktreeConfig { task_id, files, base_branch };
-    state.worktree.lock().unwrap().create_worktree(&config)
-}
-
-#[tauri::command]
-fn activate_worktree(
-    state: tauri::State<AppState>,
-    worktree_id: String,
-    task_id: String,
-    agent_id: String,
-) -> Result<(), String> {
-    state.worktree.lock().unwrap().activate(&worktree_id, &task_id, &agent_id)
-}
-
-#[tauri::command]
-fn complete_worktree(
-    state: tauri::State<AppState>,
-    worktree_id: String,
-) -> Result<(), String> {
-    state.worktree.lock().unwrap().complete(&worktree_id)
-}
-
-#[tauri::command]
-fn merge_worktree(
-    state: tauri::State<AppState>,
-    worktree_id: String,
-) -> Result<agent::worktree::MergeResult, String> {
-    // 第四红线：Worktree 合并前检查审批状态
-    state.approval_gate.lock().unwrap().check_worktree_merge(&worktree_id)?;
-    state.worktree.lock().unwrap().merge_worktree(&worktree_id)
-}
-
-#[tauri::command]
-fn prune_worktree(
-    state: tauri::State<AppState>,
-    worktree_id: String,
-) -> Result<(), String> {
-    state.worktree.lock().unwrap().prune_worktree(&worktree_id)
-}
-
-#[tauri::command]
-fn list_worktrees(
-    state: tauri::State<AppState>,
-) -> Vec<agent::worktree::WorktreeInstance> {
-    state.worktree.lock().unwrap().worktrees.clone()
-}
-
-#[tauri::command]
-fn get_worktree_stats(
-    state: tauri::State<AppState>,
-) -> agent::worktree::WorktreeStats {
-    state.worktree.lock().unwrap().stats()
-}
-
 // ─── Approval Gate Commands (第四红线) ────────────────────────────
 
 #[tauri::command]
@@ -2240,21 +2124,21 @@ pub fn run() {
             agent::buddy_scan::get_saved_cost,
             agent::buddy_scan::get_saving_rate,
             // security vault
-            get_vault_status,
-            vault_api_key,
-            fetch_api_key,
-            delete_api_key,
-            get_detector_stats,
+            agent::security_vault::get_vault_status,
+            agent::security_vault::vault_api_key,
+            agent::security_vault::fetch_api_key,
+            agent::security_vault::delete_api_key,
+            agent::detector::get_detector_stats,
             // lan health
-            check_lan_health,
+            agent::router::check_lan_health,
             // worktree commands
-            create_worktree,
-            activate_worktree,
-            complete_worktree,
-            merge_worktree,
-            prune_worktree,
-            list_worktrees,
-            get_worktree_stats,
+            agent::worktree::create_worktree,
+            agent::worktree::activate_worktree,
+            agent::worktree::complete_worktree,
+            agent::worktree::merge_worktree,
+            agent::worktree::prune_worktree,
+            agent::worktree::list_worktrees,
+            agent::worktree::get_worktree_stats,
             // approval gate (第四红线)
             submit_for_approval,
             submit_for_approval_with_cost,

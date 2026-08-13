@@ -427,3 +427,65 @@ mod tests {
         assert_eq!(conflicts.len(), 1);
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn create_worktree(
+    state: tauri::State<crate::state::AppState>,
+    task_id: String,
+    files: Vec<String>,
+    base_branch: String,
+) -> Result<String, String> {
+    let config = WorktreeConfig { task_id, files, base_branch };
+    state.worktree.lock().unwrap().create_worktree(&config)
+}
+
+#[tauri::command]
+pub fn activate_worktree(
+    state: tauri::State<crate::state::AppState>,
+    worktree_id: String,
+    task_id: String,
+    agent_id: String,
+) -> Result<(), String> {
+    state.worktree.lock().unwrap().activate(&worktree_id, &task_id, &agent_id)
+}
+
+#[tauri::command]
+pub fn complete_worktree(
+    state: tauri::State<crate::state::AppState>,
+    worktree_id: String,
+) -> Result<(), String> {
+    state.worktree.lock().unwrap().complete(&worktree_id)
+}
+
+#[tauri::command]
+pub fn merge_worktree(
+    state: tauri::State<crate::state::AppState>,
+    worktree_id: String,
+) -> Result<MergeResult, String> {
+    state.approval_gate.lock().unwrap().check_worktree_merge(&worktree_id)?;
+    state.worktree.lock().unwrap().merge_worktree(&worktree_id)
+}
+
+#[tauri::command]
+pub fn prune_worktree(
+    state: tauri::State<crate::state::AppState>,
+    worktree_id: String,
+) -> Result<(), String> {
+    state.worktree.lock().unwrap().prune_worktree(&worktree_id)
+}
+
+#[tauri::command]
+pub fn list_worktrees(
+    state: tauri::State<crate::state::AppState>,
+) -> Vec<WorktreeInstance> {
+    state.worktree.lock().unwrap().worktrees.clone()
+}
+
+#[tauri::command]
+pub fn get_worktree_stats(
+    state: tauri::State<crate::state::AppState>,
+) -> WorktreeStats {
+    state.worktree.lock().unwrap().stats()
+}

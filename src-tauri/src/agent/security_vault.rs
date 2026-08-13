@@ -216,3 +216,32 @@ mod tests {
         assert!(vault.fetch_api_key_native(test_key).is_err());
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_vault_status() -> Result<serde_json::Value, String> {
+    let vault = NativeSecurityVault::new();
+    Ok(vault.get_security_status())
+}
+
+#[tauri::command]
+pub fn vault_api_key(target_model: String, secret_key: String) -> Result<String, String> {
+    crate::agent::key_vault::cache_key(&target_model, &secret_key);
+    let vault = NativeSecurityVault::new();
+    vault.vault_api_key_native(&target_model, &secret_key)?;
+    Ok(format!("[{}] 已存入 Windows 凭据保险箱", target_model))
+}
+
+#[tauri::command]
+pub fn fetch_api_key(target_model: String) -> Result<String, String> {
+    let vault = NativeSecurityVault::new();
+    vault.fetch_api_key_native(&target_model)
+}
+
+#[tauri::command]
+pub fn delete_api_key(target_model: String) -> Result<String, String> {
+    let vault = NativeSecurityVault::new();
+    vault.delete_api_key_native(&target_model)?;
+    Ok(format!("[{}] 已从凭据保险箱移除", target_model))
+}
