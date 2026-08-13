@@ -328,3 +328,58 @@ mod tests {
         });
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn cluster_register_server(
+    state: tauri::State<'_, crate::state::AppState>,
+    server_id: String, host: String, port: u16, username: String,
+    auth_key_path: Option<String>, remote_project_root: String,
+) -> Result<String, String> {
+    let config = crate::agent::remote_proxy::RemoteConfig { host, port, username, auth_key_path, remote_project_root };
+    state.cluster.lock().await.register_and_connect_server(&server_id, config).await?;
+    Ok(format!("Server '{}' registered", server_id))
+}
+
+#[tauri::command]
+pub async fn cluster_unregister_server(
+    state: tauri::State<'_, crate::state::AppState>, server_id: String,
+) -> Result<String, String> {
+    state.cluster.lock().await.unregister_server(&server_id).await;
+    Ok(format!("Server '{}' unregistered", server_id))
+}
+
+#[tauri::command]
+pub async fn cluster_bind_project(
+    state: tauri::State<'_, crate::state::AppState>, project_id: String, server_id: String,
+) -> Result<String, String> {
+    state.cluster.lock().await.bind_project_to_server(&project_id, &server_id).await?;
+    Ok(format!("Project '{}' bound to '{}'", project_id, server_id))
+}
+
+#[tauri::command]
+pub async fn cluster_edit_file(
+    state: tauri::State<'_, crate::state::AppState>,
+    project_id: String, file_path: String, content: String,
+) -> Result<String, String> {
+    state.cluster.lock().await.execute_cluster_file_edit(&project_id, &file_path, &content).await?;
+    Ok(format!("Edited {} on project {}", file_path, project_id))
+}
+
+#[tauri::command]
+pub async fn cluster_compile(
+    state: tauri::State<'_, crate::state::AppState>, project_id: String, build_command: String,
+) -> Result<String, String> {
+    state.cluster.lock().await.execute_cluster_compile(&project_id, &build_command).await
+}
+
+#[tauri::command]
+pub async fn cluster_ping(state: tauri::State<'_, crate::state::AppState>) -> Result<HashMap<String, bool>, String> {
+    Ok(state.cluster.lock().await.cluster_ping().await)
+}
+
+#[tauri::command]
+pub async fn get_cluster_stats(state: tauri::State<'_, crate::state::AppState>) -> Result<ClusterStats, String> {
+    Ok(state.cluster.lock().await.get_cluster_stats().await)
+}
