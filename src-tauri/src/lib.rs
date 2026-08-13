@@ -65,73 +65,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── User Profile Commands ──────────────────────────────────────
-
-#[tauri::command]
-fn get_user_profile(state: tauri::State<AppState>) -> serde_json::Value {
-    let profile = state.user_profile.lock().unwrap();
-    serde_json::json!(profile.clone())
-}
-
-#[tauri::command]
-fn update_user_profile(
-    state: tauri::State<AppState>,
-    display_name: String, nickname: String, avatar: String, personality: String,
-    theme: Option<String>, language: Option<String>,
-    default_model: Option<String>, vision_model: Option<String>,
-    auto_routing: Option<bool>, distillation: Option<bool>,
-    work_hours_start: Option<u32>, work_hours_end: Option<u32>,
-    skill_level: Option<u32>, work_mode: Option<String>,
-) -> String {
-    let mut profile = state.user_profile.lock().unwrap();
-    profile.update_personalization(
-        &display_name, &nickname, &avatar, &personality,
-        &theme.unwrap_or_default(), &language.unwrap_or_default(),
-        &default_model.unwrap_or_default(), &vision_model.unwrap_or_default(),
-        auto_routing.unwrap_or(true), distillation.unwrap_or(true),
-        work_hours_start.unwrap_or(9), work_hours_end.unwrap_or(18),
-        skill_level.unwrap_or(50), &work_mode.unwrap_or_default(),
-    );
-    format!("Profile updated — 你好，{}！", profile.nickname)
-}
-
-#[tauri::command]
-fn get_greeting(state: tauri::State<AppState>) -> String {
-    state.user_profile.lock().unwrap().greeting()
-}
-
-#[tauri::command]
-fn get_personalization(state: tauri::State<AppState>) -> serde_json::Value {
-    state.user_profile.lock().unwrap().personalization_summary()
-}
-
-#[tauri::command]
-fn get_heartbeat(state: tauri::State<AppState>) -> serde_json::Value {
-    state.user_profile.lock().unwrap().heartbeat()
-}
-
-#[tauri::command]
-fn get_achievements(state: tauri::State<AppState>) -> Vec<serde_json::Value> {
-    let profile = state.user_profile.lock().unwrap();
-    let approvals = state.approval_gate.lock().unwrap().audit_log.iter()
-        .filter(|r| r.status == "Approved").count() as u32;
-    let mut achievements = agent::user_profile::Achievement::all();
-    for a in &mut achievements {
-        a.update_progress(&profile, approvals, 0);
-    }
-    achievements.iter().map(|a| serde_json::json!({
-        "id": a.id, "name": a.name, "description": a.description,
-        "emoji": a.emoji, "unlocked": a.unlocked, "progress": a.progress,
-    })).collect()
-}
-
-#[tauri::command]
-fn touch_interaction(state: tauri::State<AppState>) -> String {
-    let mut profile = state.user_profile.lock().unwrap();
-    profile.touch();
-    format!("💓 {}", profile.total_interactions)
-}
-
 // ─── System Health Commands ─────────────────────────────────────
 
 #[tauri::command]
@@ -1717,13 +1650,13 @@ pub fn run() {
             get_system_health,
             get_circuit_breaker_status,
             // user profile
-            get_user_profile,
-            update_user_profile,
-            get_greeting,
-            get_personalization,
-            get_heartbeat,
-            get_achievements,
-            touch_interaction,
+            agent::user_profile::get_user_profile,
+            agent::user_profile::update_user_profile,
+            agent::user_profile::get_greeting,
+            agent::user_profile::get_personalization,
+            agent::user_profile::get_heartbeat,
+            agent::user_profile::get_achievements,
+            agent::user_profile::touch_interaction,
             // security boundary
             agent::security_boundary::check_permission,
             agent::security_boundary::scan_llm_boundary,
