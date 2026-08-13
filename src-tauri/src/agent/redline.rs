@@ -732,3 +732,24 @@ mod tests {
         assert!(result.is_err());
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_redline_status(state: tauri::State<crate::state::AppState>) -> RedlineStatus {
+    state.redline.lock().unwrap().get_status()
+}
+
+#[tauri::command]
+pub fn validate_model_output(state: tauri::State<crate::state::AppState>, raw: String) -> Result<String, String> {
+    match state.redline.lock().unwrap().validate_output(&raw) {
+        Ok(output) => Ok(serde_json::to_string(&output).unwrap_or_default()),
+        Err(e) => Err(format!("{:?}", e)),
+    }
+}
+
+#[tauri::command]
+pub fn reset_fuse(state: tauri::State<crate::state::AppState>) -> String {
+    state.redline.lock().unwrap().reset_fuse();
+    "Fuse reset successfully".into()
+}

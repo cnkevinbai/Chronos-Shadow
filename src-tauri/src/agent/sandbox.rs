@@ -1204,3 +1204,19 @@ mod tests {
         assert_eq!(back.title, "Test");
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn init_sandbox(state: tauri::State<crate::state::AppState>, tools: Vec<String>) -> Result<String, String> {
+    let paths: Vec<std::path::PathBuf> = tools.iter().map(std::path::PathBuf::from).collect();
+    state.sandbox.lock().unwrap().initialize_sandbox(&paths)
+        .map(|_| "Sandbox initialized".into())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_checkpoints(state: tauri::State<crate::state::AppState>) -> Vec<serde_json::Value> {
+    let sb = state.sandbox.lock().unwrap();
+    sb.checkpoints.iter().map(|cp| serde_json::to_value(cp).unwrap_or_default()).collect()
+}

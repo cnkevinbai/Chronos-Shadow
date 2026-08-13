@@ -3,6 +3,9 @@
 
 pub mod agent;
 pub mod vision;
+mod state;
+
+use state::AppState;
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
@@ -60,114 +63,6 @@ use tokio::sync::Mutex as TokioMutex;
 use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
-/// 全局应用状态
-struct AppState {
-    redline: Mutex<RedlineGuard>,
-    orchestrator: Mutex<Orchestrator>,
-    api_client: TokioMutex<ApiClient>,
-    router: Mutex<Router>,
-    #[allow(dead_code)]
-    sandbox: Mutex<Sandbox>,
-    #[allow(dead_code)]
-    skill_engine: Mutex<SkillEngine>,
-    #[allow(dead_code)]
-    mcp_client: TokioMutex<McpClient>,
-    #[allow(dead_code)]
-    subagent_pool: Mutex<SubagentPool>,
-    #[allow(dead_code)]
-    vision: Mutex<VisionEngine>,
-    shadow: Mutex<ShadowEngine>,
-    buddy_scan: Mutex<BuddyScanner>,
-    context_glue: Mutex<ContextGlue>,
-    evolution: TokioMutex<EvolutionEngine>,
-    remote_proxy: TokioMutex<Option<RemoteProxyTunnel>>,
-    cluster: TokioMutex<RemoteClusterManager>,
-    cvfs: tokio::sync::Mutex<ChronosVirtualFileSystem>,
-    billing_engine: ChronosParallelBillingEngine,
-    worktree: Mutex<WorktreeManager>,
-    approval_gate: Mutex<ApprovalGate>,
-    agent_quality: Mutex<AgentQualityEngine>,
-    embedding: Mutex<EmbeddingEngine>,
-    hybrid_router: HybridAgentRouter,
-    analytics: Mutex<LocalAnalytics>,
-    state_mgr: Mutex<StateManager>,
-    workbuddy: Mutex<WorkBuddyEngine>,
-    system_health: SystemHealth,
-    api_circuit_breaker: CircuitBreaker,
-    user_profile: Mutex<UserProfile>,
-    security_boundary: Mutex<SecurityBoundary>,
-    web_intelligence: TokioMutex<WebIntelligence>,
-    collaboration: TokioMutex<CollaborationEngine>,
-    task_intelligence: Mutex<TaskIntelligenceEngine>,
-    predictive: Mutex<PredictiveAnalyticsEngine>,
-    evolution_bus: Mutex<EvolutionBus>,
-    flywheel: Mutex<DataFlywheel>,
-    context_cache: Mutex<agent::context_cache::ContextCacheEngine>,
-}
-
-impl AppState {
-    fn new() -> Self {
-        Self {
-            redline: Mutex::new(RedlineGuard::new(PathBuf::from("."))),
-            orchestrator: Mutex::new(Orchestrator::new()),
-            api_client: TokioMutex::new(ApiClient::new().expect("Failed to create API client")),
-            router: Mutex::new(Router::new()),
-            sandbox: Mutex::new(Sandbox::new(PathBuf::from("."))),
-            skill_engine: Mutex::new(SkillEngine::new()),
-            mcp_client: TokioMutex::new(McpClient::new()),
-            subagent_pool: Mutex::new(SubagentPool::new()),
-            vision: Mutex::new(VisionEngine::new()),
-            shadow: Mutex::new(ShadowEngine::new()),
-            buddy_scan: Mutex::new(BuddyScanner::new()),
-            context_glue: Mutex::new(ContextGlue::new()),
-            evolution: TokioMutex::new(EvolutionEngine::new(Some(PathBuf::from(".")))),
-            remote_proxy: TokioMutex::new(None),
-            cluster: TokioMutex::new(RemoteClusterManager::new()),
-            cvfs: tokio::sync::Mutex::new(ChronosVirtualFileSystem::new()),
-            billing_engine: ChronosParallelBillingEngine::new(),
-            worktree: Mutex::new(WorktreeManager::new(PathBuf::from("."))),
-            approval_gate: Mutex::new(ApprovalGate::new()),
-            agent_quality: Mutex::new(AgentQualityEngine::new()),
-            embedding: Mutex::new(EmbeddingEngine::new()),
-            hybrid_router: HybridAgentRouter::new(),
-            analytics: Mutex::new(LocalAnalytics::new()),
-            state_mgr: Mutex::new(StateManager::new()),
-            workbuddy: Mutex::new(WorkBuddyEngine::new()),
-            system_health: SystemHealth::new(),
-            api_circuit_breaker: CircuitBreaker::new("api"),
-            user_profile: Mutex::new(UserProfile::default()),
-            security_boundary: Mutex::new(SecurityBoundary::new()),
-            web_intelligence: TokioMutex::new(WebIntelligence::new()),
-            collaboration: TokioMutex::new(CollaborationEngine::new()),
-            task_intelligence: Mutex::new(TaskIntelligenceEngine::new()),
-            predictive: Mutex::new(PredictiveAnalyticsEngine::new()),
-            evolution_bus: Mutex::new(EvolutionBus::new()),
-            flywheel: Mutex::new(DataFlywheel::new()),
-            context_cache: Mutex::new(agent::context_cache::ContextCacheEngine::new()),
-        }
-    }
-}
-
-// ─── Redline Commands ──────────────────────────────────────────────
-
-#[tauri::command]
-fn get_redline_status(state: tauri::State<AppState>) -> RedlineStatus {
-    state.redline.lock().unwrap().get_status()
-}
-
-#[tauri::command]
-fn validate_model_output(state: tauri::State<AppState>, raw: String) -> Result<String, String> {
-    match state.redline.lock().unwrap().validate_output(&raw) {
-        Ok(output) => Ok(serde_json::to_string(&output).unwrap_or_default()),
-        Err(e) => Err(format!("{:?}", e)),
-    }
-}
-
-#[tauri::command]
-fn reset_fuse(state: tauri::State<AppState>) -> String {
-    state.redline.lock().unwrap().reset_fuse();
-    "Fuse reset successfully".into()
-}
 
 // ─── Orchestrator Commands ─────────────────────────────────────────
 
@@ -748,22 +643,6 @@ IMPORTANT: JSON on its own line. Complete code, real content, no placeholders."#
     }
 
     Ok(response)
-}
-
-// ─── Sandbox Commands ────────────────────────────────────────────
-
-#[tauri::command]
-fn init_sandbox(state: tauri::State<AppState>, tools: Vec<String>) -> Result<String, String> {
-    let paths: Vec<std::path::PathBuf> = tools.iter().map(std::path::PathBuf::from).collect();
-    state.sandbox.lock().unwrap().initialize_sandbox(&paths)
-        .map(|_| "Sandbox initialized".into())
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn get_checkpoints(state: tauri::State<AppState>) -> Vec<serde_json::Value> {
-    let sb = state.sandbox.lock().unwrap();
-    sb.checkpoints.iter().map(|cp| serde_json::to_value(cp).unwrap_or_default()).collect()
 }
 
 // ─── MCP Commands ────────────────────────────────────────────────
@@ -3575,9 +3454,9 @@ pub fn run() {
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             // redline
-            get_redline_status,
-            validate_model_output,
-            reset_fuse,
+            agent::redline::get_redline_status,
+            agent::redline::validate_model_output,
+            agent::redline::reset_fuse,
             // orchestrator
             get_pipeline_stats,
             orch_topological_sort,
@@ -3601,8 +3480,8 @@ pub fn run() {
             check_dev_environment,
             auto_install_deps,
             // sandbox
-            init_sandbox,
-            get_checkpoints,
+            agent::sandbox::init_sandbox,
+            agent::sandbox::get_checkpoints,
             // mcp
             mcp_connect_and_init,
             mcp_fetch_tools,
