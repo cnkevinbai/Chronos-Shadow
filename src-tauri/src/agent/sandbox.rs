@@ -7,6 +7,7 @@
 // - 文件写操作物理句柄锁死在项目根目录
 
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -1250,4 +1251,154 @@ pub fn sandbox_cleanup_temp(state: tauri::State<crate::state::AppState>) -> Resu
     let sb = state.sandbox.lock().unwrap();
     let cleaned = sb.cleanup_temp_files();
     Ok(format!("Cleaned {} temp files", cleaned))
+}
+
+#[tauri::command]
+pub async fn cvfs_create_project(
+    state: tauri::State<'_, crate::state::AppState>,
+    project_id: String, target_path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let cvfs = state.cvfs.lock().await;
+    let path = cvfs.create_secure_project_workspace(&project_id, PathBuf::from(&target_path)).await
+        .map_err(|e| e.to_string())?;
+    if let Ok(app_data) = app_handle.path().app_data_dir() {
+        let _ = cvfs.save_state_to(&app_data).await;
+    }
+    Ok(format!("Project '{}' created at {:?}", project_id, path))
+}
+
+#[tauri::command]
+pub async fn cvfs_read_file(
+    state: tauri::State<'_, crate::state::AppState>,
+    project_id: String,
+    relative_path: String,
+) -> Result<String, String> {
+    let cvfs = state.cvfs.lock().await;
+    let projects = cvfs.get_projects().await;
+    let project_root = projects.iter()
+        .find(|(id, _)| id == &project_id)
+        .map(|(_, r)| r.clone())
+        .ok_or_else(|| format!("项目 {} 不存在", project_id))?;
+    let full_path = project_root.join(&relative_path);
+    if !full_path.exists() {
+        return Err(format!("文件不存在: {}", relative_path));
+    }
+    std::fs::read_to_string(&full_path)
+        .map_err(|e| format!("读取失败: {}", e))
+}
+
+#[tauri::command]
+pub async fn cvfs_verify_scope(
+    state: tauri::State<'_, crate::state::AppState>,
+    project_id: String, file_path: String,
+) -> Result<String, String> {
+    let cvfs = state.cvfs.lock().await;
+    cvfs.verify_write_scope_permission(&project_id, &file_path).await
+        .map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn cvfs_capture_checkpoint(
+    state: tauri::State<'_, crate::state::AppState>,
+    project_id: String, checkpoint_id: String, description: String,
+) -> Result<String, String> {
+    let cvfs = state.cvfs.lock().await;
+    cvfs.capture_chrono_checkpoint(&project_id, &checkpoint_id, &description, vec![]).await
+        .map_err(|e| e.to_string())?;
+    Ok(format!("Checkpoint '{}' created", checkpoint_id))
+}
+
+#[tauri::command]
+pub async fn cvfs_capture_checkpoint_v2(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, crate::state::AppState>,
+    project_id: String, label: String, description: String,
+) -> Result<serde_json::Value, String> {
+    let cvfs = state.cvfs.lock().await;
+    let cp = cvfs.capture_checkpoint_v2(&project_id, &label, &description).await?;
+    if let Ok(dir) = app_handle.path().app_data_dir() {
+        let _ = cvfs.save_state_to(&dir).await;
+    }
+    Ok(serde_json::json!({
+        "id": cp.checkpoint_id, "timestamp": cp.timestamp,
+        "label": cp.desc, "files_changed": cp.changed_files_diff.len(),
+        "snapshot_type": "Manual",
+    }))
+}
+
+#[tauri::command]
+pub async fn cvfs_restore_checkpoint(
+    state: tauri::State<'_, crate::state::AppState>,
+    project_id: String, checkpoint_id: String,
+) -> Result<String, String> {
+    let cvfs = state.cvfs.lock().await;
+    cvfs.restore_checkpoint(&project_id, &checkpoint_id).await?;
+    Ok(format!("Checkpoint {} restored", checkpoint_id))
+}
+
+#[tauri::command]
+pub async fn cvfs_delete_checkpoint(
+    state: tauri::State<'_, crate::state::AppState>,
+    project_id: String, checkpoint_id: String,
+) -> Result<String, String> {
+    let cvfs = state.cvfs.lock().await;
+    cvfs.delete_checkpoint(&project_id, &checkpoint_id).await?;
+    Ok(format!("Checkpoint {} deleted", checkpoint_id))
+}
+
+#[tauri::command]
+pub async fn cvfs_delete_project(
+    state: tauri::State<'_, crate::state::AppState>,
+    project_id: String,
+) -> Result<String, String> {
+    let cvfs = state.cvfs.lock().await;
+    cvfs.delete_project(&project_id).await?;
+    Ok(format!("Project {} deleted", project_id))
+}
+
+#[tauri::command]
+pub async fn cvfs_list_project_files(
+    state: tauri::State<'_, crate::state::AppState>,
+    project_id: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    let cvfs = state.cvfs.lock().await;
+    let nodes = cvfs.list_project_files(&project_id).await?;
+    Ok(nodes.iter().map(|n| serde_json::json!({
+        "name": n.name, "is_dir": n.is_dir, "relative_path": n.relative_path,
+        "is_locked": n.is_locked,
+    })).collect())
+}
+
+#[tauri::command]
+pub async fn cvfs_get_project_health(
+    state: tauri::State<'_, crate::state::AppState>,
+    project_id: String,
+) -> Result<serde_json::Value, String> {
+    let cvfs = state.cvfs.lock().await;
+    cvfs.get_project_health(&project_id).await
+}
+
+#[tauri::command]
+pub async fn cvfs_get_checkpoints(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let cvfs = state.cvfs.lock().await;
+    let cps = cvfs.get_checkpoints().await;
+    Ok(cps.iter().map(|c| serde_json::json!({
+        "id": c.checkpoint_id, "timestamp": c.timestamp,
+        "label": c.desc, "files_changed": c.changed_files_diff.len(),
+        "snapshot_type": if c.vss_snapshot_guid.is_some() { "Auto" } else { "Manual" },
+    })).collect())
+}
+
+#[tauri::command]
+pub async fn cvfs_get_projects(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let cvfs = state.cvfs.lock().await;
+    let projs = cvfs.get_projects().await;
+    Ok(projs.iter().map(|(id, path)| serde_json::json!({
+        "id": id, "name": id, "path": path.to_string_lossy(),
+    })).collect())
 }

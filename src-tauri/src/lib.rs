@@ -65,166 +65,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── C-VFS Commands ──────────────────────────────────────────
-
-#[tauri::command]
-async fn cvfs_create_project(
-    state: tauri::State<'_, AppState>,
-    project_id: String, target_path: String,
-    app_handle: tauri::AppHandle,
-) -> Result<String, String> {
-    let cvfs = state.cvfs.lock().await;
-    let path = cvfs.create_secure_project_workspace(&project_id, PathBuf::from(&target_path)).await
-        .map_err(|e| e.to_string())?;
-    // 同步保存到 app_data_dir 确保重启恢复
-    if let Ok(app_data) = app_handle.path().app_data_dir() {
-        let _ = cvfs.save_state_to(&app_data).await;
-    }
-    Ok(format!("Project '{}' created at {:?}", project_id, path))
-}
-
-#[tauri::command]
-async fn cvfs_read_file(
-    state: tauri::State<'_, AppState>,
-    project_id: String,
-    relative_path: String,
-) -> Result<String, String> {
-    let cvfs = state.cvfs.lock().await;
-    let projects = cvfs.get_projects().await;
-    let project_root = projects.iter()
-        .find(|(id, _)| id == &project_id)
-        .map(|(_, r)| r.clone())
-        .ok_or_else(|| format!("项目 {} 不存在", project_id))?;
-    let full_path = project_root.join(&relative_path);
-    if !full_path.exists() {
-        return Err(format!("文件不存在: {}", relative_path));
-    }
-    std::fs::read_to_string(&full_path)
-        .map_err(|e| format!("读取失败: {}", e))
-}
-
-#[tauri::command]
-async fn cvfs_verify_scope(
-    state: tauri::State<'_, AppState>,
-    project_id: String, file_path: String,
-) -> Result<String, String> {
-    let cvfs = state.cvfs.lock().await;
-    cvfs.verify_write_scope_permission(&project_id, &file_path).await
-        .map(|p| p.to_string_lossy().to_string())
-}
-
-#[tauri::command]
-async fn cvfs_capture_checkpoint(
-    state: tauri::State<'_, AppState>,
-    project_id: String, checkpoint_id: String, description: String,
-) -> Result<String, String> {
-    let cvfs = state.cvfs.lock().await;
-    cvfs.capture_chrono_checkpoint(&project_id, &checkpoint_id, &description, vec![]).await
-        .map_err(|e| e.to_string())?;
-    Ok(format!("Checkpoint '{}' created", checkpoint_id))
-}
-
-/// V2 检查点捕获 — 带真实文件内容快照
-#[tauri::command]
-async fn cvfs_capture_checkpoint_v2(
-    app_handle: tauri::AppHandle,
-    state: tauri::State<'_, AppState>,
-    project_id: String, label: String, description: String,
-) -> Result<serde_json::Value, String> {
-    let cvfs = state.cvfs.lock().await;
-    let cp = cvfs.capture_checkpoint_v2(&project_id, &label, &description).await?;
-    // 持久化 C-VFS 状态到 app_data_dir
-    if let Ok(dir) = app_handle.path().app_data_dir() {
-        let _ = cvfs.save_state_to(&dir).await;
-    }
-    Ok(serde_json::json!({
-        "id": cp.checkpoint_id, "timestamp": cp.timestamp,
-        "label": cp.desc, "files_changed": cp.changed_files_diff.len(),
-        "snapshot_type": "Manual",
-    }))
-}
-
-/// 恢复检查点 — 还原文件到快照状态
-#[tauri::command]
-async fn cvfs_restore_checkpoint(
-    state: tauri::State<'_, AppState>,
-    project_id: String, checkpoint_id: String,
-) -> Result<String, String> {
-    let cvfs = state.cvfs.lock().await;
-    cvfs.restore_checkpoint(&project_id, &checkpoint_id).await?;
-    Ok(format!("Checkpoint {} restored", checkpoint_id))
-}
-
-/// 删除检查点
-#[tauri::command]
-async fn cvfs_delete_checkpoint(
-    state: tauri::State<'_, AppState>,
-    project_id: String, checkpoint_id: String,
-) -> Result<String, String> {
-    let cvfs = state.cvfs.lock().await;
-    cvfs.delete_checkpoint(&project_id, &checkpoint_id).await?;
-    Ok(format!("Checkpoint {} deleted", checkpoint_id))
-}
-
-/// 删除项目
-#[tauri::command]
-async fn cvfs_delete_project(
-    state: tauri::State<'_, AppState>,
-    project_id: String,
-) -> Result<String, String> {
-    let cvfs = state.cvfs.lock().await;
-    cvfs.delete_project(&project_id).await?;
-    Ok(format!("Project {} deleted", project_id))
-}
-
-/// 列出项目真实文件树
-#[tauri::command]
-async fn cvfs_list_project_files(
-    state: tauri::State<'_, AppState>,
-    project_id: String,
-) -> Result<Vec<serde_json::Value>, String> {
-    let cvfs = state.cvfs.lock().await;
-    let nodes = cvfs.list_project_files(&project_id).await?;
-    Ok(nodes.iter().map(|n| serde_json::json!({
-        "name": n.name, "is_dir": n.is_dir, "relative_path": n.relative_path,
-        "is_locked": n.is_locked,
-    })).collect())
-}
-
-/// 项目健康状态
-#[tauri::command]
-async fn cvfs_get_project_health(
-    state: tauri::State<'_, AppState>,
-    project_id: String,
-) -> Result<serde_json::Value, String> {
-    let cvfs = state.cvfs.lock().await;
-    cvfs.get_project_health(&project_id).await
-}
-
-#[tauri::command]
-async fn cvfs_get_checkpoints(
-    state: tauri::State<'_, AppState>,
-) -> Result<Vec<serde_json::Value>, String> {
-    let cvfs = state.cvfs.lock().await;
-    let cps = cvfs.get_checkpoints().await;
-    Ok(cps.iter().map(|c| serde_json::json!({
-        "id": c.checkpoint_id, "timestamp": c.timestamp,
-        "label": c.desc, "files_changed": c.changed_files_diff.len(),
-        "snapshot_type": if c.vss_snapshot_guid.is_some() { "Auto" } else { "Manual" },
-    })).collect())
-}
-
-#[tauri::command]
-async fn cvfs_get_projects(
-    state: tauri::State<'_, AppState>,
-) -> Result<Vec<serde_json::Value>, String> {
-    let cvfs = state.cvfs.lock().await;
-    let projs = cvfs.get_projects().await;
-    Ok(projs.iter().map(|(id, path)| serde_json::json!({
-        "id": id, "name": id, "path": path.to_string_lossy(),
-    })).collect())
-}
-
 // ─── Security Vault ────────────────────────────────────────
 
 #[tauri::command]
@@ -2349,18 +2189,18 @@ pub fn run() {
             agent::remote_cluster::cluster_ping,
             agent::remote_cluster::get_cluster_stats,
             // cvfs
-            cvfs_create_project,
-            cvfs_verify_scope,
-            cvfs_read_file,
-            cvfs_capture_checkpoint,
-            cvfs_get_checkpoints,
-            cvfs_get_projects,
-            cvfs_delete_project,
-            cvfs_list_project_files,
-            cvfs_capture_checkpoint_v2,
-            cvfs_restore_checkpoint,
-            cvfs_delete_checkpoint,
-            cvfs_get_project_health,
+            agent::sandbox::cvfs_create_project,
+            agent::sandbox::cvfs_verify_scope,
+            agent::sandbox::cvfs_read_file,
+            agent::sandbox::cvfs_capture_checkpoint,
+            agent::sandbox::cvfs_get_checkpoints,
+            agent::sandbox::cvfs_get_projects,
+            agent::sandbox::cvfs_delete_project,
+            agent::sandbox::cvfs_list_project_files,
+            agent::sandbox::cvfs_capture_checkpoint_v2,
+            agent::sandbox::cvfs_restore_checkpoint,
+            agent::sandbox::cvfs_delete_checkpoint,
+            agent::sandbox::cvfs_get_project_health,
             // remote proxy
             agent::remote_proxy::remote_connect,
             agent::remote_proxy::remote_disconnect,
