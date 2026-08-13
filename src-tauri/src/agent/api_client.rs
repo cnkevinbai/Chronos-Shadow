@@ -4,6 +4,7 @@
 // 支持：流式响应、超时控制、指数退避重试、模型降级链、上下文窗口感知
 
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 use crate::agent::billing::estimate_cost_from_model_name;
 
 // ─── API 请求/响应类型 ────────────────────────────────────────────
@@ -493,6 +494,425 @@ fn truncate_str(s: &str, max_chars: usize) -> String {
     if s.chars().count() <= max_chars { return s.to_string(); }
     let preview: String = s.chars().take(max_chars).collect();
     format!("{}...", preview)
+}
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+static LAST_API_CALL: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+static CANCEL_STREAM: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// 估算任务复杂度 (基于消息长度和关键词)
+fn estimate_task_complexity(messages: &[ChatMessage]) -> f64 {
+    let total_len: usize = messages.iter().map(|m| m.content.len()).sum();
+    let has_architecture = messages.iter().any(|m| {
+        let c = &m.content;
+        c.contains("架构") || c.contains("设计") || c.contains("重构") || c.contains("architecture")
+    });
+    let base = (total_len as f64 / 5000.0).min(0.6);
+    if has_architecture { (base + 0.3).min(1.0) } else { base }
+}
+
+/// 将 API 调用中的模型字符串映射到 ModelModel 枚举
+fn parse_model_to_enum(model: &str) -> crate::agent::router::ModelModel {
+    crate::agent::billing::parse_model_string(model)
+}
+
+/// Estimate prompt/completion split from total tokens and response content
+fn split_tokens(total: u32, content: &str) -> (u32, u32) {
+    let completion_est = (content.len() as f64 / 4.0).ceil() as u32;
+    let completion = completion_est.min(total);
+    let prompt = total.saturating_sub(completion);
+    (prompt, completion)
+}
+
+#[tauri::command]
+pub async fn chat_api(
+    state: tauri::State<'_, crate::state::AppState>,
+    endpoint: String,
+    api_key: String,
+    model: String,
+    messages: Vec<serde_json::Value>,
+    max_tokens: Option<u32>,
+) -> Result<ApiResponse, String> {
+    let mut msgs: Vec<ChatMessage> = messages
+        .iter()
+        .map(|m| ChatMessage {
+            role: m["role"].as_str().unwrap_or("user").into(),
+            content: m["content"].as_str().unwrap_or("").into(),
+        })
+        .collect();
+
+    // 注入系统指令：告知 LLM 可用的操作格式
+    let action_instructions = r#"You are Chronos-Shadow, an AI coding assistant with file system access.
+When you need to CREATE or MODIFY files, output a JSON action block:
+{"action":"file_edit","params":{"path":"relative/path.ext","content":"file content here"}}
+
+When you need to READ a file:
+{"action":"file_read","params":{"path":"relative/path.ext"}}
+
+When you need to SEARCH the web:
+{"action":"web_search","params":{"query":"search terms"}}
+
+When you need to FETCH a URL:
+{"action":"web_fetch","params":{"url":"https://..."}}
+
+When the user asks you to CREATE a PPT/PowerPoint presentation, output:
+{"action":"pptx_generate","params":{"title":"Title","slides":[{"slide_type":"TitleSlide","title":"Title","subtitle":"Subtitle"},{"slide_type":"Content","title":"Slide","body":"Content","bullets":["Point1"]},{"slide_type":"ThankYou","title":"Thank You"}]}}
+Templates: Corporate,TechMinimal,Creative,Academic,MinimalWhite,DarkMode
+
+IMPORTANT: Put the JSON on its own line. Write REAL code, not placeholders. Create complete, working files."#;
+
+    // 检查是否已有系统消息，有则追加指令
+    if msgs.first().map(|m| m.role.as_str()) == Some("system") {
+        msgs[0].content = format!("{}\n\n{}", msgs[0].content, action_instructions);
+    } else {
+        msgs.insert(0, ChatMessage { role: "system".into(), content: action_instructions.into() });
+    }
+
+    // Rate limit: minimum 1.5s between calls
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    let last = LAST_API_CALL.load(std::sync::atomic::Ordering::Relaxed);
+    if now - last < 1500 && last > 0 {
+        return Err(format!(
+            "[速率限制] 请等待 {}ms 后再发送。防止误触导致资费浪费。",
+            1500 - (now - last)
+        ));
+    }
+    LAST_API_CALL.store(now, std::sync::atomic::Ordering::Relaxed);
+
+    // 熔断器检查
+    if !state.api_circuit_breaker.allow() {
+        return Err("[CIRCUIT BREAKER] API 熔断器已激活，暂时拒绝请求，请稍后重试".into());
+    }
+
+    // 原子化预占: 防止并发调用超额 (TOCTOU 修复)
+    let estimated_cost = 0.05;
+    if !state.billing_engine.try_reserve(estimated_cost) {
+        let budget = state.billing_engine.get_budget_total();
+        let cap = state.billing_engine.get_cost_cap();
+        return Err(format!(
+            "[熔断拦截] 累计开销 ¥{:.2} 已达安全阈值 ¥{:.2}，API 调用已被阻断。",
+            budget, cap
+        ));
+    }
+
+    // Resolve API key from vault if frontend sent empty (key now stored server-side)
+    let resolved_key = if api_key.is_empty() { crate::agent::key_vault::resolve_key_from_vault(&model) } else { api_key };
+    if resolved_key.is_empty() {
+        state.billing_engine.settle(estimated_cost, 0.0); // 释放预留
+        return Err("[VAULT EMPTY] API Key 未找到。".into());
+    }
+    let mut client = state.api_client.lock().await;
+    let response = client.chat(&endpoint, &resolved_key, &model, msgs, max_tokens).await;
+
+    // 结算实际费用
+    let actual_cost = if response.success {
+        let model_enum = parse_model_to_enum(&model);
+        let (prompt, completion) = split_tokens(response.tokens_used, &response.content);
+        let cost = state.billing_engine.estimate_cost(&model_enum, prompt, completion);
+        state.billing_engine.record(&model_enum, prompt, completion, None);
+        cost
+    } else { 0.0 };
+    state.billing_engine.settle(estimated_cost, actual_cost);
+
+    // ── 进化总线 + 数据飞轮 定期同步 ──
+    {
+        let should_evolve = state.evolution_bus.lock().unwrap().should_evolve();
+        if should_evolve {
+            let mut wi = state.web_intelligence.lock().await;
+            let mut evo = state.evolution_bus.lock().unwrap();
+            let mut fw = state.flywheel.lock().unwrap();
+
+            // 1. 从 WebIntelligence 采集实时指标
+            let stats = wi.get_stats();
+            fw.collect_from_web_intel(
+                stats.total_searches, stats.total_fetches, stats.bytes_downloaded,
+                stats.unified_cache_hits, stats.unified_cache_misses,
+            );
+            fw.collect_from_distillation(
+                stats.total_distilled, stats.total_bytes_saved,
+                stats.avg_compression_ratio,
+                wi.distillation.avg_quality(),
+            );
+
+            // 2. 同步到进化总线
+            wi.sync_to_evolution_bus(&mut evo);
+            drop(wi);
+
+            // 3. 使用飞轮实时指标替代硬编码评估值
+            let distill_q = fw.metrics.get("distill_quality").map(|m| m.value / 100.0).unwrap_or(0.85);
+            let cache_q = fw.metrics.get("cache_hit_rate").map(|m| m.value / 100.0).unwrap_or(0.78);
+            let cache_stability = fw.metrics.get("cache_api_saved").map(|m| (m.value / 100.0).min(1.0)).unwrap_or(0.85);
+
+            evo.assess_advancement(&[
+                (crate::agent::evolution_bus::EngineId::Distillation, distill_q, 0.92),
+                (crate::agent::evolution_bus::EngineId::CacheEngine, cache_q, cache_stability),
+                (crate::agent::evolution_bus::EngineId::Scheduling, 0.82, 0.88),
+                (crate::agent::evolution_bus::EngineId::HallucinationGuard, 0.80, 0.85),
+                (crate::agent::evolution_bus::EngineId::AgentQuality, 0.83, 0.90),
+                (crate::agent::evolution_bus::EngineId::Collaboration, 0.80, 0.87),
+                (crate::agent::evolution_bus::EngineId::TaskIntelligence, 0.78, 0.85),
+                (crate::agent::evolution_bus::EngineId::PredictiveAnalytics, 0.80, 0.86),
+                (crate::agent::evolution_bus::EngineId::LocalAnalytics, 0.82, 0.90),
+            ]);
+
+            // 4. 飞轮旋转 — 累积收益并创建快照
+            fw.spin();
+            drop(evo);
+            drop(fw);
+        }
+    }
+
+    Ok(response)
+}
+
+#[tauri::command]
+pub fn get_cache_hit_stats(state: tauri::State<crate::state::AppState>) -> serde_json::Value {
+    let ctx = state.context_cache.lock().unwrap();
+    let models = ["deepseek-v4-pro", "deepseek-v4-flash", "kimi-k3", "kimi-k2.7-code",
+        "glm-5.2", "glm-5.1", "glm-4.7"];
+    let entries: Vec<serde_json::Value> = models.iter().map(|&m| {
+        let stats = ctx.get_stats(m);
+        serde_json::json!({
+            "model": m,
+            "total_requests": stats.total_requests,
+            "cache_hits": stats.cache_hits,
+            "cached_tokens": stats.cached_tokens,
+            "cost_saved": format!("{:.4}", stats.cost_saved),
+            "hit_rate": format!("{:.1}", stats.hit_rate),
+        })
+    }).collect();
+    let (total_tokens, total_cost) = ctx.total_savings();
+    serde_json::json!({
+        "models": entries,
+        "total_cached_tokens": total_tokens,
+        "total_cost_saved": format!("{:.4}", total_cost),
+    })
+}
+
+#[tauri::command]
+pub fn check_dev_environment() -> crate::agent::env_checker::EnvReport {
+    crate::agent::env_checker::check_environment()
+}
+
+#[tauri::command]
+pub fn auto_install_deps() -> Vec<String> {
+    let report = crate::agent::env_checker::check_environment();
+    crate::agent::env_checker::auto_install_missing(&report)
+}
+
+#[tauri::command]
+pub fn cancel_chat_stream() {
+    CANCEL_STREAM.store(true, std::sync::atomic::Ordering::Relaxed);
+    tracing::info!("[STREAM] User cancelled active stream");
+}
+
+#[tauri::command]
+pub async fn chat_api_stream(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, crate::state::AppState>,
+    endpoint: String,
+    api_key: String,
+    model: String,
+    messages: Vec<serde_json::Value>,
+    max_tokens: Option<u32>,
+) -> Result<ApiResponse, String> {
+    let mut msgs: Vec<ChatMessage> = messages
+        .iter()
+        .map(|m| ChatMessage {
+            role: m["role"].as_str().unwrap_or("user").into(),
+            content: m["content"].as_str().unwrap_or("").into(),
+        })
+        .collect();
+
+    // 注入系统指令 — 全能力清单
+    let action_instructions = r#"You are Chronos-Shadow. You can CREATE files, GENERATE PPTs, CHECK & INSTALL tools, SEARCH the web.
+
+## Available Actions (output as JSON on its own line)
+
+### File Operations
+{"action":"file_edit","params":{"path":"file.ext","content":"..."}}
+{"action":"file_read","params":{"path":"file.ext"}}
+
+### Web Operations
+{"action":"web_search","params":{"query":"search terms"}}
+{"action":"web_fetch","params":{"url":"https://..."}}
+
+### PPT Generation (auto-installs python-pptx if needed)
+{"action":"pptx_generate","params":{"title":"Title","template":"Corporate","slides":[
+  {"slide_type":"TitleSlide","title":"T","subtitle":"S"},
+  {"slide_type":"Content","title":"T","body":"B","bullets":["p1","p2"]},
+  {"slide_type":"ThankYou","title":"Thanks"}
+]}}
+Templates: Corporate,TechMinimal,Creative,Academic,MinimalWhite,DarkMode
+SlideTypes: TitleSlide,SectionHeader,Content,TwoColumn,QuoteSlide,TableSlide,ChartSlide,ThankYou
+
+### Environment Check & Auto-Install
+{"action":"check_environment"}  → returns installed/missing tools
+{"action":"auto_install_deps"}  → installs python-pptx etc.
+
+### Code blocks (```language ... ```) are auto-saved as files.
+
+IMPORTANT: JSON on its own line. Complete code, real content, no placeholders."#;
+
+    if msgs.first().map(|m| m.role.as_str()) == Some("system") {
+        msgs[0].content = format!("{}\n\n{}", msgs[0].content, action_instructions);
+    } else {
+        msgs.insert(0, ChatMessage { role: "system".into(), content: action_instructions.into() });
+    }
+
+    // Rate limit — same 1.5s gate as chat_api
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    let last = LAST_API_CALL.load(std::sync::atomic::Ordering::Relaxed);
+    if last > 0 {
+        let elapsed_ms = (now - last) as u64;
+        if elapsed_ms < 1500 {
+            return Err(format!(
+                "[RATE LIMIT] 请求过于频繁，请等待 {}ms",
+                1500 - elapsed_ms
+            ));
+        }
+    }
+    LAST_API_CALL.store(now, std::sync::atomic::Ordering::Relaxed);
+
+    // Reset cancel flag at start of new stream
+    CANCEL_STREAM.store(false, std::sync::atomic::Ordering::Relaxed);
+
+    // 原子化预占: 防止并发调用超额
+    let estimated_cost = 0.05;
+    if !state.billing_engine.try_reserve(estimated_cost) {
+        let budget = state.billing_engine.get_budget_total();
+        let cap = state.billing_engine.get_cost_cap();
+        return Err(format!(
+            "[熔断拦截] 累计开销 ¥{:.2} 已达安全阈值 ¥{:.2}，流式调用已被阻断。",
+            budget, cap
+        ));
+    }
+
+    // 上下文窗口智能截断 (保留 system + 最近消息，不超窗口 80%)
+    msgs = trim_context(msgs, &model, 2048);
+
+    // Resolve API key from vault
+    let resolved_key = if api_key.is_empty() { crate::agent::key_vault::resolve_key_from_vault(&model) } else { api_key };
+    if resolved_key.is_empty() {
+        state.billing_engine.settle(estimated_cost, 0.0);
+        return Err("[VAULT EMPTY] API Key 未找到。".into());
+    }
+    // 🔬 上下文缓存检测: DeepSeek 一折缓存前缀标记
+    let session_id = format!("stream-{}", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs());
+    let (cached_tokens, _cache_mask) = {
+        let mut ctx_cache = state.context_cache.lock().unwrap();
+        ctx_cache.detect_cacheable_prefix(&session_id, &msgs, &model)
+    };
+
+    // 🔬 前缀稳定化: DeepSeek 缓存最优化消息顺序
+    if model.starts_with("deepseek") {
+        let ctx_cache = state.context_cache.lock().unwrap();
+        msgs = ctx_cache.stabilize_prefix(&msgs);
+    }
+
+    // 🔬 提示词规范化: 剥离时间戳/UUID, 提升哈希命中率
+    msgs = crate::agent::context_cache::ContextCacheEngine::canonicalize_messages(&msgs);
+
+    // 🔬 Kimi/GLM 智能截断 (无原生缓存, 激进裁剪降本)
+    if model.starts_with("kimi") || model.starts_with("glm") {
+        let ctx_cache = state.context_cache.lock().unwrap();
+        msgs = ctx_cache.optimize_kimi_context(&msgs);
+        // 批量合并: 连续短提问合并为单次请求
+        msgs = crate::agent::kimi_glm_optimizer::BatchMerger::merge_consecutive_users(&msgs);
+    }
+
+    // 🔬 模型级联: GLM 按任务复杂度自动选型 (降低成本)
+    let effective_model = if model.starts_with("glm") && !model.contains("5v") {
+        let complexity = estimate_task_complexity(&msgs);
+        let cascade = crate::agent::kimi_glm_optimizer::GlmCascadeRouter::route_by_complexity(complexity, false);
+        if cascade != model {
+            tracing::info!("[GLM Cascade] {} → {} (complexity={:.2})", model, cascade, complexity);
+        }
+        cascade.to_string()
+    } else {
+        model.clone()
+    };
+
+    let mut client = state.api_client.lock().await;
+    let app_handle2 = app_handle.clone();
+    let retry_cfg = RetryConfig::default();
+    let response = client
+        .chat_stream_with_retry(&endpoint, &resolved_key, &effective_model, msgs.clone(), max_tokens,
+            move |chunk| {
+                if CANCEL_STREAM.load(std::sync::atomic::Ordering::Relaxed) {
+                    return;
+                }
+                let _ = app_handle2.emit("chat-stream-chunk", chunk);
+            },
+            &retry_cfg,
+        ).await;
+
+    // 结算实际费用 (含缓存折扣)
+    let actual_cost = if response.success {
+        let model_enum = parse_model_to_enum(&effective_model);
+        let (prompt, completion) = split_tokens(response.tokens_used, &response.content);
+        let mut cost = state.billing_engine.estimate_cost(&model_enum, prompt, completion);
+        if cached_tokens > 0 && effective_model.starts_with("deepseek") {
+            let discount = cached_tokens as f64 / 1_000_000.0 * 0.9;
+            cost = (cost - discount).max(0.0);
+        }
+        state.billing_engine.record(&model_enum, prompt, completion, None);
+        cost
+    } else { 0.0 };
+    state.billing_engine.settle(estimated_cost, actual_cost);
+
+    // ── 进化总线 + 数据飞轮 (stream) ──
+    {
+        let should_evolve = state.evolution_bus.lock().unwrap().should_evolve();
+        if should_evolve {
+            let mut wi = state.web_intelligence.lock().await;
+            let mut evo = state.evolution_bus.lock().unwrap();
+            let mut fw = state.flywheel.lock().unwrap();
+
+            let stats = wi.get_stats();
+            fw.collect_from_web_intel(
+                stats.total_searches, stats.total_fetches, stats.bytes_downloaded,
+                stats.unified_cache_hits, stats.unified_cache_misses,
+            );
+            fw.collect_from_distillation(
+                stats.total_distilled, stats.total_bytes_saved,
+                stats.avg_compression_ratio, wi.distillation.avg_quality(),
+            );
+
+            wi.sync_to_evolution_bus(&mut evo);
+            drop(wi);
+
+            let distill_q = fw.metrics.get("distill_quality").map(|m| m.value / 100.0).unwrap_or(0.85);
+            let cache_q = fw.metrics.get("cache_hit_rate").map(|m| m.value / 100.0).unwrap_or(0.78);
+            let cache_stability = fw.metrics.get("cache_api_saved").map(|m| (m.value / 100.0).min(1.0)).unwrap_or(0.85);
+
+            evo.assess_advancement(&[
+                (crate::agent::evolution_bus::EngineId::Distillation, distill_q, 0.92),
+                (crate::agent::evolution_bus::EngineId::CacheEngine, cache_q, cache_stability),
+                (crate::agent::evolution_bus::EngineId::Scheduling, 0.82, 0.88),
+                (crate::agent::evolution_bus::EngineId::HallucinationGuard, 0.80, 0.85),
+                (crate::agent::evolution_bus::EngineId::AgentQuality, 0.83, 0.90),
+                (crate::agent::evolution_bus::EngineId::Collaboration, 0.80, 0.87),
+                (crate::agent::evolution_bus::EngineId::TaskIntelligence, 0.78, 0.85),
+                (crate::agent::evolution_bus::EngineId::PredictiveAnalytics, 0.80, 0.86),
+                (crate::agent::evolution_bus::EngineId::LocalAnalytics, 0.82, 0.90),
+            ]);
+
+            fw.spin();
+            drop(evo);
+            drop(fw);
+        }
+    }
+
+    Ok(response)
 }
 
 // ─── 费用估算 ─────────────────────────────────────────────────
