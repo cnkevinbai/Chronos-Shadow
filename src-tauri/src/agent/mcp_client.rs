@@ -523,3 +523,17 @@ mod tests {
         client.disconnect("test").unwrap();
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn mcp_connect_and_init(state: tauri::State<'_, crate::state::AppState>, server_id: String) -> Result<String, String> {
+    state.mcp_client.lock().await.connect_and_init(&server_id).await
+        .map(|_| format!("MCP server '{}' connected and initialized", server_id))
+}
+
+#[tauri::command]
+pub async fn mcp_fetch_tools(state: tauri::State<'_, crate::state::AppState>, server_id: String) -> Result<String, String> {
+    let tools = state.mcp_client.lock().await.fetch_and_clean_tools(&server_id).await?;
+    Ok(format!("Fetched {} tools from '{}'", tools.len(), server_id))
+}

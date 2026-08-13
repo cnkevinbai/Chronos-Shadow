@@ -65,68 +65,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── MCP Commands ────────────────────────────────────────────────
-
-#[tauri::command]
-async fn mcp_connect_and_init(state: tauri::State<'_, AppState>, server_id: String) -> Result<String, String> {
-    state.mcp_client.lock().await.connect_and_init(&server_id).await
-        .map(|_| format!("MCP server '{}' connected and initialized", server_id))
-}
-
-#[tauri::command]
-async fn mcp_fetch_tools(state: tauri::State<'_, AppState>, server_id: String) -> Result<String, String> {
-    let tools = state.mcp_client.lock().await.fetch_and_clean_tools(&server_id).await?;
-    Ok(format!("Fetched {} tools from '{}'", tools.len(), server_id))
-}
-
-// ─── Router Commands ──────────────────────────────────────────────
-
-#[tauri::command]
-fn get_route_mode(state: tauri::State<AppState>) -> String {
-    let router = state.router.lock().unwrap();
-    serde_json::to_string(&router.mode).unwrap_or_default()
-}
-
-#[tauri::command]
-fn set_route_mode(state: tauri::State<AppState>, mode_json: String) -> Result<String, String> {
-    let mode: RouteMode = serde_json::from_str(&mode_json)
-        .map_err(|e| format!("Invalid route mode: {}", e))?;
-    let mut router = state.router.lock().unwrap();
-    router.mode = mode;
-    Ok(router.mode.label().into())
-}
-
-#[tauri::command]
-fn get_available_models(state: tauri::State<AppState>) -> Vec<String> {
-    let router = state.router.lock().unwrap();
-    router.models.keys().cloned().collect()
-}
-
-#[tauri::command]
-fn set_model_api_key(
-    state: tauri::State<AppState>,
-    model_key: String,
-    api_key: String,
-) -> Result<String, String> {
-    let mut router = state.router.lock().unwrap();
-    if let Some(config) = router.models.get_mut(&model_key) {
-        if let ModelConfig::Cloud { api_key: ref mut key, .. } = config {
-            *key = api_key;
-            Ok(format!("API key set for {}", model_key))
-        } else {
-            Err(format!("{} is a local model, no API key needed", model_key))
-        }
-    } else {
-        Err(format!("Model {} not found", model_key))
-    }
-}
-
-#[tauri::command]
-fn route_for_role(state: tauri::State<AppState>, role: String) -> String {
-    let router = state.router.lock().unwrap();
-    router.route_text_model(&role).into()
-}
-
 // ─── HybridAgentRouter Commands ──────────────────────────────
 
 #[tauri::command]
@@ -2755,8 +2693,8 @@ pub fn run() {
             agent::sandbox::init_sandbox,
             agent::sandbox::get_checkpoints,
             // mcp
-            mcp_connect_and_init,
-            mcp_fetch_tools,
+            agent::mcp_client::mcp_connect_and_init,
+            agent::mcp_client::mcp_fetch_tools,
             mcp_disconnect,
             mcp_cleanup_stale,
             // orchestrator management
@@ -2764,11 +2702,11 @@ pub fn run() {
             flush_dead_letters,
             get_event_metrics,
             // router
-            get_route_mode,
-            set_route_mode,
-            get_available_models,
-            set_model_api_key,
-            route_for_role,
+            agent::router::get_route_mode,
+            agent::router::set_route_mode,
+            agent::router::get_available_models,
+            agent::router::set_model_api_key,
+            agent::router::route_for_role,
             get_model_endpoint,
             // hybrid router
             hrouter_select_model,

@@ -1131,3 +1131,51 @@ mod tests {
         assert!(router.get_model("nonexistent").is_none());
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_route_mode(state: tauri::State<crate::state::AppState>) -> String {
+    let router = state.router.lock().unwrap();
+    serde_json::to_string(&router.mode).unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn set_route_mode(state: tauri::State<crate::state::AppState>, mode_json: String) -> Result<String, String> {
+    let mode: RouteMode = serde_json::from_str(&mode_json)
+        .map_err(|e| format!("Invalid route mode: {}", e))?;
+    let mut router = state.router.lock().unwrap();
+    router.mode = mode;
+    Ok(router.mode.label().into())
+}
+
+#[tauri::command]
+pub fn get_available_models(state: tauri::State<crate::state::AppState>) -> Vec<String> {
+    let router = state.router.lock().unwrap();
+    router.models.keys().cloned().collect()
+}
+
+#[tauri::command]
+pub fn set_model_api_key(
+    state: tauri::State<crate::state::AppState>,
+    model_key: String,
+    api_key: String,
+) -> Result<String, String> {
+    let mut router = state.router.lock().unwrap();
+    if let Some(config) = router.models.get_mut(&model_key) {
+        if let ModelConfig::Cloud { api_key: ref mut key, .. } = config {
+            *key = api_key;
+            Ok(format!("API key set for {}", model_key))
+        } else {
+            Err(format!("{} is a local model, no API key needed", model_key))
+        }
+    } else {
+        Err(format!("Model {} not found", model_key))
+    }
+}
+
+#[tauri::command]
+pub fn route_for_role(state: tauri::State<crate::state::AppState>, role: String) -> String {
+    let router = state.router.lock().unwrap();
+    router.route_text_model(&role).into()
+}
