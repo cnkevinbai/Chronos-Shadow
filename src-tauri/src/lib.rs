@@ -55,6 +55,7 @@ use agent::task_intelligence::TaskIntelligenceEngine;
 use agent::predictive_analytics::PredictiveAnalyticsEngine;
 use agent::evolution_bus::EvolutionBus;
 use agent::data_flywheel::DataFlywheel;
+use agent::key_vault::{cache_key, load_key_file, resolve_key_from_vault};
 use vision::VisionEngine;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -1763,112 +1764,6 @@ fn parse_model_to_enum(model: &str) -> agent::router::ModelModel {
     agent::billing::parse_model_string(model)
 }
 
-/// In-memory key cache — survives even if Windows Credential Manager is unavailable
-static KEY_CACHE: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, String>>> =
-    std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
-
-/// Store key in memory cache AND persist to file as reliable fallback
-fn cache_key(provider: &str, key: &str) {
-    if let Ok(mut cache) = KEY_CACHE.lock() {
-        cache.insert(provider.to_string(), key.to_string());
-    }
-    // Also persist to file — reliable cross-restart storage
-    let _ = save_key_file(provider, key);
-}
-
-/// File-based key persistence (base64) — reliable fallback when keyring is unavailable
-fn key_file_path() -> std::path::PathBuf {
-    let dir = CONFIG_DIR.lock().unwrap();
-    dir.as_ref().cloned().unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join(".chronos_keys")
-}
-
-fn save_key_file(provider: &str, key: &str) -> std::io::Result<()> {
-    let path = key_file_path();
-    let mut map: std::collections::HashMap<String, String> = if path.exists() {
-        let data = std::fs::read_to_string(&path).unwrap_or_default();
-        serde_json::from_str(&data).unwrap_or_default()
-    } else {
-        std::collections::HashMap::new()
-    };
-    map.insert(provider.to_string(), simple_encode(key));
-    std::fs::write(&path, serde_json::to_string(&map).unwrap_or_default())
-}
-
-fn load_key_file(provider: &str) -> Option<String> {
-    let path = key_file_path();
-    if !path.exists() { return None; }
-    let data = std::fs::read_to_string(&path).ok()?;
-    let map: std::collections::HashMap<String, String> = serde_json::from_str(&data).ok()?;
-    map.get(provider).map(|v| simple_decode(v))
-}
-
-fn simple_encode(s: &str) -> String {
-    // Base64 encode for basic obfuscation — keys are also in WinCred vault
-    use base64::Engine;
-    base64::engine::general_purpose::STANDARD.encode(s.as_bytes())
-}
-
-fn simple_decode(s: &str) -> String {
-    use base64::Engine;
-    base64::engine::general_purpose::STANDARD.decode(s)
-        .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
-        .unwrap_or_default()
-}
-
-/// Resolve API key: memory cache → Windows Credential Manager vault
-fn resolve_key_from_vault(model: &str) -> String {
-    let target = if model.contains("deepseek") { "deepseek" }
-        else if model.contains("kimi") { "kimi" }
-        else if model.contains("glm") { "glm" }
-        else {
-            tracing::warn!("[VAULT] Unknown model '{}', cannot resolve key", model);
-            return String::new();
-        };
-
-    // 1. Try in-memory cache first (instant, same-session)
-    if let Ok(cache) = KEY_CACHE.lock() {
-        if let Some(key) = cache.get(target) {
-            if !key.is_empty() {
-                tracing::info!("[VAULT] Key resolved from memory cache for '{}'", target);
-                return key.clone();
-            }
-        }
-    }
-
-    // 2. Try file-based persistence (reliable cross-restart)
-    if let Some(key) = load_key_file(target) {
-        if !key.is_empty() {
-            tracing::info!("[VAULT] Key resolved from file for '{}'", target);
-            // Restore to memory cache
-            if let Ok(mut cache) = KEY_CACHE.lock() {
-                cache.insert(target.to_string(), key.clone());
-            }
-            return key;
-        }
-    }
-
-    // 3. Fall back to Windows Credential Manager
-    let vault = agent::security_vault::NativeSecurityVault::new();
-    match vault.fetch_api_key_native(target) {
-        Ok(key) if !key.is_empty() => {
-            tracing::info!("[VAULT] Key resolved from WinCred for '{}' — len={}", target, key.len());
-            if let Ok(mut cache) = KEY_CACHE.lock() {
-                cache.insert(target.to_string(), key.clone());
-            }
-            key
-        }
-        Ok(_) => {
-            tracing::warn!("[VAULT] Key for '{}' is empty in WinCred — re-enter in Settings", target);
-            String::new()
-        }
-        Err(e) => {
-            tracing::error!("[VAULT] Failed to read key for '{}': {}", target, e);
-            String::new()
-        }
-    }
-}
-
 /// Estimate prompt/completion split from total tokens and response content
 fn split_tokens(total: u32, content: &str) -> (u32, u32) {
     let completion_est = (content.len() as f64 / 4.0).ceil() as u32;
@@ -1938,7 +1833,7 @@ impl Default for AppSettings {
 }
 
 static SETTINGS: std::sync::Mutex<Option<AppSettings>> = std::sync::Mutex::new(None);
-static CONFIG_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+pub(crate) static CONFIG_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
 
 fn get_config_dir(app_handle: &tauri::AppHandle) -> PathBuf {
     let mut guard = CONFIG_DIR.lock().unwrap();

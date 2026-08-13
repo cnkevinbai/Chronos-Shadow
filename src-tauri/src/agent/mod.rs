@@ -2,6 +2,7 @@
 
 pub mod orchestrator;
 pub mod router;
+pub mod key_vault;
 pub mod sandbox;
 pub mod skill_engine;
 pub mod mcp_client;
