@@ -338,3 +338,39 @@ mod tests {
         assert_eq!(results[0].1.id, "1");
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn embedding_search(
+    state: tauri::State<crate::state::AppState>,
+    query: String,
+    k: usize,
+) -> Vec<serde_json::Value> {
+    let mut engine = state.embedding.lock().unwrap();
+    engine.search(&query, k.max(1).min(20))
+        .into_iter()
+        .map(|(score, entry)| serde_json::json!({
+            "id": entry.id, "text": entry.text,
+            "tags": entry.tags, "score": score,
+            "source": entry.source,
+        }))
+        .collect()
+}
+
+#[tauri::command]
+pub fn embedding_add(
+    state: tauri::State<crate::state::AppState>,
+    id: String, text: String, tags: Vec<String>, source: String,
+) -> String {
+    let mut engine = state.embedding.lock().unwrap();
+    engine.add(&id, &text, tags, &source);
+    format!("Added embedding entry: {}", id)
+}
+
+#[tauri::command]
+pub fn embedding_stats(
+    state: tauri::State<crate::state::AppState>,
+) -> serde_json::Value {
+    state.embedding.lock().unwrap().stats()
+}

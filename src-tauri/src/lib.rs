@@ -65,205 +65,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── Approval Gate Commands (第四红线) ────────────────────────────
-
-#[tauri::command]
-fn submit_for_approval(
-    state: tauri::State<AppState>,
-    action_type: String,
-    target_id: String,
-    description: String,
-    metadata: String, // JSON string for context (project, branch, etc.)
-) -> Result<agent::approval_gate::ApprovalRequest, String> {
-    state.approval_gate.lock().unwrap().submit(&action_type, &target_id, &description, &metadata)
-}
-
-/// 资费感知审批 — 结合计费引擎实时预算状态动态升级风险
-#[tauri::command]
-fn submit_for_approval_with_cost(
-    state: tauri::State<AppState>,
-    action_type: String,
-    target_id: String,
-    description: String,
-    metadata: String,
-    estimated_cost_rmb: f64,
-) -> Result<agent::approval_gate::ApprovalRequest, String> {
-    // 从计费引擎提取实时预算数据
-    let budget_used = state.billing_engine.get_budget_total();
-    let cost_cap = state.billing_engine.get_cost_cap();
-    let current_budget = Some(budget_used);
-    let current_cap = if cost_cap > 0.0 { Some(cost_cap) } else { None };
-
-    let result = state.approval_gate.lock().unwrap().submit_with_cost(
-        &action_type, &target_id, &description, &metadata,
-        estimated_cost_rmb, current_budget, current_cap,
-    );
-    // 如果审批提交成功且需要审批，发布 Blackboard 事件
-    if let Ok(ref req) = result {
-        if req.status == "Pending" {
-            let mut orch = state.orchestrator.lock().unwrap();
-            orch.publish(AgentRole::Auditor, agent::orchestrator::EventType::RedlineViolation {
-                code: "APPROVAL_REQUIRED".into(),
-                message: format!("第四红线：{} 需要人工审批 (风险:{})", req.description, req.risk_level),
-            });
-        }
-    }
-    result
-}
-
-/// Auditor 预筛查 — 高风险操作先经代码审计再提交审批
-#[tauri::command]
-fn auditor_pre_screen_approval(
-    state: tauri::State<AppState>,
-    action_type: String,
-    target_id: String,
-    description: String,
-    metadata: String,
-    auditor_findings: String,
-    auditor_passed: bool,
-) -> Result<agent::approval_gate::ApprovalRequest, String> {
-    // 统计发现项数量
-    let finding_lines = auditor_findings.lines().filter(|l| !l.trim().is_empty()).count() as u32;
-    let prescreen = agent::approval_gate::AuditorPrescreenResult {
-        passed: auditor_passed,
-        findings_count: finding_lines.max(1),
-        critical_count: if auditor_passed { 0 } else { 1 },
-        summary: auditor_findings,
-    };
-    state.approval_gate.lock().unwrap().submit_with_auditor(
-        &action_type, &target_id, &description, &metadata, prescreen,
-    )
-}
-
-#[tauri::command]
-fn decide_approval(
-    state: tauri::State<AppState>,
-    request_id: String,
-    decision: String,
-    reviewer: String,
-    comment: String,
-) -> Result<agent::approval_gate::ApprovalRequest, String> {
-    let result = state.approval_gate.lock().unwrap().decide(&request_id, &decision, &reviewer, &comment)?;
-    // 发布审批决策事件到 Blackboard
-    let event_code = if result.status == "Approved" { "APPROVAL_GRANTED" } else { "APPROVAL_REJECTED" };
-    let mut orch = state.orchestrator.lock().unwrap();
-    orch.publish(AgentRole::Auditor, agent::orchestrator::EventType::RedlineViolation {
-        code: event_code.into(),
-        message: format!("审批 {}: {} — {} 决定: {}",
-            result.id, result.description,
-            if result.status == "Approved" { "✅ 通过" } else { "❌ 驳回" },
-            comment),
-    });
-    Ok(result)
-}
-
-#[tauri::command]
-fn list_pending_approvals(
-    state: tauri::State<AppState>,
-) -> Vec<agent::approval_gate::ApprovalRequest> {
-    state.approval_gate.lock().unwrap().list_pending()
-}
-
-#[tauri::command]
-fn get_approval_audit_log(
-    state: tauri::State<AppState>,
-    limit: Option<usize>,
-) -> Vec<agent::approval_gate::ApprovalRequest> {
-    state.approval_gate.lock().unwrap().get_audit_log(limit.unwrap_or(50))
-}
-
-#[tauri::command]
-fn add_approval_rule(
-    state: tauri::State<AppState>,
-    action_type: String,
-    risk_level: u32,
-    auto_approve_below_risk: u32,
-    description: String,
-) -> Result<String, String> {
-    state.approval_gate.lock().unwrap().add_rule(&action_type, risk_level, auto_approve_below_risk, &description)
-}
-
-#[tauri::command]
-fn remove_approval_rule(
-    state: tauri::State<AppState>,
-    rule_id: String,
-) -> Result<(), String> {
-    state.approval_gate.lock().unwrap().remove_rule(&rule_id)
-}
-
-#[tauri::command]
-fn get_approval_rules(
-    state: tauri::State<AppState>,
-) -> Vec<agent::approval_gate::ApprovalRule> {
-    state.approval_gate.lock().unwrap().get_rules()
-}
-
-// ─── Embedding Engine Commands ─────────────────────────────────────
-
-#[tauri::command]
-fn embedding_search(
-    state: tauri::State<AppState>,
-    query: String,
-    k: usize,
-) -> Vec<serde_json::Value> {
-    let mut engine = state.embedding.lock().unwrap();
-    engine.search(&query, k.max(1).min(20))
-        .into_iter()
-        .map(|(score, entry)| serde_json::json!({
-            "id": entry.id, "text": entry.text,
-            "tags": entry.tags, "score": score,
-            "source": entry.source,
-        }))
-        .collect()
-}
-
-#[tauri::command]
-fn embedding_add(
-    state: tauri::State<AppState>,
-    id: String, text: String, tags: Vec<String>, source: String,
-) -> String {
-    let mut engine = state.embedding.lock().unwrap();
-    engine.add(&id, &text, tags, &source);
-    format!("Added embedding entry: {}", id)
-}
-
-#[tauri::command]
-fn embedding_stats(
-    state: tauri::State<AppState>,
-) -> serde_json::Value {
-    state.embedding.lock().unwrap().stats()
-}
-
-/// 审批模式演化建议 — 基于历史数据自动推荐规则阈值调优
-#[tauri::command]
-fn get_approval_suggestions(
-    state: tauri::State<AppState>,
-) -> Vec<agent::approval_gate::RuleSuggestion> {
-    state.approval_gate.lock().unwrap().suggest_rule_optimizations()
-}
-
-#[tauri::command]
-fn expire_stale_approvals(
-    state: tauri::State<AppState>,
-) -> Vec<String> {
-    state.approval_gate.lock().unwrap().expire_stale()
-}
-
-#[tauri::command]
-fn save_approval_state(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
-    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    state.approval_gate.lock().unwrap().save_state(&dir)?;
-    Ok("Approval state saved".into())
-}
-
-#[tauri::command]
-fn load_approval_state(app_handle: AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
-    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    state.approval_gate.lock().unwrap().load_state(&dir)?;
-    Ok("Approval state loaded".into())
-}
-
 // ─── Local Analytics Commands ─────────────────────────────────────
 
 #[tauri::command]
@@ -2055,9 +1856,9 @@ pub fn run() {
             record_agent_task_quality,
             get_global_quality_report,
             // embedding engine
-            embedding_search,
-            embedding_add,
-            embedding_stats,
+            agent::evolving::embedding::embedding_search,
+            agent::evolving::embedding::embedding_add,
+            agent::evolving::embedding::embedding_stats,
             // settings persistence
             load_settings,
             save_settings,
@@ -2140,19 +1941,19 @@ pub fn run() {
             agent::worktree::list_worktrees,
             agent::worktree::get_worktree_stats,
             // approval gate (第四红线)
-            submit_for_approval,
-            submit_for_approval_with_cost,
-            auditor_pre_screen_approval,
-            decide_approval,
-            list_pending_approvals,
-            get_approval_audit_log,
-            add_approval_rule,
-            remove_approval_rule,
-            get_approval_rules,
-            get_approval_suggestions,
-            expire_stale_approvals,
-            save_approval_state,
-            load_approval_state,
+            agent::approval_gate::submit_for_approval,
+            agent::approval_gate::submit_for_approval_with_cost,
+            agent::approval_gate::auditor_pre_screen_approval,
+            agent::approval_gate::decide_approval,
+            agent::approval_gate::list_pending_approvals,
+            agent::approval_gate::get_approval_audit_log,
+            agent::approval_gate::add_approval_rule,
+            agent::approval_gate::remove_approval_rule,
+            agent::approval_gate::get_approval_rules,
+            agent::approval_gate::get_approval_suggestions,
+            agent::approval_gate::expire_stale_approvals,
+            agent::approval_gate::save_approval_state,
+            agent::approval_gate::load_approval_state,
             // session persistence (chunked)
             save_chat_session_chunk,
             load_chat_session_chunk,

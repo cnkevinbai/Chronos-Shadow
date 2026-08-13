@@ -18,6 +18,7 @@
 //   Evolution Engine         — 审批模式反馈到演化引擎
 
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 use std::collections::HashMap;
 
 // ─── 四维风险特征矩阵 ──────────────────────────────────────────────
@@ -729,4 +730,159 @@ mod tests {
         let suggestions = gate.suggest_rule_optimizations();
         assert!(!suggestions.is_empty());
     }
+}
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn submit_for_approval(
+    state: tauri::State<crate::state::AppState>,
+    action_type: String,
+    target_id: String,
+    description: String,
+    metadata: String,
+) -> Result<ApprovalRequest, String> {
+    state.approval_gate.lock().unwrap().submit(&action_type, &target_id, &description, &metadata)
+}
+
+#[tauri::command]
+pub fn submit_for_approval_with_cost(
+    state: tauri::State<crate::state::AppState>,
+    action_type: String,
+    target_id: String,
+    description: String,
+    metadata: String,
+    estimated_cost_rmb: f64,
+) -> Result<ApprovalRequest, String> {
+    let budget_used = state.billing_engine.get_budget_total();
+    let cost_cap = state.billing_engine.get_cost_cap();
+    let current_budget = Some(budget_used);
+    let current_cap = if cost_cap > 0.0 { Some(cost_cap) } else { None };
+    let result = state.approval_gate.lock().unwrap().submit_with_cost(
+        &action_type, &target_id, &description, &metadata,
+        estimated_cost_rmb, current_budget, current_cap,
+    );
+    if let Ok(ref req) = result {
+        if req.status == "Pending" {
+            let mut orch = state.orchestrator.lock().unwrap();
+            orch.publish(crate::agent::orchestrator::AgentRole::Auditor, crate::agent::orchestrator::EventType::RedlineViolation {
+                code: "APPROVAL_REQUIRED".into(),
+                message: format!("第四红线：{} 需要人工审批 (风险:{})", req.description, req.risk_level),
+            });
+        }
+    }
+    result
+}
+
+#[tauri::command]
+pub fn auditor_pre_screen_approval(
+    state: tauri::State<crate::state::AppState>,
+    action_type: String,
+    target_id: String,
+    description: String,
+    metadata: String,
+    auditor_findings: String,
+    auditor_passed: bool,
+) -> Result<ApprovalRequest, String> {
+    let finding_lines = auditor_findings.lines().filter(|l| !l.trim().is_empty()).count() as u32;
+    let prescreen = AuditorPrescreenResult {
+        passed: auditor_passed,
+        findings_count: finding_lines.max(1),
+        critical_count: if auditor_passed { 0 } else { 1 },
+        summary: auditor_findings,
+    };
+    state.approval_gate.lock().unwrap().submit_with_auditor(
+        &action_type, &target_id, &description, &metadata, prescreen,
+    )
+}
+
+#[tauri::command]
+pub fn decide_approval(
+    state: tauri::State<crate::state::AppState>,
+    request_id: String,
+    decision: String,
+    reviewer: String,
+    comment: String,
+) -> Result<ApprovalRequest, String> {
+    let result = state.approval_gate.lock().unwrap().decide(&request_id, &decision, &reviewer, &comment)?;
+    let event_code = if result.status == "Approved" { "APPROVAL_GRANTED" } else { "APPROVAL_REJECTED" };
+    let mut orch = state.orchestrator.lock().unwrap();
+    orch.publish(crate::agent::orchestrator::AgentRole::Auditor, crate::agent::orchestrator::EventType::RedlineViolation {
+        code: event_code.into(),
+        message: format!("审批 {}: {} — {} 决定: {}",
+            result.id, result.description,
+            if result.status == "Approved" { "✅ 通过" } else { "❌ 驳回" },
+            comment),
+    });
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn list_pending_approvals(
+    state: tauri::State<crate::state::AppState>,
+) -> Vec<ApprovalRequest> {
+    state.approval_gate.lock().unwrap().list_pending()
+}
+
+#[tauri::command]
+pub fn get_approval_audit_log(
+    state: tauri::State<crate::state::AppState>,
+    limit: Option<usize>,
+) -> Vec<ApprovalRequest> {
+    state.approval_gate.lock().unwrap().get_audit_log(limit.unwrap_or(50))
+}
+
+#[tauri::command]
+pub fn add_approval_rule(
+    state: tauri::State<crate::state::AppState>,
+    action_type: String,
+    risk_level: u32,
+    auto_approve_below_risk: u32,
+    description: String,
+) -> Result<String, String> {
+    state.approval_gate.lock().unwrap().add_rule(&action_type, risk_level, auto_approve_below_risk, &description)
+}
+
+#[tauri::command]
+pub fn remove_approval_rule(
+    state: tauri::State<crate::state::AppState>,
+    rule_id: String,
+) -> Result<(), String> {
+    state.approval_gate.lock().unwrap().remove_rule(&rule_id)
+}
+
+#[tauri::command]
+pub fn get_approval_rules(
+    state: tauri::State<crate::state::AppState>,
+) -> Vec<ApprovalRule> {
+    state.approval_gate.lock().unwrap().get_rules()
+}
+
+#[tauri::command]
+pub fn get_approval_suggestions(
+    state: tauri::State<crate::state::AppState>,
+) -> Vec<RuleSuggestion> {
+    state.approval_gate.lock().unwrap().suggest_rule_optimizations()
+}
+
+#[tauri::command]
+pub fn expire_stale_approvals(
+    state: tauri::State<crate::state::AppState>,
+) -> Vec<String> {
+    state.approval_gate.lock().unwrap().expire_stale()
+}
+
+#[tauri::command]
+pub fn save_approval_state(app_handle: tauri::AppHandle, state: tauri::State<crate::state::AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    state.approval_gate.lock().unwrap().save_state(&dir)?;
+    Ok("Approval state saved".into())
+}
+
+#[tauri::command]
+pub fn load_approval_state(app_handle: tauri::AppHandle, state: tauri::State<crate::state::AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    state.approval_gate.lock().unwrap().load_state(&dir)?;
+    Ok("Approval state loaded".into())
 }
