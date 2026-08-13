@@ -241,7 +241,7 @@ impl PptxEngine {
         self.generate_pptx_rust(request, &template, &output)
     }
 
-    /// 🔬 纯 Rust 原生 PPTX 生成 (无需 Python, 永远成功)
+    /// 🔬 纯 Rust 原生 PPTX 生成 — 产出符合 OOXML 架构的完整包 (含 slideMaster/slideLayout/theme/docProps)
     pub fn generate_pptx_rust(
         &self, req: &PptGenerationRequest, tmpl: &PptTemplate, output: &str,
     ) -> PptGenerationResult {
@@ -261,59 +261,43 @@ impl PptxEngine {
         let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated);
 
-        // [Content_Types].xml
-        let mut content_types = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
-        content_types.push_str("<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\n");
-        content_types.push_str("  <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>\n");
-        content_types.push_str("  <Default Extension=\"xml\" ContentType=\"application/xml\"/>\n");
-        content_types.push_str("  <Override PartName=\"/ppt/presentation.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml\"/>\n");
-        for i in 1..=req.slides.len() {
-            content_types.push_str(&format!("  <Override PartName=\"/ppt/slides/slide{}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.slide+xml\"/>\n", i));
-        }
-        content_types.push_str("</Types>");
-        let _ = archive.start_file("[Content_Types].xml", options);
-        let _ = archive.write_all(content_types.as_bytes());
-
-        // _rels/.rels
-        let rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"ppt/presentation.xml\"/></Relationships>";
-        let _ = archive.start_file("_rels/.rels", options);
-        let _ = archive.write_all(rels.as_bytes());
-
-        // ppt/presentation.xml
+        let n = req.slides.len();
         let bg = tmpl.bg_color();
         let accent = tmpl.accent_color();
         let text_color = tmpl.text_color();
         let font = tmpl.font_family();
-        let slide_ids: String = (1..=req.slides.len())
-            .map(|i| format!("<p:sldId id=\"{}\" r:id=\"rId{}\"/>", 255 + i, i))
-            .collect();
-        let mut presentation = format!(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<p:presentation xmlns:p=\"http://schemas.openxmlformats.org/presentationml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><p:sldMasterIdLst/><p:sldIdLst>{}</p:sldIdLst><p:sldSz cx=\"12192000\" cy=\"6858000\"/><p:notesSz cx=\"6858000\" cy=\"9144000\"/></p:presentation>",
-            slide_ids
-        );
-        presentation.push_str("");
-        let _ = archive.start_file("ppt/presentation.xml", options);
-        let _ = archive.write_all(presentation.as_bytes());
 
-        // ppt/_rels/presentation.xml.rels
-        let mut pres_rels = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
-        for i in 1..=req.slides.len() {
-            pres_rels.push_str(&format!("<Relationship Id=\"rId{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide\" Target=\"slides/slide{}.xml\"/>", i, i));
+        // OOXML 必备骨架部件 (slideMaster/slideLayout/theme/docProps 缺一不可)
+        let fixed: Vec<(&str, String)> = vec![
+            ("[Content_Types].xml", content_types_xml(n)),
+            ("_rels/.rels", root_rels_xml()),
+            ("docProps/core.xml", core_props_xml(&req.title)),
+            ("docProps/app.xml", app_props_xml(n)),
+            ("ppt/presentation.xml", presentation_xml(n)),
+            ("ppt/_rels/presentation.xml.rels", presentation_rels_xml(n)),
+            ("ppt/presProps.xml", pres_props_xml()),
+            ("ppt/viewProps.xml", view_props_xml()),
+            ("ppt/tableStyles.xml", table_styles_xml()),
+            ("ppt/theme/theme1.xml", theme_xml()),
+            ("ppt/slideMasters/slideMaster1.xml", slide_master_xml()),
+            ("ppt/slideMasters/_rels/slideMaster1.xml.rels", slide_master_rels_xml()),
+            ("ppt/slideLayouts/slideLayout1.xml", slide_layout_xml()),
+            ("ppt/slideLayouts/_rels/slideLayout1.xml.rels", slide_layout_rels_xml()),
+        ];
+        for (path, content) in &fixed {
+            let _ = archive.start_file(*path, options);
+            let _ = archive.write_all(content.as_bytes());
         }
-        pres_rels.push_str("</Relationships>");
-        let _ = archive.start_file("ppt/_rels/presentation.xml.rels", options);
-        let _ = archive.write_all(pres_rels.as_bytes());
 
-        // slides
+        // 幻灯片 + 各自 rels
         for (i, slide) in req.slides.iter().enumerate() {
-            let slide_xml = build_slide_xml(slide, i + 1, bg, accent, text_color, font);
-            let _ = archive.start_file(format!("ppt/slides/slide{}.xml", i + 1), options);
+            let idx = i + 1;
+            let slide_xml = build_slide_xml(slide, idx, bg, accent, text_color, font);
+            let _ = archive.start_file(format!("ppt/slides/slide{}.xml", idx), options);
             let _ = archive.write_all(slide_xml.as_bytes());
 
-            // slide rels
-            let slide_rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout\" Target=\"../slideLayouts/slideLayout1.xml\"/></Relationships>";
-            let _ = archive.start_file(format!("ppt/slides/_rels/slide{}.xml.rels", i + 1), options);
-            let _ = archive.write_all(slide_rels.as_bytes());
+            let _ = archive.start_file(format!("ppt/slides/_rels/slide{}.xml.rels", idx), options);
+            let _ = archive.write_all(slide_rels_xml().as_bytes());
         }
 
         if let Err(e) = archive.finish() {
@@ -326,7 +310,7 @@ impl PptxEngine {
         PptGenerationResult {
             success: true,
             file_path: Some(output.to_string()),
-            slide_count: req.slides.len(),
+            slide_count: n,
             template_used: tmpl.name().into(),
             error: None,
         }
@@ -589,6 +573,114 @@ fn xml_escape(s: &str) -> String {
         .replace('"', "&quot;").replace('\'', "&apos;")
 }
 
+// ─── OOXML 必备骨架部件 ───────────────────────────────────────────
+
+fn content_types_xml(slide_count: usize) -> String {
+    let mut s = String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
+"#);
+    for i in 1..=slide_count {
+        s.push_str(&format!("<Override PartName=\"/ppt/slides/slide{}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.presentationml.slide+xml\"/>\n", i));
+    }
+    s.push_str(r#"<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
+<Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+<Override PartName="/ppt/presProps.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presProps+xml"/>
+<Override PartName="/ppt/viewProps.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.viewProps+xml"/>
+<Override PartName="/ppt/tableStyles.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml"/>
+<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+</Types>"#);
+    s
+}
+
+fn root_rels_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>"#.to_string()
+}
+
+fn core_props_xml(title: &str) -> String {
+    format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>{}</dc:title><dc:creator>Chronos-Shadow</dc:creator><cp:lastModifiedBy>Chronos-Shadow</cp:lastModifiedBy><cp:revision>1</cp:revision></cp:coreProperties>"#, xml_escape(title))
+}
+
+fn app_props_xml(slide_count: usize) -> String {
+    format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Chronos-Shadow</Application><PresentationFormat>On-screen Show (16:9)</PresentationFormat><Slides>{}</Slides><Notes>0</Notes><HiddenSlides>0</HiddenSlides><MMClips>0</MMClips><AppVersion>16.0000</AppVersion></Properties>"#, slide_count)
+}
+
+fn presentation_xml(slide_count: usize) -> String {
+    let mut sld_ids = String::new();
+    for i in 1..=slide_count {
+        sld_ids.push_str(&format!("<p:sldId id=\"{}\" r:id=\"rId{}\"/>", 255 + i, i + 1));
+    }
+    format!(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:sldIdLst>{}</p:sldIdLst><p:sldSz cx="12192000" cy="6858000"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>"#, sld_ids)
+}
+
+fn presentation_rels_xml(slide_count: usize) -> String {
+    let mut s = String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>"#);
+    for i in 1..=slide_count {
+        s.push_str(&format!("<Relationship Id=\"rId{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide\" Target=\"slides/slide{}.xml\"/>", i + 1, i));
+    }
+    let b = slide_count + 1;
+    s.push_str(&format!("<Relationship Id=\"rId{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\"/>", b + 1));
+    s.push_str(&format!("<Relationship Id=\"rId{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/presProps\" Target=\"presProps.xml\"/>", b + 2));
+    s.push_str(&format!("<Relationship Id=\"rId{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/viewProps\" Target=\"viewProps.xml\"/>", b + 3));
+    s.push_str(&format!("<Relationship Id=\"rId{}\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles\" Target=\"tableStyles.xml\"/>", b + 4));
+    s.push_str("</Relationships>");
+    s
+}
+
+fn pres_props_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentationPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>"#.to_string()
+}
+
+fn view_props_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:viewPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:slideViewPr><p:cSldViewPr><p:cViewPr varScale="1"><p:scale><a:sx n="100" d="100"/><a:sy n="100" d="100"/></p:scale><p:origin x="0" y="0"/></p:cViewPr></p:cSldViewPr></p:slideViewPr></p:viewPr>"#.to_string()
+}
+
+fn table_styles_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"/>"#.to_string()
+}
+
+fn theme_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Chronos"><a:themeElements><a:clrScheme name="Chronos"><a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1><a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="1F497D"/></a:dk2><a:lt2><a:srgbClr val="EEECE1"/></a:lt2><a:accent1><a:srgbClr val="4F81BD"/></a:accent1><a:accent2><a:srgbClr val="C0504D"/></a:accent2><a:accent3><a:srgbClr val="9BBB59"/></a:accent3><a:accent4><a:srgbClr val="8064A2"/></a:accent4><a:accent5><a:srgbClr val="4BACC6"/></a:accent5><a:accent6><a:srgbClr val="F79646"/></a:accent6><a:hlink><a:srgbClr val="0000FF"/></a:hlink><a:folHlink><a:srgbClr val="800080"/></a:folHlink></a:clrScheme><a:fontScheme name="Chronos"><a:majorFont><a:latin typeface="Cambria"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme><a:fmtScheme name="Chronos"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="9525" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln><a:ln w="25400" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln><a:ln w="38100" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements><a:objectDefaults/><a:extraClrSchemeLst/></a:theme>"#.to_string()
+}
+
+fn slide_master_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst><p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles></p:sldMaster>"#.to_string()
+}
+
+fn slide_master_rels_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/></Relationships>"#.to_string()
+}
+
+fn slide_layout_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank" preserve="1"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>"#.to_string()
+}
+
+fn slide_layout_rels_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>"#.to_string()
+}
+
+fn slide_rels_xml() -> String {
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>"#.to_string()
+}
+
 /// 生成单页幻灯片 OOXML
 fn build_slide_xml(
     slide: &SlideContent, page: usize,
@@ -601,14 +693,14 @@ fn build_slide_xml(
     let title_size = if is_title { 4400 } else { 2800 };
     let title_y = if is_title { 2200000 } else { 300000 };
     body.push_str(&format!(
-        "<p:sp><p:nvSpPr><p:cNvPr id=\"1\" name=\"Title\"/><p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x=\"800000\" y=\"{}\" ext=\"cx\" cy=\"800000\"/><a:ext cx=\"10500000\" cy=\"800000\"/></a:xfrm></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang=\"en-US\" sz=\"{}\" b=\"1\" dirty=\"0\"><a:solidFill><a:srgbClr val=\"{}\"/></a:solidFill><a:latin typeface=\"{}\"/></a:rPr><a:t>{}</a:t></a:r></a:p></p:txBody></p:sp>",
+        "<p:sp><p:nvSpPr><p:cNvPr id=\"1\" name=\"Title\"/><p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x=\"800000\" y=\"{}\"/><a:ext cx=\"10500000\" cy=\"800000\"/></a:xfrm></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang=\"en-US\" sz=\"{}\" b=\"1\" dirty=\"0\"><a:solidFill><a:srgbClr val=\"{}\"/></a:solidFill><a:latin typeface=\"{}\"/></a:rPr><a:t>{}</a:t></a:r></a:p></p:txBody></p:sp>",
         title_y, title_size, text_color, font, xml_escape(&slide.title)
     ));
 
     // 副标题
     if let Some(sub) = &slide.subtitle {
         body.push_str(&format!(
-            "<p:sp><p:nvSpPr><p:cNvPr id=\"2\" name=\"Subtitle\"/><p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x=\"800000\" y=\"3200000\" ext=\"cx\" cy=\"600000\"/><a:ext cx=\"10500000\" cy=\"600000\"/></a:xfrm></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang=\"en-US\" sz=\"1800\" dirty=\"0\"><a:solidFill><a:srgbClr val=\"{}\"/></a:solidFill><a:latin typeface=\"{}\"/></a:rPr><a:t>{}</a:t></a:r></a:p></p:txBody></p:sp>",
+            "<p:sp><p:nvSpPr><p:cNvPr id=\"2\" name=\"Subtitle\"/><p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x=\"800000\" y=\"3200000\"/><a:ext cx=\"10500000\" cy=\"600000\"/></a:xfrm></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang=\"en-US\" sz=\"1800\" dirty=\"0\"><a:solidFill><a:srgbClr val=\"{}\"/></a:solidFill><a:latin typeface=\"{}\"/></a:rPr><a:t>{}</a:t></a:r></a:p></p:txBody></p:sp>",
             accent, font, xml_escape(sub)
         ));
     }
@@ -616,7 +708,7 @@ fn build_slide_xml(
     // 正文
     if let Some(body_text) = &slide.body {
         body.push_str(&format!(
-            "<p:sp><p:nvSpPr><p:cNvPr id=\"3\" name=\"Body\"/><p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x=\"800000\" y=\"1400000\" ext=\"cx\" cy=\"4000000\"/><a:ext cx=\"10500000\" cy=\"4000000\"/></a:xfrm></p:spPr><p:txBody><a:bodyPr wrap=\"square\"/><a:lstStyle/><a:p><a:r><a:rPr lang=\"en-US\" sz=\"1400\" dirty=\"0\"><a:solidFill><a:srgbClr val=\"{}\"/></a:solidFill><a:latin typeface=\"{}\"/></a:rPr><a:t>{}</a:t></a:r></a:p></p:txBody></p:sp>",
+            "<p:sp><p:nvSpPr><p:cNvPr id=\"3\" name=\"Body\"/><p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x=\"800000\" y=\"1400000\"/><a:ext cx=\"10500000\" cy=\"4000000\"/></a:xfrm></p:spPr><p:txBody><a:bodyPr wrap=\"square\"/><a:lstStyle/><a:p><a:r><a:rPr lang=\"en-US\" sz=\"1400\" dirty=\"0\"><a:solidFill><a:srgbClr val=\"{}\"/></a:solidFill><a:latin typeface=\"{}\"/></a:rPr><a:t>{}</a:t></a:r></a:p></p:txBody></p:sp>",
             text_color, font, xml_escape(body_text)
         ));
     }
@@ -631,7 +723,7 @@ fn build_slide_xml(
             ));
         }
         body.push_str(&format!(
-            "<p:sp><p:nvSpPr><p:cNvPr id=\"4\" name=\"Bullets\"/><p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x=\"800000\" y=\"1500000\" ext=\"cx\" cy=\"4000000\"/><a:ext cx=\"10500000\" cy=\"4000000\"/></a:xfrm></p:spPr><p:txBody><a:bodyPr wrap=\"square\"/><a:lstStyle/>{}</p:txBody></p:sp>",
+            "<p:sp><p:nvSpPr><p:cNvPr id=\"4\" name=\"Bullets\"/><p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x=\"800000\" y=\"1500000\"/><a:ext cx=\"10500000\" cy=\"4000000\"/></a:xfrm></p:spPr><p:txBody><a:bodyPr wrap=\"square\"/><a:lstStyle/>{}</p:txBody></p:sp>",
             bullet_paras
         ));
     }
@@ -774,5 +866,73 @@ mod tests {
     fn test_sanitize_filename() {
         assert_eq!(sanitize_filename("Hello: World!"), "Hello_ World_");
         assert_eq!(sanitize_filename("产品介绍V2"), "产品介绍V2");
+    }
+
+    /// 回归测试：生成的 PPTX 必须包含 OOXML 架构要求的全部必备部件，
+    /// 否则 PowerPoint 会因缺 slideMaster/slideLayout/theme/docProps 而报「文件损坏」。
+    #[test]
+    fn test_generate_pptx_has_required_parts() {
+        let req = PptGenerationRequest {
+            title: "结构完整性测试".into(),
+            subtitle: None,
+            author: None,
+            template: Some(PptTemplate::DarkMode),
+            slides: vec![
+                SlideContent {
+                    slide_type: SlideType::TitleSlide,
+                    title: "封面".into(),
+                    subtitle: Some("副标题".into()),
+                    body: None, bullets: None, image_url: None,
+                    table_data: None, chart_data: None, speaker_notes: None,
+                },
+                SlideContent {
+                    slide_type: SlideType::Content,
+                    title: "内容页".into(),
+                    subtitle: None,
+                    body: Some("正文".into()),
+                    bullets: Some(vec!["要点一".into(), "要点二".into()]),
+                    image_url: None, table_data: None, chart_data: None, speaker_notes: None,
+                },
+            ],
+            reference_url: None,
+            output_path: Some(std::env::temp_dir().join("chronos_pptx_struct_test.pptx").to_string_lossy().to_string()),
+        };
+        let engine = PptxEngine::new();
+        let result = engine.generate(&req);
+        assert!(result.success, "generate 失败: {:?}", result.error);
+        let path = result.file_path.unwrap();
+
+        let file = std::fs::File::open(&path).unwrap();
+        let mut zip = zip::ZipArchive::new(file).unwrap();
+        let mut names: Vec<String> = (0..zip.len())
+            .map(|i| zip.by_index(i).unwrap().name().to_string())
+            .collect();
+        names.sort();
+
+        let required = [
+            "[Content_Types].xml",
+            "_rels/.rels",
+            "docProps/core.xml",
+            "docProps/app.xml",
+            "ppt/presentation.xml",
+            "ppt/_rels/presentation.xml.rels",
+            "ppt/presProps.xml",
+            "ppt/viewProps.xml",
+            "ppt/tableStyles.xml",
+            "ppt/theme/theme1.xml",
+            "ppt/slideMasters/slideMaster1.xml",
+            "ppt/slideMasters/_rels/slideMaster1.xml.rels",
+            "ppt/slideLayouts/slideLayout1.xml",
+            "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
+            "ppt/slides/slide1.xml",
+            "ppt/slides/_rels/slide1.xml.rels",
+            "ppt/slides/slide2.xml",
+            "ppt/slides/_rels/slide2.xml.rels",
+        ];
+        for part in required {
+            assert!(names.iter().any(|n| n == part), "缺少必备部件: {}", part);
+        }
+
+        let _ = std::fs::remove_file(&path);
     }
 }

@@ -362,9 +362,9 @@ mod tests {
     #[test]
     fn test_merge_users() {
         let msgs = vec![
-            super::api_client::ChatMessage { role: "user".into(), content: "Q1".into() },
-            super::api_client::ChatMessage { role: "user".into(), content: "Q2".into() },
-            super::api_client::ChatMessage { role: "assistant".into(), content: "A".into() },
+            crate::agent::api_client::ChatMessage { role: "user".into(), content: "Q1".into() },
+            crate::agent::api_client::ChatMessage { role: "user".into(), content: "Q2".into() },
+            crate::agent::api_client::ChatMessage { role: "assistant".into(), content: "A".into() },
         ];
         let merged = BatchMerger::merge_consecutive_users(&msgs);
         assert_eq!(merged.len(), 2); // Q1+Q2 merged → 1 user + 1 assistant
