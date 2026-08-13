@@ -449,3 +449,74 @@ mod tests {
         assert!((thresh - 10.0).abs() < 1.0);
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn analytics_record(state: tauri::State<crate::state::AppState>, metric: String, value: f64) -> String {
+    let mut a = state.analytics.lock().unwrap();
+    a.record(&metric, value);
+    format!("Recorded {}={:.4}", metric, value)
+}
+
+#[tauri::command]
+pub fn analytics_snapshot(state: tauri::State<crate::state::AppState>, metric: String) -> serde_json::Value {
+    let a = state.analytics.lock().unwrap();
+    let snap = a.snapshot(&metric);
+    serde_json::json!({
+        "metric": metric, "count": snap.count, "mean": snap.mean,
+        "std_dev": snap.std_dev, "min": snap.min, "max": snap.max, "latest": snap.latest,
+    })
+}
+
+#[tauri::command]
+pub fn analytics_window_metrics(state: tauri::State<crate::state::AppState>, metric: String) -> serde_json::Value {
+    let a = state.analytics.lock().unwrap();
+    let wm = a.window_metrics(&metric);
+    serde_json::json!({
+        "metric": metric,
+        "trend": wm.trend.emoji(),
+        "mean": wm.current.mean,
+        "std_dev": wm.current.std_dev,
+        "anomaly_count": wm.anomalies.len(),
+        "adaptive_threshold": wm.adaptive_threshold,
+        "prediction_next": wm.prediction_next,
+    })
+}
+
+#[tauri::command]
+pub fn analytics_detect_anomalies(state: tauri::State<crate::state::AppState>, metric: String) -> Vec<serde_json::Value> {
+    let a = state.analytics.lock().unwrap();
+    a.detect_anomalies(&metric).iter().map(|anom| serde_json::json!({
+        "value": anom.value, "z_score": anom.z_score,
+        "severity": anom.severity, "description": anom.description,
+    })).collect()
+}
+
+#[tauri::command]
+pub fn analytics_correlation(state: tauri::State<crate::state::AppState>, a: String, b: String) -> serde_json::Value {
+    let analytics = state.analytics.lock().unwrap();
+    let r = analytics.pearson_correlation(&a, &b);
+    let (ci_lo, ci_hi) = analytics.confidence_interval(&a);
+    let roc = analytics.rate_of_change(&a, 5);
+    serde_json::json!({
+        "correlation": r, "strength": if r.abs() > 0.7 { "strong" } else if r.abs() > 0.4 { "moderate" } else { "weak" },
+        "ci_95": [ci_lo, ci_hi], "rate_of_change_5": roc,
+    })
+}
+
+#[tauri::command]
+pub fn analytics_health_score(state: tauri::State<crate::state::AppState>) -> serde_json::Value {
+    state.analytics.lock().unwrap().health_score()
+}
+
+#[tauri::command]
+pub fn analytics_change_point(state: tauri::State<crate::state::AppState>, metric: String) -> serde_json::Value {
+    let a = state.analytics.lock().unwrap();
+    match a.detect_change_point(&metric) {
+        Some((idx, magnitude, direction)) => serde_json::json!({
+            "detected": true, "index": idx, "magnitude": magnitude, "direction": direction,
+        }),
+        None => serde_json::json!({ "detected": false }),
+    }
+}

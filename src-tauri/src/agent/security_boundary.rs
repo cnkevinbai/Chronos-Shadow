@@ -406,3 +406,39 @@ mod tests {
         assert_eq!(decision.level, PermissionLevel::Forbidden);
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn check_permission(state: tauri::State<crate::state::AppState>, operation: String) -> serde_json::Value {
+    let cat = match operation.as_str() {
+        "delete_project" => OperationCategory::DeleteProject,
+        "delete_database" => OperationCategory::DeleteDatabase,
+        "external_network" => OperationCategory::AccessExternalNetwork,
+        "social_contacts" => OperationCategory::ContactSocialContacts,
+        "data_exfil" => OperationCategory::DataExfiltration,
+        "system_modify" => OperationCategory::SystemModification,
+        "file_delete" => OperationCategory::FileDelete,
+        _ => OperationCategory::StatusQuery,
+    };
+    let mut boundary = state.security_boundary.lock().unwrap();
+    let decision = boundary.check_permission(cat, &operation);
+    serde_json::json!({
+        "operation": operation, "allowed": decision.allowed,
+        "level": decision.level.label(), "reason": decision.reason,
+    })
+}
+
+#[tauri::command]
+pub fn scan_llm_boundary(state: tauri::State<crate::state::AppState>, text: String) -> Vec<serde_json::Value> {
+    let mut boundary = state.security_boundary.lock().unwrap();
+    boundary.scan_llm_output(&text).iter().map(|d| serde_json::json!({
+        "operation": format!("{:?}", d.operation), "allowed": d.allowed,
+        "level": d.level.label(), "reason": d.reason,
+    })).collect()
+}
+
+#[tauri::command]
+pub fn get_security_report(state: tauri::State<crate::state::AppState>) -> serde_json::Value {
+    state.security_boundary.lock().unwrap().security_report()
+}

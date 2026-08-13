@@ -65,113 +65,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── Local Analytics Commands ─────────────────────────────────────
-
-#[tauri::command]
-fn analytics_record(state: tauri::State<AppState>, metric: String, value: f64) -> String {
-    let mut a = state.analytics.lock().unwrap();
-    a.record(&metric, value);
-    format!("Recorded {}={:.4}", metric, value)
-}
-
-#[tauri::command]
-fn analytics_snapshot(state: tauri::State<AppState>, metric: String) -> serde_json::Value {
-    let a = state.analytics.lock().unwrap();
-    let snap = a.snapshot(&metric);
-    serde_json::json!({
-        "metric": metric, "count": snap.count, "mean": snap.mean,
-        "std_dev": snap.std_dev, "min": snap.min, "max": snap.max, "latest": snap.latest,
-    })
-}
-
-#[tauri::command]
-fn analytics_window_metrics(state: tauri::State<AppState>, metric: String) -> serde_json::Value {
-    let a = state.analytics.lock().unwrap();
-    let wm = a.window_metrics(&metric);
-    serde_json::json!({
-        "metric": metric,
-        "trend": wm.trend.emoji(),
-        "mean": wm.current.mean,
-        "std_dev": wm.current.std_dev,
-        "anomaly_count": wm.anomalies.len(),
-        "adaptive_threshold": wm.adaptive_threshold,
-        "prediction_next": wm.prediction_next,
-    })
-}
-
-#[tauri::command]
-fn analytics_detect_anomalies(state: tauri::State<AppState>, metric: String) -> Vec<serde_json::Value> {
-    let a = state.analytics.lock().unwrap();
-    a.detect_anomalies(&metric).iter().map(|anom| serde_json::json!({
-        "value": anom.value, "z_score": anom.z_score,
-        "severity": anom.severity, "description": anom.description,
-    })).collect()
-}
-
-#[tauri::command]
-fn analytics_correlation(state: tauri::State<AppState>, a: String, b: String) -> serde_json::Value {
-    let analytics = state.analytics.lock().unwrap();
-    let r = analytics.pearson_correlation(&a, &b);
-    let (ci_lo, ci_hi) = analytics.confidence_interval(&a);
-    let roc = analytics.rate_of_change(&a, 5);
-    serde_json::json!({
-        "correlation": r, "strength": if r.abs() > 0.7 { "strong" } else if r.abs() > 0.4 { "moderate" } else { "weak" },
-        "ci_95": [ci_lo, ci_hi], "rate_of_change_5": roc,
-    })
-}
-
-#[tauri::command]
-fn analytics_health_score(state: tauri::State<AppState>) -> serde_json::Value {
-    state.analytics.lock().unwrap().health_score()
-}
-
-#[tauri::command]
-fn analytics_change_point(state: tauri::State<AppState>, metric: String) -> serde_json::Value {
-    let a = state.analytics.lock().unwrap();
-    match a.detect_change_point(&metric) {
-        Some((idx, magnitude, direction)) => serde_json::json!({
-            "detected": true, "index": idx, "magnitude": magnitude, "direction": direction,
-        }),
-        None => serde_json::json!({ "detected": false }),
-    }
-}
-
-// ─── Security Boundary Commands ──────────────────────────────────
-
-#[tauri::command]
-fn check_permission(state: tauri::State<AppState>, operation: String) -> serde_json::Value {
-    let cat = match operation.as_str() {
-        "delete_project" => agent::security_boundary::OperationCategory::DeleteProject,
-        "delete_database" => agent::security_boundary::OperationCategory::DeleteDatabase,
-        "external_network" => agent::security_boundary::OperationCategory::AccessExternalNetwork,
-        "social_contacts" => agent::security_boundary::OperationCategory::ContactSocialContacts,
-        "data_exfil" => agent::security_boundary::OperationCategory::DataExfiltration,
-        "system_modify" => agent::security_boundary::OperationCategory::SystemModification,
-        "file_delete" => agent::security_boundary::OperationCategory::FileDelete,
-        _ => agent::security_boundary::OperationCategory::StatusQuery,
-    };
-    let mut boundary = state.security_boundary.lock().unwrap();
-    let decision = boundary.check_permission(cat, &operation);
-    serde_json::json!({
-        "operation": operation, "allowed": decision.allowed,
-        "level": decision.level.label(), "reason": decision.reason,
-    })
-}
-
-#[tauri::command]
-fn scan_llm_boundary(state: tauri::State<AppState>, text: String) -> Vec<serde_json::Value> {
-    let mut boundary = state.security_boundary.lock().unwrap();
-    boundary.scan_llm_output(&text).iter().map(|d| serde_json::json!({
-        "operation": format!("{:?}", d.operation), "allowed": d.allowed,
-        "level": d.level.label(), "reason": d.reason,
-    })).collect()
-}
-
-#[tauri::command]
-fn get_security_report(state: tauri::State<AppState>) -> serde_json::Value {
-    state.security_boundary.lock().unwrap().security_report()
-}
-
 // ─── User Profile Commands ──────────────────────────────────────
 
 #[tauri::command]
@@ -1805,13 +1698,13 @@ pub fn run() {
             agent::router::hrouter_select_model,
             agent::router::hrouter_get_cluster_status,
             // local analytics
-            analytics_record,
-            analytics_snapshot,
-            analytics_window_metrics,
-            analytics_detect_anomalies,
-            analytics_correlation,
-            analytics_health_score,
-            analytics_change_point,
+            agent::local_analytics::analytics_record,
+            agent::local_analytics::analytics_snapshot,
+            agent::local_analytics::analytics_window_metrics,
+            agent::local_analytics::analytics_detect_anomalies,
+            agent::local_analytics::analytics_correlation,
+            agent::local_analytics::analytics_health_score,
+            agent::local_analytics::analytics_change_point,
             // state manager
             state_save_all,
             state_health_report,
@@ -1832,9 +1725,9 @@ pub fn run() {
             get_achievements,
             touch_interaction,
             // security boundary
-            check_permission,
-            scan_llm_boundary,
-            get_security_report,
+            agent::security_boundary::check_permission,
+            agent::security_boundary::scan_llm_boundary,
+            agent::security_boundary::get_security_report,
             // shadow
             agent::shadow::get_shadow_stats,
             agent::shadow::toggle_shadow,
