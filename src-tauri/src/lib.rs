@@ -87,41 +87,6 @@ fn get_saving_rate(state: tauri::State<AppState>) -> u32 {
     if total_saved > 0.0 { (total_saved * 100.0) as u32 } else { 0 }
 }
 
-// ─── WorkBuddy: Buddy Scan ─────────────────────────────────────
-
-#[tauri::command]
-fn get_buddy_scan_stats(state: tauri::State<AppState>) -> BuddyScanStats {
-    state.buddy_scan.lock().unwrap().get_stats().clone()
-}
-
-#[tauri::command]
-fn run_buddy_scan(
-    state: tauri::State<AppState>,
-    target_x: i32,
-    target_y: i32,
-    component_label: String,
-    component_type: String,
-    expected_text: String,
-) -> BuddyScanResult {
-    state.buddy_scan.lock().unwrap().scan_before_click(
-        target_x, target_y,
-        &component_label, &component_type, &expected_text,
-    )
-}
-
-#[tauri::command]
-fn toggle_buddy_scan(state: tauri::State<AppState>, enabled: bool) -> String {
-    state.buddy_scan.lock().unwrap().toggle(enabled);
-    format!("Buddy Scanner: {}", if enabled { "ON" } else { "OFF" })
-}
-
-#[tauri::command]
-fn get_buddy_saved_cost(state: tauri::State<AppState>) -> f64 {
-    let scan = state.buddy_scan.lock().unwrap();
-    let glue = state.context_glue.lock().unwrap();
-    scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved
-}
-
 // ─── Billing stats (legacy compat) ────────────────────────────
 
 /// 向后兼容旧前端 — 返回 Budget 轨道数据
@@ -2692,10 +2657,10 @@ pub fn run() {
             remote_rewind,
             get_remote_stats,
             // workbuddy
-            get_buddy_scan_stats,
-            run_buddy_scan,
-            toggle_buddy_scan,
-            get_buddy_saved_cost,
+            agent::buddy_scan::get_buddy_scan_stats,
+            agent::buddy_scan::run_buddy_scan,
+            agent::buddy_scan::toggle_buddy_scan,
+            agent::buddy_scan::get_buddy_saved_cost,
             get_billing_stats,
             get_billing_dashboard,
             update_cost_cap,

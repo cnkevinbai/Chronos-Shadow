@@ -557,3 +557,38 @@ mod tests {
         assert_eq!(scanner.stats.total_scans, 0);
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_buddy_scan_stats(state: tauri::State<crate::state::AppState>) -> BuddyScanStats {
+    state.buddy_scan.lock().unwrap().get_stats().clone()
+}
+
+#[tauri::command]
+pub fn run_buddy_scan(
+    state: tauri::State<crate::state::AppState>,
+    target_x: i32,
+    target_y: i32,
+    component_label: String,
+    component_type: String,
+    expected_text: String,
+) -> BuddyScanResult {
+    state.buddy_scan.lock().unwrap().scan_before_click(
+        target_x, target_y,
+        &component_label, &component_type, &expected_text,
+    )
+}
+
+#[tauri::command]
+pub fn toggle_buddy_scan(state: tauri::State<crate::state::AppState>, enabled: bool) -> String {
+    state.buddy_scan.lock().unwrap().toggle(enabled);
+    format!("Buddy Scanner: {}", if enabled { "ON" } else { "OFF" })
+}
+
+#[tauri::command]
+pub fn get_buddy_saved_cost(state: tauri::State<crate::state::AppState>) -> f64 {
+    let scan = state.buddy_scan.lock().unwrap();
+    let glue = state.context_glue.lock().unwrap();
+    scan.get_stats().estimated_cost_saved + glue.get_stats().estimated_cost_saved
+}
