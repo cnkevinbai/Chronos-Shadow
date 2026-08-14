@@ -56,7 +56,7 @@
 ## 📋 v0.3.0 — 计划中
 
 - [ ] ONNX 端侧隐私遮罩模型集成
-- [ ] 前端 E2E 测试 (Vitest + React Testing Library)
+- [x] 前端 E2E 测试 (Vitest + React Testing Library)
 - [ ] Rust Tauri 命令集成测试
 - [x] MCP 服务器真实脚本集成
 - [ ] macOS / Linux 实验性支持
