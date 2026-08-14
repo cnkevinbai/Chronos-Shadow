@@ -8,7 +8,7 @@
 //   - 会话数据 → AES-256-GCM → 硬件绑定根密钥 → 防篡改标签
 //   - 零明文磁盘留存 · 企业行为审计免杀 · UAC 权限合规
 
-use aes_gcm::aead::{Aead, KeyInit};
+use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use keyring::{Entry, Error as KeyringError};
 use sha2::{Digest, Sha256};
@@ -111,15 +111,12 @@ impl NativeSecurityVault {
         payload: &ChatSessionPayload,
     ) -> Result<(Vec<u8>, Vec<u8>), String> {
         let cipher = Aes256Gcm::new(&self.hardware_derived_key);
-        let timestamp = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(42);
-        let mut nonce_bytes = [0u8; 12];
-        nonce_bytes[..8].copy_from_slice(&timestamp.to_be_bytes());
-        nonce_bytes[8..].copy_from_slice(&[0xAB, 0xCD, 0xEF, 0x01]);
-        let nonce = Nonce::from_slice(&nonce_bytes);
+        // 随机 nonce（GCM nonce 必须唯一/随机，避免时钟回拨或同纳秒导致的 nonce 复用）
+        let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
         let raw = serde_json::to_string(payload).map_err(|e| e.to_string())?;
         cipher
-            .encrypt(nonce, raw.as_bytes())
-            .map(|b| (b, nonce_bytes.to_vec()))
+            .encrypt(&nonce, raw.as_bytes())
+            .map(|b| (b, nonce.to_vec()))
             .map_err(|e| format!("AES-256-GCM 加密失败: {:?}", e))
     }
 
