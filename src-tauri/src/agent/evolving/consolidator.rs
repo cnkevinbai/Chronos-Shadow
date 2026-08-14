@@ -299,7 +299,9 @@ impl Consolidator {
         let path = dir.join("evolution_skills.json");
         let json = serde_json::to_string_pretty(&self.db).map_err(|e| e.to_string())?;
         std::fs::write(&path, json).map_err(|e| e.to_string())?;
-        let _ = self.embedding.save_state(dir);
+        if let Err(e) = self.embedding.save_state(dir) {
+            tracing::warn!("[CONSOLIDATOR] Embedding save failed: {}", e);
+        }
         Ok(format!("Consolidator saved: {} skills", self.db.skills.len()))
     }
 
@@ -310,7 +312,9 @@ impl Consolidator {
             let json = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
             self.db = serde_json::from_str::<SkillDatabase>(&json).map_err(|e| e.to_string())?;
         }
-        let _ = self.embedding.load_state(dir);
+        if let Err(e) = self.embedding.load_state(dir) {
+            tracing::warn!("[CONSOLIDATOR] Embedding load failed: {}", e);
+        }
         Ok(format!("Consolidator loaded: {} skills", self.db.skills.len()))
     }
 

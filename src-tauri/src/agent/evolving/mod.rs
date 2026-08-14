@@ -140,8 +140,8 @@ impl EvolutionEngine {
 
     /// 持久化进化引擎学习成果（固化技能 + 记忆池 + 嵌入 + 调节器统计）
     pub fn save_state(&self, dir: &std::path::Path) -> Result<String, String> {
-        let _ = self.consolidator.save_state(dir);
-        let _ = self.local_consolidator.save_state(dir);
+        self.consolidator.save_state(dir)?;
+        self.local_consolidator.save_state(dir)?;
         if let Some(ref reg) = self.regulator {
             let path = dir.join("evolution_regulator.json");
             let state = serde_json::json!({
@@ -149,23 +149,34 @@ impl EvolutionEngine {
                 "contracts_compiled": reg.stats.contracts_compiled,
                 "tokens_saved": reg.stats.tokens_saved,
             });
-            let _ = std::fs::write(&path, serde_json::to_string_pretty(&state).map_err(|e| e.to_string())?);
+            std::fs::write(&path, serde_json::to_string_pretty(&state).map_err(|e| e.to_string())?)
+                .map_err(|e| e.to_string())?;
         }
         Ok("EvolutionEngine state saved".into())
     }
 
-    /// 从磁盘恢复进化引擎学习成果
+    /// 从磁盘恢复进化引擎学习成果（尽力而为，损坏项跳过并告警）
     pub fn load_state(&mut self, dir: &std::path::Path) -> Result<String, String> {
-        let _ = self.consolidator.load_state(dir);
-        let _ = self.local_consolidator.load_state(dir);
+        if let Err(e) = self.consolidator.load_state(dir) {
+            tracing::warn!("[EVOLUTION] Failed to load consolidator state: {}", e);
+        }
+        if let Err(e) = self.local_consolidator.load_state(dir) {
+            tracing::warn!("[EVOLUTION] Failed to load memory pool: {}", e);
+        }
         if let Some(ref mut reg) = self.regulator {
             let path = dir.join("evolution_regulator.json");
             if path.exists() {
-                let json = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-                let state: serde_json::Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
-                if let Some(v) = state.get("total_interceptions").and_then(|v| v.as_u64()) { reg.stats.total_interceptions = v; }
-                if let Some(v) = state.get("contracts_compiled").and_then(|v| v.as_u64()) { reg.stats.contracts_compiled = v; }
-                if let Some(v) = state.get("tokens_saved").and_then(|v| v.as_u64()) { reg.stats.tokens_saved = v; }
+                match std::fs::read_to_string(&path) {
+                    Ok(json) => match serde_json::from_str::<serde_json::Value>(&json) {
+                        Ok(state) => {
+                            if let Some(v) = state.get("total_interceptions").and_then(|v| v.as_u64()) { reg.stats.total_interceptions = v; }
+                            if let Some(v) = state.get("contracts_compiled").and_then(|v| v.as_u64()) { reg.stats.contracts_compiled = v; }
+                            if let Some(v) = state.get("tokens_saved").and_then(|v| v.as_u64()) { reg.stats.tokens_saved = v; }
+                        }
+                        Err(e) => tracing::warn!("[EVOLUTION] Corrupt regulator state {}: {}", path.display(), e),
+                    },
+                    Err(e) => tracing::warn!("[EVOLUTION] Cannot read regulator state {}: {}", path.display(), e),
+                }
             }
         }
         Ok("EvolutionEngine state loaded".into())
@@ -275,6 +286,23 @@ mod tests {
         let pool = engine2.local_consolidator.active_memory_pool.blocking_lock();
         assert_eq!(pool.len(), 1);
         assert!(pool.contains_key("hash-1"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_state_graceful_on_corrupt() {
+        let dir = std::env::temp_dir().join("chronos_evo_corrupt_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // 损坏的 skills 文件
+        std::fs::write(dir.join("evolution_skills.json"), "{ not valid json").unwrap();
+        // 有效的 memory 文件
+        std::fs::write(dir.join("evolution_memory.json"), "{}").unwrap();
+
+        let mut engine = EvolutionEngine::new(Some(dir.clone()));
+        // 尽力而为：损坏项跳过，不 panic，返回 Ok
+        assert!(engine.load_state(&dir).is_ok());
 
         let _ = std::fs::remove_dir_all(&dir);
     }
