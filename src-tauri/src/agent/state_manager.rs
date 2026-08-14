@@ -9,6 +9,7 @@
 //   6. 易用接口 — save_all / load_all / auto_save 简洁 API
 
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 
 // ─── 持久化钩子 ──────────────────────────────────────────────────
 
@@ -253,4 +254,28 @@ mod tests {
         let report = sm.health_report();
         assert_eq!(report["total_modules"], 2);
     }
+}
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn state_save_all(app_handle: tauri::AppHandle, state: tauri::State<crate::state::AppState>) -> Result<String, String> {
+    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let mut sm = state.state_mgr.lock().unwrap();
+    sm.save_all()?;
+
+    // 保存进化引擎状态
+    let _ = state.evolution_bus.lock().unwrap().save_state(&dir);
+    let _ = state.flywheel.lock().unwrap().save_state(&dir);
+    if let Ok(wi) = state.web_intelligence.try_lock() {
+        let _ = wi.distillation.save_state(&dir);
+        let _ = wi.cache.save_to_disk(&dir);
+    }
+
+    Ok(format!("All state saved to {:?}", dir))
+}
+
+#[tauri::command]
+pub fn state_health_report(state: tauri::State<crate::state::AppState>) -> serde_json::Value {
+    state.state_mgr.lock().unwrap().health_report()
 }

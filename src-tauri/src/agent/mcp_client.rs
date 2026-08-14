@@ -537,3 +537,16 @@ pub async fn mcp_fetch_tools(state: tauri::State<'_, crate::state::AppState>, se
     let tools = state.mcp_client.lock().await.fetch_and_clean_tools(&server_id).await?;
     Ok(format!("Fetched {} tools from '{}'", tools.len(), server_id))
 }
+
+#[tauri::command]
+pub fn mcp_disconnect(state: tauri::State<crate::state::AppState>, server_id: String) -> Result<String, String> {
+    state.mcp_client.blocking_lock().disconnect(&server_id)
+        .map(|_| format!("Disconnected {}", server_id))
+}
+
+#[tauri::command]
+pub fn mcp_cleanup_stale(state: tauri::State<crate::state::AppState>) -> String {
+    let mcp = state.mcp_client.blocking_lock();
+    let count = mcp.connected_servers().len();
+    format!("MCP cleanup check: {} active servers (zombie detection pending)", count)
+}

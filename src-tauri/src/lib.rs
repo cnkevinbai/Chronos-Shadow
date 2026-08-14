@@ -65,87 +65,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── State Manager Commands ─────────────────────────────────────
-
-#[tauri::command]
-fn state_save_all(app_handle: tauri::AppHandle, state: tauri::State<AppState>) -> Result<String, String> {
-    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    let mut sm = state.state_mgr.lock().unwrap();
-    sm.save_all()?;
-
-    // 保存进化引擎状态
-    let _ = state.evolution_bus.lock().unwrap().save_state(&dir);
-    let _ = state.flywheel.lock().unwrap().save_state(&dir);
-    if let Ok(wi) = state.web_intelligence.try_lock() {
-        let _ = wi.distillation.save_state(&dir);
-        let _ = wi.cache.save_to_disk(&dir);
-    }
-
-    Ok(format!("All state saved to {:?}", dir))
-}
-
-#[tauri::command]
-fn state_health_report(state: tauri::State<AppState>) -> serde_json::Value {
-    state.state_mgr.lock().unwrap().health_report()
-}
-
-// ─── Agent Quality Commands ───────────────────────────────────────
-
-#[tauri::command]
-fn get_agent_quality_scores(
-    state: tauri::State<AppState>,
-) -> Vec<agent::evolving::agent_quality::AgentQualityScore> {
-    let engine = state.agent_quality.lock().unwrap();
-    engine.get_all_scores().into_iter().cloned().collect()
-}
-
-#[tauri::command]
-async fn record_agent_task_quality(
-    state: tauri::State<'_, AppState>,
-    agent_role: String,
-    success: bool,
-    hallucination_categories: Vec<String>,
-) -> Result<String, String> {
-    // 第一阶段：同步更新 Agent 质量评分
-    let bridge_entries: Vec<_> = {
-        let mut engine = state.agent_quality.lock().unwrap();
-        engine.record_agent_task(&agent_role, success, &hallucination_categories);
-
-        hallucination_categories.iter().filter_map(|cat| {
-            engine.bridge_hallucination_to_evolution(
-                &agent_role, cat, &format!("{} by {}", cat, agent_role),
-                "请查阅防幻觉报告获取修正建议", "medium",
-            )
-        }).collect()
-    };
-
-    // 第二阶段：异步写入 EvolutionEngine
-    for entry in bridge_entries {
-        let evo = state.evolution.lock().await;
-        let delta = agent::evolving::consolidator::EvoDelta {
-            experience_id: format!("hbridge-{}", chrono::Utc::now().timestamp()),
-            context_trigger_hash: entry.error_pattern.clone(),
-            failed_llm_action: entry.error_pattern,
-            correct_human_action: entry.correction,
-            token_sunk_cost_saved: 50,
-            accuracy_weight: 0.7,
-        };
-        let _ = evo.local_consolidator.validate_and_commit_experience(delta).await;
-    }
-
-    let engine = state.agent_quality.lock().unwrap();
-    let score = engine.get_score(&agent_role)
-        .map(|s| s.rigor_score).unwrap_or(85);
-    Ok(format!("Agent '{}' rigor score: {}/100", agent_role, score))
-}
-
-#[tauri::command]
-fn get_global_quality_report(
-    state: tauri::State<AppState>,
-) -> serde_json::Value {
-    state.agent_quality.lock().unwrap().global_quality_report()
-}
-
 // ─── Settings persistence ─────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -486,49 +405,6 @@ fn list_skills(state: tauri::State<AppState>) -> Vec<SkillInstance> {
 #[tauri::command]
 fn list_mcp_servers(state: tauri::State<AppState>) -> Vec<McpServer> {
     state.mcp_client.blocking_lock().connected_servers().into_iter().cloned().collect()
-}
-
-// ─── Orchestrator Management ─────────────────────────────────────
-
-#[tauri::command]
-fn prune_orchestrator_tasks(state: tauri::State<AppState>, keep: usize) -> String {
-    let mut orch = state.orchestrator.lock().unwrap();
-    let before = orch.tasks.len();
-    orch.prune_old_tasks(keep);
-    format!("Pruned {} tasks ({} → {})", before - orch.tasks.len(), before, orch.tasks.len())
-}
-
-#[tauri::command]
-fn get_event_metrics(state: tauri::State<AppState>) -> serde_json::Value {
-    state.orchestrator.lock().unwrap().event_metrics()
-}
-
-#[tauri::command]
-fn flush_dead_letters(state: tauri::State<AppState>) -> Vec<serde_json::Value> {
-    let mut orch = state.orchestrator.lock().unwrap();
-    orch.flush_dead_letters()
-        .into_iter()
-        .map(|e| serde_json::json!({
-            "id": e.id, "timestamp": e.timestamp,
-            "source": format!("{:?}", e.source),
-            "event_type": format!("{:?}", e.event_type),
-        }))
-        .collect()
-}
-
-// ─── MCP Management ─────────────────────────────────────────────
-
-#[tauri::command]
-fn mcp_disconnect(state: tauri::State<AppState>, server_id: String) -> Result<String, String> {
-    state.mcp_client.blocking_lock().disconnect(&server_id)
-        .map(|_| format!("Disconnected {}", server_id))
-}
-
-#[tauri::command]
-fn mcp_cleanup_stale(state: tauri::State<AppState>) -> String {
-    let mcp = state.mcp_client.blocking_lock();
-    let count = mcp.connected_servers().len();
-    format!("MCP cleanup check: {} active servers (zombie detection pending)", count)
 }
 
 // ─── Web Intelligence Commands ─────────────────────────────────────
@@ -1561,12 +1437,12 @@ pub fn run() {
             // mcp
             agent::mcp_client::mcp_connect_and_init,
             agent::mcp_client::mcp_fetch_tools,
-            mcp_disconnect,
-            mcp_cleanup_stale,
+            agent::mcp_client::mcp_disconnect,
+            agent::mcp_client::mcp_cleanup_stale,
             // orchestrator management
-            prune_orchestrator_tasks,
-            flush_dead_letters,
-            get_event_metrics,
+            agent::orchestrator::prune_orchestrator_tasks,
+            agent::orchestrator::flush_dead_letters,
+            agent::orchestrator::get_event_metrics,
             // router
             agent::router::get_route_mode,
             agent::router::set_route_mode,
@@ -1586,8 +1462,8 @@ pub fn run() {
             agent::local_analytics::analytics_health_score,
             agent::local_analytics::analytics_change_point,
             // state manager
-            state_save_all,
-            state_health_report,
+            agent::state_manager::state_save_all,
+            agent::state_manager::state_health_report,
             // workbuddy engine
             agent::workbuddy_engine::wb_add_rule,
             agent::workbuddy_engine::wb_record_activity,
@@ -1625,9 +1501,9 @@ pub fn run() {
             evo_validate_experience,
             evo_intercept_context,
             // agent quality
-            get_agent_quality_scores,
-            record_agent_task_quality,
-            get_global_quality_report,
+            agent::evolving::agent_quality::get_agent_quality_scores,
+            agent::evolving::agent_quality::record_agent_task_quality,
+            agent::evolving::agent_quality::get_global_quality_report,
             // embedding engine
             agent::evolving::embedding::embedding_search,
             agent::evolving::embedding::embedding_add,

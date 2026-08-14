@@ -1261,3 +1261,29 @@ pub fn fail_task(state: tauri::State<crate::state::AppState>, task_id: String, e
         Err(format!("Task {} FUSED — manual intervention required", task_id))
     }
 }
+
+#[tauri::command]
+pub fn prune_orchestrator_tasks(state: tauri::State<crate::state::AppState>, keep: usize) -> String {
+    let mut orch = state.orchestrator.lock().unwrap();
+    let before = orch.tasks.len();
+    orch.prune_old_tasks(keep);
+    format!("Pruned {} tasks ({} → {})", before - orch.tasks.len(), before, orch.tasks.len())
+}
+
+#[tauri::command]
+pub fn get_event_metrics(state: tauri::State<crate::state::AppState>) -> serde_json::Value {
+    state.orchestrator.lock().unwrap().event_metrics()
+}
+
+#[tauri::command]
+pub fn flush_dead_letters(state: tauri::State<crate::state::AppState>) -> Vec<serde_json::Value> {
+    let mut orch = state.orchestrator.lock().unwrap();
+    orch.flush_dead_letters()
+        .into_iter()
+        .map(|e| serde_json::json!({
+            "id": e.id, "timestamp": e.timestamp,
+            "source": format!("{:?}", e.source),
+            "event_type": format!("{:?}", e.event_type),
+        }))
+        .collect()
+}

@@ -382,3 +382,60 @@ mod tests {
         assert_eq!(insights[0].insight, "避免使用unwrap()");
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_agent_quality_scores(
+    state: tauri::State<crate::state::AppState>,
+) -> Vec<AgentQualityScore> {
+    let engine = state.agent_quality.lock().unwrap();
+    engine.get_all_scores().into_iter().cloned().collect()
+}
+
+#[tauri::command]
+pub async fn record_agent_task_quality(
+    state: tauri::State<'_, crate::state::AppState>,
+    agent_role: String,
+    success: bool,
+    hallucination_categories: Vec<String>,
+) -> Result<String, String> {
+    // 第一阶段：同步更新 Agent 质量评分
+    let bridge_entries: Vec<_> = {
+        let mut engine = state.agent_quality.lock().unwrap();
+        engine.record_agent_task(&agent_role, success, &hallucination_categories);
+
+        hallucination_categories.iter().filter_map(|cat| {
+            engine.bridge_hallucination_to_evolution(
+                &agent_role, cat, &format!("{} by {}", cat, agent_role),
+                "请查阅防幻觉报告获取修正建议", "medium",
+            )
+        }).collect()
+    };
+
+    // 第二阶段：异步写入 EvolutionEngine
+    for entry in bridge_entries {
+        let evo = state.evolution.lock().await;
+        let delta = crate::agent::evolving::consolidator::EvoDelta {
+            experience_id: format!("hbridge-{}", chrono::Utc::now().timestamp()),
+            context_trigger_hash: entry.error_pattern.clone(),
+            failed_llm_action: entry.error_pattern,
+            correct_human_action: entry.correction,
+            token_sunk_cost_saved: 50,
+            accuracy_weight: 0.7,
+        };
+        let _ = evo.local_consolidator.validate_and_commit_experience(delta).await;
+    }
+
+    let engine = state.agent_quality.lock().unwrap();
+    let score = engine.get_score(&agent_role)
+        .map(|s| s.rigor_score).unwrap_or(85);
+    Ok(format!("Agent '{}' rigor score: {}/100", agent_role, score))
+}
+
+#[tauri::command]
+pub fn get_global_quality_report(
+    state: tauri::State<crate::state::AppState>,
+) -> serde_json::Value {
+    state.agent_quality.lock().unwrap().global_quality_report()
+}
