@@ -448,15 +448,19 @@ impl McpServerConfig {
 /// 从目录读取所有 *.json MCP 配置，转换为 McpServer 列表
 pub fn load_server_configs(dir: &std::path::Path) -> Vec<McpServer> {
     let mut servers = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("json") { continue; }
-            if let Ok(json) = std::fs::read_to_string(&path) {
-                if let Ok(cfg) = serde_json::from_str::<McpServerConfig>(&json) {
-                    servers.push(cfg.to_server(dir));
-                }
-            }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        tracing::warn!("[MCP] Cannot read config dir: {:?}", dir);
+        return servers;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") { continue; }
+        match std::fs::read_to_string(&path) {
+            Ok(json) => match serde_json::from_str::<McpServerConfig>(&json) {
+                Ok(cfg) => servers.push(cfg.to_server(dir)),
+                Err(e) => tracing::warn!("[MCP] Invalid config {}: {}", path.display(), e),
+            },
+            Err(e) => tracing::warn!("[MCP] Cannot read {}: {}", path.display(), e),
         }
     }
     servers

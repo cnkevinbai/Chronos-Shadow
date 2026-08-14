@@ -162,7 +162,7 @@ impl VisionEngine {
             blocker_enabled: true,
             blocked_requests: 0,
             tokens_saved: 0,
-            compression_threshold: 1920,
+            compression_threshold: 1280,
             model_path: PRIVACY_MODEL_PATH.into(),
         }
     }
@@ -407,28 +407,39 @@ impl VisionEngine {
         result
     }
 
-    /// 局部自适应裁剪
+    /// 局部自适应裁剪 + 低分辨率降采样
     ///
-    /// 仅提取活动窗口区域，丢弃桌面其余部分
+    /// 当图像宽度超过压缩阈值时，执行最近邻降采样（保持宽高比），
+    /// 显著降低 VLM 输入 token 成本。
     pub fn crop_to_active_window(
         &self,
         image_data: &[u8],
         width: u32,
         height: u32,
     ) -> Vec<u8> {
-        // 生产环境：使用 Windows UI Automation 获取活动窗口 Rect
-        // 然后从全屏截图中裁切对应区域
-
-        // 简化实现：如果图像过大，降低分辨率
-        if width > self.compression_threshold {
-            tracing::info!(
-                "[Vision] Cropping {}×{} → downsample for VLM cost reduction",
-                width,
-                height
-            );
+        if width <= self.compression_threshold || width == 0 || height == 0 {
+            return image_data.to_vec();
         }
 
-        image_data.to_vec()
+        let scale = self.compression_threshold as f32 / width as f32;
+        let new_w = self.compression_threshold;
+        let new_h = ((height as f32 * scale).round() as u32).max(1);
+        let bpp = 4usize; // BGRA 32bpp
+        let mut out = Vec::with_capacity(new_w as usize * new_h as usize * bpp);
+        for y in 0..new_h {
+            let src_y = ((y as f32 / scale).round() as u32).min(height - 1);
+            for x in 0..new_w {
+                let src_x = ((x as f32 / scale).round() as u32).min(width - 1);
+                let src_idx = (src_y * width + src_x) as usize * bpp;
+                out.extend_from_slice(&image_data[src_idx..src_idx + bpp]);
+            }
+        }
+
+        tracing::info!(
+            "[Vision] Downsampled {}×{} → {}×{} for VLM cost reduction",
+            width, height, new_w, new_h
+        );
+        out
     }
 
     // ── 完整处理流水线 ────────────────────────────────────────────
@@ -691,6 +702,18 @@ mod tests {
         let data = b"sensitive data";
         let result = engine.apply_privacy_masks(data, 4, 2);
         assert_eq!(result, data); // 应该不变
+    }
+
+    #[test]
+    fn test_crop_downsample() {
+        let mut engine = VisionEngine::new();
+        engine.compression_threshold = 4;
+        // 8×8 图像 → 降采样到 4×4
+        let w = 8u32;
+        let h = 8u32;
+        let data: Vec<u8> = (0..(w * h * 4) as usize).map(|i| (i % 256) as u8).collect();
+        let out = engine.crop_to_active_window(&data, w, h);
+        assert_eq!(out.len(), (4 * 4 * 4) as usize, "应降采样到 4×4×4");
     }
 
     #[test]

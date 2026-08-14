@@ -1,7 +1,7 @@
 // 构建产物状态扫描 (Build Status)
 // 扫描 dist/ 与 target/release 下的构建产物，供前端展示构建健康度
 
-#[derive(serde::Serialize)]
+#[derive(Debug, serde::Serialize)]
 pub struct BuildFileStatus {
     path: String,
     name: String,
@@ -13,7 +13,7 @@ pub struct BuildFileStatus {
     errors_count: u32,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Debug, serde::Serialize)]
 pub struct BuildSummary {
     total_files: usize,
     compiled_files: usize,
