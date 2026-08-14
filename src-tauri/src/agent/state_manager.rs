@@ -267,6 +267,9 @@ pub fn state_save_all(app_handle: tauri::AppHandle, state: tauri::State<crate::s
     // 保存进化引擎状态
     let _ = state.evolution_bus.lock().unwrap().save_state(&dir);
     let _ = state.flywheel.lock().unwrap().save_state(&dir);
+    if let Ok(evo) = state.evolution.try_lock() {
+        let _ = evo.save_state(&dir);
+    }
     if let Ok(wi) = state.web_intelligence.try_lock() {
         let _ = wi.distillation.save_state(&dir);
         let _ = wi.cache.save_to_disk(&dir);

@@ -137,6 +137,39 @@ impl EvolutionEngine {
             consolidator: self.consolidator.stats(),
         }
     }
+
+    /// 持久化进化引擎学习成果（固化技能 + 记忆池 + 嵌入 + 调节器统计）
+    pub fn save_state(&self, dir: &std::path::Path) -> Result<String, String> {
+        let _ = self.consolidator.save_state(dir);
+        let _ = self.local_consolidator.save_state(dir);
+        if let Some(ref reg) = self.regulator {
+            let path = dir.join("evolution_regulator.json");
+            let state = serde_json::json!({
+                "total_interceptions": reg.stats.total_interceptions,
+                "contracts_compiled": reg.stats.contracts_compiled,
+                "tokens_saved": reg.stats.tokens_saved,
+            });
+            let _ = std::fs::write(&path, serde_json::to_string_pretty(&state).map_err(|e| e.to_string())?);
+        }
+        Ok("EvolutionEngine state saved".into())
+    }
+
+    /// 从磁盘恢复进化引擎学习成果
+    pub fn load_state(&mut self, dir: &std::path::Path) -> Result<String, String> {
+        let _ = self.consolidator.load_state(dir);
+        let _ = self.local_consolidator.load_state(dir);
+        if let Some(ref mut reg) = self.regulator {
+            let path = dir.join("evolution_regulator.json");
+            if path.exists() {
+                let json = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+                let state: serde_json::Value = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+                if let Some(v) = state.get("total_interceptions").and_then(|v| v.as_u64()) { reg.stats.total_interceptions = v; }
+                if let Some(v) = state.get("contracts_compiled").and_then(|v| v.as_u64()) { reg.stats.contracts_compiled = v; }
+                if let Some(v) = state.get("tokens_saved").and_then(|v| v.as_u64()) { reg.stats.tokens_saved = v; }
+            }
+        }
+        Ok("EvolutionEngine state loaded".into())
+    }
 }
 
 impl Default for EvolutionEngine {

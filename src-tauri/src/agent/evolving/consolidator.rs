@@ -123,6 +123,27 @@ impl LocalConsolidator {
     pub fn memory_pool(&self) -> Arc<Mutex<HashMap<String, EvoDelta>>> {
         self.active_memory_pool.clone()
     }
+
+    /// 持久化活跃记忆池（重启保留学习成果）
+    pub fn save_state(&self, dir: &std::path::Path) -> Result<String, String> {
+        let path = dir.join("evolution_memory.json");
+        let pool = self.active_memory_pool.blocking_lock();
+        let json = serde_json::to_string_pretty(&*pool).map_err(|e| e.to_string())?;
+        std::fs::write(&path, json).map_err(|e| e.to_string())?;
+        Ok(format!("Evolution memory saved: {} experiences", pool.len()))
+    }
+
+    /// 从磁盘恢复活跃记忆池
+    pub fn load_state(&mut self, dir: &std::path::Path) -> Result<String, String> {
+        let path = dir.join("evolution_memory.json");
+        if !path.exists() { return Ok("No saved evolution memory".into()); }
+        let json = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        let pool: HashMap<String, EvoDelta> = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+        let mut guard = self.active_memory_pool.blocking_lock();
+        *guard = pool;
+        let count = guard.len();
+        Ok(format!("Evolution memory loaded: {} experiences", count))
+    }
 }
 
 // ─── 技能固化中枢 (原版，向后兼容) ─────────────────────────────────
@@ -271,6 +292,26 @@ impl Consolidator {
             total_skill_uses: total_uses as u64,
             estimated_tokens_saved: total_uses as u64 * 500, // ~500 tokens per reuse
         }
+    }
+
+    /// 持久化固化技能库 + 嵌入状态
+    pub fn save_state(&self, dir: &std::path::Path) -> Result<String, String> {
+        let path = dir.join("evolution_skills.json");
+        let json = serde_json::to_string_pretty(&self.db).map_err(|e| e.to_string())?;
+        std::fs::write(&path, json).map_err(|e| e.to_string())?;
+        let _ = self.embedding.save_state(dir);
+        Ok(format!("Consolidator saved: {} skills", self.db.skills.len()))
+    }
+
+    /// 从磁盘恢复固化技能库 + 嵌入状态
+    pub fn load_state(&mut self, dir: &std::path::Path) -> Result<String, String> {
+        let path = dir.join("evolution_skills.json");
+        if path.exists() {
+            let json = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+            self.db = serde_json::from_str::<SkillDatabase>(&json).map_err(|e| e.to_string())?;
+        }
+        let _ = self.embedding.load_state(dir);
+        Ok(format!("Consolidator loaded: {} skills", self.db.skills.len()))
     }
 
     /// 模拟向量嵌入（384-dim 归一化伪随机向量）

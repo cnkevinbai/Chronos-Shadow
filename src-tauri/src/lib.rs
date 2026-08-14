@@ -303,12 +303,18 @@ pub fn run() {
                 }
             }
 
-            // 自动恢复进化引擎状态 (EvolutionBus + DataFlywheel + Distillation)
+            // 自动恢复进化引擎状态 (EvolutionBus + DataFlywheel + EvolutionEngine + Distillation)
             {
                 if let Ok(dir) = _app.handle().path().app_data_dir() {
                     let _ = _app.state::<AppState>().evolution_bus.lock().unwrap().load_state(&dir);
                     let _ = _app.state::<AppState>().flywheel.lock().unwrap().load_state(&dir);
                     let _ = std::fs::create_dir_all(&dir);
+                    // EvolutionEngine 学习成果 (固化技能 + 记忆池) 恢复
+                    {
+                        let app_state = _app.state::<AppState>();
+                        let mut evo = app_state.evolution.blocking_lock();
+                        let _ = evo.load_state(&dir);
+                    }
                     // Distillation + cache state restore
                     {
                         let app_state = _app.state::<AppState>();
