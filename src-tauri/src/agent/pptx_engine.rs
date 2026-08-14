@@ -898,3 +898,30 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn pptx_generate(
+    request_json: String,
+) -> Result<serde_json::Value, String> {
+    let req: PptGenerationRequest = serde_json::from_str(&request_json)
+        .map_err(|e| format!("Invalid request: {}", e))?;
+    let engine = PptxEngine::new();
+    let result = engine.generate(&req);
+    Ok(serde_json::json!(result))
+}
+
+#[tauri::command]
+pub async fn pptx_analyze_reference(
+    url: String,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build().map_err(|e| e.to_string())?;
+    let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    let html = resp.text().await.map_err(|e| e.to_string())?;
+    let engine = PptxEngine::new();
+    let analysis = engine.analyze_reference(&url, &html).await;
+    Ok(serde_json::json!(analysis))
+}

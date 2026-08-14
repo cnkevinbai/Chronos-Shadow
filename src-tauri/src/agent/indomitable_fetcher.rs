@@ -503,3 +503,26 @@ mod tests {
         assert!(links.iter().any(|l| l.contains("ext.com")));
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn indomitable_fetch_url(
+    _state: tauri::State<'_, crate::state::AppState>,
+    url: String,
+    follow_depth: Option<u8>,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build().map_err(|e| e.to_string())?;
+    let mut domain_states = std::collections::HashMap::new();
+    let result = indomitable_fetch(
+        &url, &client, &mut domain_states, follow_depth.unwrap_or(0),
+    ).await;
+    Ok(serde_json::json!(result))
+}
+
+#[tauri::command]
+pub fn extract_urls_from_text(text: String) -> Vec<String> {
+    extract_urls(&text)
+}

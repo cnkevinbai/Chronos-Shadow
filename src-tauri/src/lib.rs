@@ -256,56 +256,6 @@ fn get_agent_roster(state: tauri::State<AppState>) -> Vec<AgentRosterEntry> {
     }).collect()
 }
 
-// ─── 永不言弃链接抓取 ──────────────────────────────────────────────
-
-#[tauri::command]
-async fn indomitable_fetch_url(
-    _state: tauri::State<'_, AppState>,
-    url: String,
-    follow_depth: Option<u8>,
-) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
-        .build().map_err(|e| e.to_string())?;
-    let mut domain_states = std::collections::HashMap::new();
-    let result = agent::indomitable_fetcher::indomitable_fetch(
-        &url, &client, &mut domain_states, follow_depth.unwrap_or(0),
-    ).await;
-    Ok(serde_json::json!(result))
-}
-
-#[tauri::command]
-fn extract_urls_from_text(text: String) -> Vec<String> {
-    agent::indomitable_fetcher::extract_urls(&text)
-}
-
-// ─── PPT 生成引擎 ──────────────────────────────────────────────────
-
-#[tauri::command]
-async fn pptx_generate(
-    request_json: String,
-) -> Result<serde_json::Value, String> {
-    let req: agent::pptx_engine::PptGenerationRequest = serde_json::from_str(&request_json)
-        .map_err(|e| format!("Invalid request: {}", e))?;
-    let engine = agent::pptx_engine::PptxEngine::new();
-    let result = engine.generate(&req);
-    Ok(serde_json::json!(result))
-}
-
-#[tauri::command]
-async fn pptx_analyze_reference(
-    url: String,
-) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
-        .build().map_err(|e| e.to_string())?;
-    let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
-    let html = resp.text().await.map_err(|e| e.to_string())?;
-    let engine = agent::pptx_engine::PptxEngine::new();
-    let analysis = engine.analyze_reference(&url, &html).await;
-    Ok(serde_json::json!(analysis))
-}
-
 #[tauri::command]
 fn list_live_windows() -> Vec<serde_json::Value> {
     // Enumerate top-level windows via Win32 EnumWindows
@@ -919,78 +869,6 @@ async fn execute_agent_action_inner(
     dispatch_action(state, &action).await
 }
 
-// ─── Collaboration Engine Commands ──────────────────────────────────
-
-#[tauri::command]
-async fn collab_get_model_ranking(
-    state: tauri::State<'_, AppState>,
-) -> Result<serde_json::Value, String> {
-    let engine = state.collaboration.lock().await;
-    Ok(engine.stats())
-}
-
-#[tauri::command]
-async fn collab_recommend_model(
-    state: tauri::State<'_, AppState>,
-    task_type: String,
-    prefer_cheap: Option<bool>,
-) -> Result<serde_json::Value, String> {
-    let engine = state.collaboration.lock().await;
-    let (model, reason) = engine.recommend_model_with_reason(&task_type, prefer_cheap.unwrap_or(false));
-    let best = engine.select_best_model(&task_type, prefer_cheap.unwrap_or(false));
-    let fallbacks = engine.fallback_models(&model, &task_type);
-    Ok(serde_json::json!({
-        "recommended": model,
-        "reason": reason,
-        "best_by_quality": best,
-        "fallbacks": fallbacks,
-        "mode": format!("{:?}", engine.decide_mode(&task_type, 0.5, false)),
-    }))
-}
-
-#[tauri::command]
-async fn collab_record_execution(
-    state: tauri::State<'_, AppState>,
-    model_name: String,
-    task_type: String,
-    success: bool,
-    latency_ms: u64,
-    quality_score: f64,
-) -> Result<String, String> {
-    let mut engine = state.collaboration.lock().await;
-    engine.record_execution(&model_name, &task_type, success, latency_ms, quality_score);
-    Ok(format!("Recorded execution for {}", model_name))
-}
-
-// ─── Task Intelligence Commands ────────────────────────────────────
-
-#[tauri::command]
-fn task_decompose(
-    state: tauri::State<AppState>,
-    task: String,
-) -> Result<serde_json::Value, String> {
-    let engine = state.task_intelligence.lock().unwrap();
-    let plan = engine.decompose(&task);
-    Ok(serde_json::to_value(&plan).map_err(|e| e.to_string())?)
-}
-
-#[tauri::command]
-fn task_estimate_complexity(
-    state: tauri::State<AppState>,
-    task: String,
-) -> Result<serde_json::Value, String> {
-    let engine = state.task_intelligence.lock().unwrap();
-    let (level, confidence) = engine.estimate_complexity(&task);
-    let category = engine.categorize(&task);
-    Ok(serde_json::json!({
-        "complexity": level.label(),
-        "level": level as u8,
-        "confidence": confidence,
-        "estimated_steps": level.estimated_steps(),
-        "category": category.label(),
-    }))
-}
-
 // ─── Predictive Analytics Commands ──────────────────────────────────
 
 #[tauri::command]
@@ -1185,117 +1063,11 @@ async fn distill_feedback(
     Ok(format!("Feedback recorded for {}: quality={:.2}", url, quality_score))
 }
 
-// ─── Evolution Bus Commands ─────────────────────────────────────────
-
-#[tauri::command]
-fn evobus_health_report(
-    state: tauri::State<AppState>,
-) -> Result<serde_json::Value, String> {
-    let bus = state.evolution_bus.lock().unwrap();
-    Ok(bus.health_report())
-}
-
-#[tauri::command]
-fn evobus_record_feedback(
-    state: tauri::State<AppState>,
-    engine: String,
-    metric: String,
-    current_value: f64,
-    target_value: f64,
-    direction_is_higher_better: Option<bool>,
-) -> Result<serde_json::Value, String> {
-    let mut bus = state.evolution_bus.lock().unwrap();
-    let eid = parse_evo_engine(&engine)?;
-    let new_val = bus.feedback_performance(eid, &metric, current_value, target_value, direction_is_higher_better.unwrap_or(true));
-    Ok(serde_json::json!({
-        "adjusted": new_val.is_some(),
-        "new_value": new_val,
-        "engine": engine,
-        "metric": metric,
-    }))
-}
-
-#[tauri::command]
-fn hallucination_feedback(
-    state: tauri::State<AppState>,
-    is_false_positive: Option<bool>,
-) -> Result<serde_json::Value, String> {
-    // Note: HallucinationGuard is currently instantiated per-audit call.
-    // For evolution purposes, we maintain a persistent instance in the evolution_bus context.
-    // This command records aggregate feedback.
-    let mut evo = state.evolution_bus.lock().unwrap();
-    let accuracy = if is_false_positive.unwrap_or(false) { 0.6 } else { 0.9 };
-    let fp_rate = if is_false_positive.unwrap_or(false) { 0.25 } else { 0.1 };
-
-    evo.feedback_performance(
-        agent::evolution_bus::EngineId::HallucinationGuard,
-        "accuracy", accuracy, 0.9, true,
-    );
-    evo.feedback_performance(
-        agent::evolution_bus::EngineId::HallucinationGuard,
-        "false_positive_rate", fp_rate, 0.1, false,
-    );
-
-    Ok(serde_json::json!({
-        "recorded": true,
-        "is_false_positive": is_false_positive.unwrap_or(false),
-        "accuracy": accuracy,
-        "false_positive_rate": fp_rate,
-    }))
-}
-
-fn parse_evo_engine(s: &str) -> Result<agent::evolution_bus::EngineId, String> {
-    use agent::evolution_bus::EngineId;
-    match s {
-        "distillation" => Ok(EngineId::Distillation),
-        "scheduling" => Ok(EngineId::Scheduling),
-        "hallucination" => Ok(EngineId::HallucinationGuard),
-        "cache" => Ok(EngineId::CacheEngine),
-        "agent_quality" => Ok(EngineId::AgentQuality),
-        "collaboration" => Ok(EngineId::Collaboration),
-        "task_intelligence" => Ok(EngineId::TaskIntelligence),
-        "predictive" => Ok(EngineId::PredictiveAnalytics),
-        "local_analytics" => Ok(EngineId::LocalAnalytics),
-        _ => Err(format!("Unknown engine: {}", s)),
-    }
-}
-
 /// Helper: compute standard deviation
 fn std_dev(values: &[f64]) -> f64 {
     if values.is_empty() { return 0.0; }
     let mean = values.iter().sum::<f64>() / values.len() as f64;
     (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64).sqrt()
-}
-
-// ─── Data Flywheel Commands ─────────────────────────────────────────
-
-#[tauri::command]
-fn flywheel_dashboard(
-    state: tauri::State<AppState>,
-) -> Result<serde_json::Value, String> {
-    let fw = state.flywheel.lock().unwrap();
-    Ok(fw.dashboard())
-}
-
-#[tauri::command]
-fn flywheel_spin(
-    state: tauri::State<AppState>,
-) -> Result<serde_json::Value, String> {
-    let mut fw = state.flywheel.lock().unwrap();
-    // Auto-collect from web_intelligence
-    if let Ok(wi) = state.web_intelligence.try_lock() {
-        let stats = wi.get_stats();
-        fw.collect_from_web_intel(
-            stats.total_searches, stats.total_fetches, stats.bytes_downloaded,
-            stats.unified_cache_hits, stats.unified_cache_misses,
-        );
-        fw.collect_from_distillation(
-            stats.total_distilled, stats.total_bytes_saved,
-            stats.avg_compression_ratio, 0.85,
-        );
-    }
-    let snap = fw.spin();
-    Ok(serde_json::to_value(&snap).map_err(|e| e.to_string())?)
 }
 
 // ─── 应用入口 ──────────────────────────────────────────────────────
@@ -1394,10 +1166,10 @@ pub fn run() {
             // agent roster + live windows + evolution
             get_agent_roster,
             list_live_windows,
-            indomitable_fetch_url,
-            extract_urls_from_text,
-            pptx_generate,
-            pptx_analyze_reference,
+            agent::indomitable_fetcher::indomitable_fetch_url,
+            agent::indomitable_fetcher::extract_urls_from_text,
+            agent::pptx_engine::pptx_generate,
+            agent::pptx_engine::pptx_analyze_reference,
             get_evolution_stats,
             evo_validate_experience,
             evo_intercept_context,
@@ -1528,12 +1300,12 @@ pub fn run() {
             execute_agent_action,
             extract_and_execute_actions,
             // collaboration engine
-            collab_get_model_ranking,
-            collab_recommend_model,
-            collab_record_execution,
+            agent::collaboration_engine::collab_get_model_ranking,
+            agent::collaboration_engine::collab_recommend_model,
+            agent::collaboration_engine::collab_record_execution,
             // task intelligence
-            task_decompose,
-            task_estimate_complexity,
+            agent::task_intelligence::task_decompose,
+            agent::task_intelligence::task_estimate_complexity,
             // predictive analytics
             predictive_forecast_tokens,
             predictive_detect_cost_anomaly,
@@ -1546,12 +1318,12 @@ pub fn run() {
             distill_evolution_report,
             distill_feedback,
             // evolution bus
-            evobus_health_report,
-            evobus_record_feedback,
-            hallucination_feedback,
+            agent::evolution_bus::evobus_health_report,
+            agent::evolution_bus::evobus_record_feedback,
+            agent::evolution_bus::hallucination_feedback,
             // data flywheel
-            flywheel_dashboard,
-            flywheel_spin,
+            agent::data_flywheel::flywheel_dashboard,
+            agent::data_flywheel::flywheel_spin,
         ])
         .setup(|_app| {
             // 将 AppHandle 注入 Orchestrator，使其可以 emit 前端事件

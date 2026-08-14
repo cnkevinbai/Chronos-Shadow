@@ -541,3 +541,32 @@ mod tests {
         assert_eq!(total_steps, plan.sub_tasks.len());
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn task_decompose(
+    state: tauri::State<crate::state::AppState>,
+    task: String,
+) -> Result<serde_json::Value, String> {
+    let engine = state.task_intelligence.lock().unwrap();
+    let plan = engine.decompose(&task);
+    Ok(serde_json::to_value(&plan).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn task_estimate_complexity(
+    state: tauri::State<crate::state::AppState>,
+    task: String,
+) -> Result<serde_json::Value, String> {
+    let engine = state.task_intelligence.lock().unwrap();
+    let (level, confidence) = engine.estimate_complexity(&task);
+    let category = engine.categorize(&task);
+    Ok(serde_json::json!({
+        "complexity": level.label(),
+        "level": level as u8,
+        "confidence": confidence,
+        "estimated_steps": level.estimated_steps(),
+        "category": category.label(),
+    }))
+}

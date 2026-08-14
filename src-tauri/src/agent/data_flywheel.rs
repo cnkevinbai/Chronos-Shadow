@@ -496,3 +496,34 @@ mod tests {
         std::fs::remove_dir_all(&tmp).unwrap();
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn flywheel_dashboard(
+    state: tauri::State<crate::state::AppState>,
+) -> Result<serde_json::Value, String> {
+    let fw = state.flywheel.lock().unwrap();
+    Ok(fw.dashboard())
+}
+
+#[tauri::command]
+pub fn flywheel_spin(
+    state: tauri::State<crate::state::AppState>,
+) -> Result<serde_json::Value, String> {
+    let mut fw = state.flywheel.lock().unwrap();
+    // Auto-collect from web_intelligence
+    if let Ok(wi) = state.web_intelligence.try_lock() {
+        let stats = wi.get_stats();
+        fw.collect_from_web_intel(
+            stats.total_searches, stats.total_fetches, stats.bytes_downloaded,
+            stats.unified_cache_hits, stats.unified_cache_misses,
+        );
+        fw.collect_from_distillation(
+            stats.total_distilled, stats.total_bytes_saved,
+            stats.avg_compression_ratio, 0.85,
+        );
+    }
+    let snap = fw.spin();
+    Ok(serde_json::to_value(&snap).map_err(|e| e.to_string())?)
+}

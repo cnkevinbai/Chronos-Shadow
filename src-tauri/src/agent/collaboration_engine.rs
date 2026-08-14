@@ -583,3 +583,46 @@ mod tests {
         assert_eq!(ranking[0].model_name, "deepseek-v4-pro");
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn collab_get_model_ranking(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<serde_json::Value, String> {
+    let engine = state.collaboration.lock().await;
+    Ok(engine.stats())
+}
+
+#[tauri::command]
+pub async fn collab_recommend_model(
+    state: tauri::State<'_, crate::state::AppState>,
+    task_type: String,
+    prefer_cheap: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let engine = state.collaboration.lock().await;
+    let (model, reason) = engine.recommend_model_with_reason(&task_type, prefer_cheap.unwrap_or(false));
+    let best = engine.select_best_model(&task_type, prefer_cheap.unwrap_or(false));
+    let fallbacks = engine.fallback_models(&model, &task_type);
+    Ok(serde_json::json!({
+        "recommended": model,
+        "reason": reason,
+        "best_by_quality": best,
+        "fallbacks": fallbacks,
+        "mode": format!("{:?}", engine.decide_mode(&task_type, 0.5, false)),
+    }))
+}
+
+#[tauri::command]
+pub async fn collab_record_execution(
+    state: tauri::State<'_, crate::state::AppState>,
+    model_name: String,
+    task_type: String,
+    success: bool,
+    latency_ms: u64,
+    quality_score: f64,
+) -> Result<String, String> {
+    let mut engine = state.collaboration.lock().await;
+    engine.record_execution(&model_name, &task_type, success, latency_ms, quality_score);
+    Ok(format!("Recorded execution for {}", model_name))
+}

@@ -503,3 +503,74 @@ mod tests {
         assert!(new_val.unwrap() >= 0.63); // 0.9 * 0.7
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+fn parse_evo_engine(s: &str) -> Result<EngineId, String> {
+    match s {
+        "distillation" => Ok(EngineId::Distillation),
+        "scheduling" => Ok(EngineId::Scheduling),
+        "hallucination" => Ok(EngineId::HallucinationGuard),
+        "cache" => Ok(EngineId::CacheEngine),
+        "agent_quality" => Ok(EngineId::AgentQuality),
+        "collaboration" => Ok(EngineId::Collaboration),
+        "task_intelligence" => Ok(EngineId::TaskIntelligence),
+        "predictive" => Ok(EngineId::PredictiveAnalytics),
+        "local_analytics" => Ok(EngineId::LocalAnalytics),
+        _ => Err(format!("Unknown engine: {}", s)),
+    }
+}
+
+#[tauri::command]
+pub fn evobus_health_report(
+    state: tauri::State<crate::state::AppState>,
+) -> Result<serde_json::Value, String> {
+    let bus = state.evolution_bus.lock().unwrap();
+    Ok(bus.health_report())
+}
+
+#[tauri::command]
+pub fn evobus_record_feedback(
+    state: tauri::State<crate::state::AppState>,
+    engine: String,
+    metric: String,
+    current_value: f64,
+    target_value: f64,
+    direction_is_higher_better: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let mut bus = state.evolution_bus.lock().unwrap();
+    let eid = parse_evo_engine(&engine)?;
+    let new_val = bus.feedback_performance(eid, &metric, current_value, target_value, direction_is_higher_better.unwrap_or(true));
+    Ok(serde_json::json!({
+        "adjusted": new_val.is_some(),
+        "new_value": new_val,
+        "engine": engine,
+        "metric": metric,
+    }))
+}
+
+#[tauri::command]
+pub fn hallucination_feedback(
+    state: tauri::State<crate::state::AppState>,
+    is_false_positive: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let mut evo = state.evolution_bus.lock().unwrap();
+    let accuracy = if is_false_positive.unwrap_or(false) { 0.6 } else { 0.9 };
+    let fp_rate = if is_false_positive.unwrap_or(false) { 0.25 } else { 0.1 };
+
+    evo.feedback_performance(
+        EngineId::HallucinationGuard,
+        "accuracy", accuracy, 0.9, true,
+    );
+    evo.feedback_performance(
+        EngineId::HallucinationGuard,
+        "false_positive_rate", fp_rate, 0.1, false,
+    );
+
+    Ok(serde_json::json!({
+        "recorded": true,
+        "is_false_positive": is_false_positive.unwrap_or(false),
+        "accuracy": accuracy,
+        "false_positive_rate": fp_rate,
+    }))
+}
