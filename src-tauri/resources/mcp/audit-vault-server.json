@@ -4,7 +4,7 @@
   "description": "企业级静态安全合规风控保险箱。读取增量 AST 语法树变动，静默审查 SQL 注入、硬编码密钥泄露，扫描第三方依赖的开源协议合规性。",
   "transport": "stdio",
   "command": "node",
-  "args": ["resources/mcp/audit-vault-server.js"],
+  "args": ["resources/mcp/audit-vault-server.cjs"],
   "tools": [
     {
       "name": "scan_incremental_ast_diff",

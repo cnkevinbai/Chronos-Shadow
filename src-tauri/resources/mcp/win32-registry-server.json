@@ -4,7 +4,7 @@
   "description": "Windows 注册表与系统环境传感器。读取注册表键值检测已安装软件版本，写入环境变量并广播 WM_SETTINGCHANGE 实现免重启生效。",
   "transport": "stdio",
   "command": "node",
-  "args": ["resources/mcp/win32-registry-server.js"],
+  "args": ["resources/mcp/win32-registry-server.cjs"],
   "tools": [
     {
       "name": "query_registry_value",

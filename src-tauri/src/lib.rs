@@ -61,6 +61,7 @@ pub fn run() {
             agent::mcp_client::mcp_fetch_tools,
             agent::mcp_client::mcp_disconnect,
             agent::mcp_client::mcp_cleanup_stale,
+            agent::mcp_client::mcp_register_builtin_servers,
             // orchestrator management
             agent::orchestrator::prune_orchestrator_tasks,
             agent::orchestrator::flush_dead_letters,
@@ -324,6 +325,14 @@ pub fn run() {
                     }
                     tracing::info!("[SETUP] Evolution state restored");
                 }
+            }
+
+            // 注册内置 MCP 服务器（真实 stdio 脚本）
+            {
+                let handle = _app.handle().clone();
+                let state = _app.state::<AppState>();
+                let mut mcp = state.mcp_client.blocking_lock();
+                let _ = agent::mcp_client::register_builtin_servers(&mut mcp, &handle);
             }
 
             // 自动恢复 C-VFS 项目池

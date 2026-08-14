@@ -4,7 +4,7 @@
   "description": "本地代码树增量向量索引库。动态映射项目树拓扑为 MCP Resources，激活端侧 ONNX Embedding 对增量代码行进行高精度向量检索，将上下文体积压缩至千分之一。",
   "transport": "stdio",
   "command": "node",
-  "args": ["resources/mcp/local-vector-glue-server.js"],
+  "args": ["resources/mcp/local-vector-glue-server.cjs"],
   "tools": [
     {
       "name": "query_vector_similarity",

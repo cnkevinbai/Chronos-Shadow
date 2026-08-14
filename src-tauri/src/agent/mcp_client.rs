@@ -13,6 +13,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tauri::Manager;
 
 // ─── JSON-RPC 2.0 协议类型 ─────────────────────────────────────────
 
@@ -405,6 +406,83 @@ impl Default for McpClient {
     fn default() -> Self { Self::new() }
 }
 
+// ─── 内置服务器配置加载（对齐 resources/mcp/*.json） ────────────
+
+/// resources/mcp/*.json 的配置结构（与 McpServer 分离，便于反序列化）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServerConfig {
+    pub name: String,
+    #[serde(rename = "displayName", default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub transport: String,
+    #[serde(default)]
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+}
+
+impl McpServerConfig {
+    /// 配置 → McpServer；相对脚本路径解析为配置目录下的绝对路径
+    pub fn to_server(&self, dir: &std::path::Path) -> McpServer {
+        let args: Vec<String> = self.args.iter().map(|a| {
+            let p = std::path::Path::new(a);
+            if p.is_absolute() {
+                a.clone()
+            } else {
+                dir.join(p.file_name().unwrap_or_default()).to_string_lossy().into_owned()
+            }
+        }).collect();
+        McpServer {
+            id: self.name.clone(),
+            name: if self.display_name.is_empty() { self.name.clone() } else { self.display_name.clone() },
+            transport: McpTransport::Stdio { command: self.command.clone(), args, env: HashMap::new() },
+            tools_count: 0,
+            resources_count: 0,
+            connected: false,
+            connection_failures: 0,
+        }
+    }
+}
+
+/// 从目录读取所有 *.json MCP 配置，转换为 McpServer 列表
+pub fn load_server_configs(dir: &std::path::Path) -> Vec<McpServer> {
+    let mut servers = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") { continue; }
+            if let Ok(json) = std::fs::read_to_string(&path) {
+                if let Ok(cfg) = serde_json::from_str::<McpServerConfig>(&json) {
+                    servers.push(cfg.to_server(dir));
+                }
+            }
+        }
+    }
+    servers
+}
+
+/// 解析 MCP 配置目录：运行时资源目录优先，回退到编译期 CARGO_MANIFEST_DIR
+pub fn resolve_mcp_dir(app_handle: &tauri::AppHandle) -> std::path::PathBuf {
+    if let Ok(res) = app_handle.path().resource_dir() {
+        let p = res.join("mcp");
+        if p.exists() { return p; }
+    }
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/mcp")
+}
+
+/// 将内置 MCP 服务器配置注册进客户端，返回注册数量
+pub fn register_builtin_servers(mcp: &mut McpClient, app_handle: &tauri::AppHandle) -> usize {
+    let dir = resolve_mcp_dir(app_handle);
+    let servers = load_server_configs(&dir);
+    let count = servers.len();
+    for s in servers {
+        mcp.register_server(s);
+    }
+    tracing::info!("[MCP] Registered {} builtin servers from {:?}", count, dir);
+    count
+}
+
 // ─── 工具函数 ──────────────────────────────────────────────────────
 
 fn distill_value(value: &serde_json::Value) -> String {
@@ -554,4 +632,14 @@ pub fn mcp_cleanup_stale(state: tauri::State<crate::state::AppState>) -> String 
 #[tauri::command]
 pub fn list_mcp_servers(state: tauri::State<crate::state::AppState>) -> Vec<McpServer> {
     state.mcp_client.blocking_lock().connected_servers().into_iter().cloned().collect()
+}
+
+#[tauri::command]
+pub async fn mcp_register_builtin_servers(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<String, String> {
+    let mut mcp = state.mcp_client.lock().await;
+    let count = register_builtin_servers(&mut mcp, &app_handle);
+    Ok(format!("Registered {} builtin MCP servers", count))
 }
