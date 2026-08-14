@@ -138,12 +138,12 @@ impl HallucinationGuard {
 
     /// 接收用户反馈：标记某次检测是否为误报
     pub fn record_feedback(&mut self, is_false_positive: bool) {
-        self.detection_history.0 += 1;
+        self.detection_history.0 += 1; // 总检测次数
+        self.false_positive_history.0 += 1; // 总报告数（误报率分母）
         if !is_false_positive {
-            self.detection_history.1 += 1; // 真正的幻觉
+            self.detection_history.1 += 1; // 确认幻觉次数
         } else {
-            self.false_positive_history.0 += 1;
-            self.false_positive_history.1 += 1;
+            self.false_positive_history.1 += 1; // 误报数（误报率分子）
         }
 
         // 自适应调整灵敏度
@@ -157,8 +157,8 @@ impl HallucinationGuard {
         self.false_positive_history.1 as f64 / self.false_positive_history.0 as f64
     }
 
-    /// 检测准确率
-    pub fn accuracy(&self) -> f64 {
+    /// 检测精确率 (Precision)：确认幻觉数 / 总检出数
+    pub fn precision(&self) -> f64 {
         if self.detection_history.0 == 0 { return 0.9; }
         self.detection_history.1 as f64 / self.detection_history.0 as f64
     }
@@ -211,7 +211,7 @@ impl HallucinationGuard {
     /// 获取进化指标 (供 EvolutionBus 使用)
     pub fn evolution_metrics(&self) -> serde_json::Value {
         serde_json::json!({
-            "accuracy": self.accuracy(),
+            "precision": self.precision(),
             "false_positive_rate": self.false_positive_rate(),
             "total_detections": self.detection_history.0,
             "confirmed_hallucinations": self.detection_history.1,
@@ -849,6 +849,17 @@ impl Default for HallucinationGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_false_positive_rate_not_always_one() {
+        let mut guard = HallucinationGuard::new();
+        // 10 次反馈，后 3 次 (i=7,8,9) 标记为误报
+        for i in 0..10 {
+            guard.record_feedback(i >= 7);
+        }
+        let rate = guard.false_positive_rate();
+        assert!((rate - 0.3).abs() < 0.01, "误报率应为 0.3，实际 {}", rate);
+    }
 
     #[test]
     fn test_clean_response() {

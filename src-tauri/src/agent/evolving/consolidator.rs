@@ -319,6 +319,9 @@ impl Consolidator {
     }
 
     /// 模拟向量嵌入（384-dim 归一化伪随机向量）
+    ///
+    /// ⚠️ 仅作降级占位：DefaultHasher 生成的是非语义哈希向量，余弦相似度无意义，
+    /// 且算法跨 Rust 版本不保证稳定。真实语义检索请使用 EmbeddingEngine (TF-IDF)。
     fn mock_embed(&self, text: &str) -> Vec<f32> {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};

@@ -88,7 +88,7 @@ impl ModelCapability {
         }
     }
 
-    /// 成本效率分：质量/成本比
+    /// 成本效率分：质量 / 每百万 token 成本（cost_per_1k_tokens × 1000）
     pub fn efficiency_score(&self) -> f64 {
         if self.cost_per_1k_tokens <= 0.0 { return self.quality_score; }
         self.quality_score / (self.cost_per_1k_tokens * 1000.0).max(0.01)

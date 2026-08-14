@@ -167,24 +167,48 @@ impl LocalAnalytics {
 
     // ── 异常检测 ──────────────────────────────────────────────────
 
-    /// Z-score 异常检测
+    /// 稳健 Z-score (MAD) 异常检测：对离群值稳健，避免单一极端值抬高 σ 掩盖自身
     pub fn detect_anomalies(&self, metric: &str) -> Vec<AnomalyFlag> {
         let values: Vec<f64> = self.windows.get(metric)
             .map(|w| w.iter().cloned().collect())
             .unwrap_or_default();
         if values.len() < 10 { return vec![]; }
 
-        let snap = StatSnapshot::from_values(&values);
-        if snap.std_dev == 0.0 { return vec![]; }
+        // 中位数 + MAD（中位数绝对偏差）
+        let mut sorted = values.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let median = sorted[sorted.len() / 2];
+        let mut abs_devs: Vec<f64> = values.iter().map(|v| (v - median).abs()).collect();
+        abs_devs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let mad = abs_devs[abs_devs.len() / 2];
 
+        // MAD 为 0（数据高度集中）→ 退化到普通 Z-score
+        if mad == 0.0 {
+            let snap = StatSnapshot::from_values(&values);
+            if snap.std_dev == 0.0 { return vec![]; }
+            return values.iter().enumerate()
+                .filter_map(|(i, &v)| {
+                    let z = (v - snap.mean).abs() / snap.std_dev;
+                    if z > self.anomaly_threshold {
+                        Some(AnomalyFlag {
+                            index: i, value: v, z_score: z,
+                            severity: if z > 4.0 { "high" } else if z > 3.0 { "medium" } else { "low" }.into(),
+                            description: format!("{}: value={:.2} is {:.1}σ from mean {:.2}", metric, v, z, snap.mean),
+                        })
+                    } else { None }
+                })
+                .collect();
+        }
+
+        // 稳健 Z-score: 0.6745 = 1/Φ⁻¹(0.75)，使 MAD 与正态 σ 对齐
         values.iter().enumerate()
             .filter_map(|(i, &v)| {
-                let z = (v - snap.mean).abs() / snap.std_dev;
+                let z = (0.6745 * (v - median) / mad).abs();
                 if z > self.anomaly_threshold {
                     Some(AnomalyFlag {
                         index: i, value: v, z_score: z,
                         severity: if z > 4.0 { "high" } else if z > 3.0 { "medium" } else { "low" }.into(),
-                        description: format!("{}: value={:.2} is {:.1}σ from mean {:.2}", metric, v, z, snap.mean),
+                        description: format!("{}: value={:.2} is {:.1}σ (MAD) from median {:.2}", metric, v, z, median),
                     })
                 } else { None }
             })
@@ -291,7 +315,7 @@ impl LocalAnalytics {
 
     // ── 置信区间 ────────────────────────────────────────────────
 
-    /// 95% 置信区间 (基于t分布近似)
+    /// 95% 置信区间 (Z 分位 1.96，大样本近似)
     pub fn confidence_interval(&self, metric: &str) -> (f64, f64) {
         let snap = self.snapshot(metric);
         if snap.count < 3 { return (0.0, 0.0); }
@@ -299,9 +323,9 @@ impl LocalAnalytics {
         (snap.mean - margin, snap.mean + margin)
     }
 
-    // ── 贝叶斯变点检测 ──────────────────────────────────────────
+    // ── 变点检测 ──────────────────────────────────────────────
 
-    /// 简单贝叶斯变点检测: 检测最近的显著变化
+    /// 滑动窗口均值偏移变点检测：检测最近的显著均值变化
     pub fn detect_change_point(&self, metric: &str) -> Option<(usize, f64, String)> {
         let values: Vec<f64> = self.windows.get(metric).map(|w| w.iter().cloned().collect()).unwrap_or_default();
         if values.len() < 10 { return None; }
