@@ -77,8 +77,12 @@ pub struct ScreenDiffResult {
 pub struct CaptureResult {
     /// 是否成功
     pub success: bool,
-    /// 图像数据（WebP 格式）
+    /// 图像数据（BGRA 32bpp 原始像素）
     pub image_data: Vec<u8>,
+    /// 输出图像宽度
+    pub width: u32,
+    /// 输出图像高度
+    pub height: u32,
     /// 原始大小（字节）
     pub original_size: usize,
     /// 裁剪后大小（字节）
@@ -410,15 +414,15 @@ impl VisionEngine {
     /// 局部自适应裁剪 + 低分辨率降采样
     ///
     /// 当图像宽度超过压缩阈值时，执行最近邻降采样（保持宽高比），
-    /// 显著降低 VLM 输入 token 成本。
+    /// 显著降低 VLM 输入 token 成本。返回 (像素数据, 输出宽, 输出高)。
     pub fn crop_to_active_window(
         &self,
         image_data: &[u8],
         width: u32,
         height: u32,
-    ) -> Vec<u8> {
+    ) -> (Vec<u8>, u32, u32) {
         if width <= self.compression_threshold || width == 0 || height == 0 {
-            return image_data.to_vec();
+            return (image_data.to_vec(), width, height);
         }
 
         let scale = self.compression_threshold as f32 / width as f32;
@@ -439,7 +443,7 @@ impl VisionEngine {
             "[Vision] Downsampled {}×{} → {}×{} for VLM cost reduction",
             width, height, new_w, new_h
         );
-        out
+        (out, new_w, new_h)
     }
 
     // ── 完整处理流水线 ────────────────────────────────────────────
@@ -458,6 +462,8 @@ impl VisionEngine {
                 return CaptureResult {
                     success: false,
                     image_data: vec![],
+                    width: 0,
+                    height: 0,
                     original_size: 0,
                     cropped_size: 0,
                     should_send: false,
@@ -475,6 +481,8 @@ impl VisionEngine {
             return CaptureResult {
                 success: true,
                 image_data: vec![],
+                width: 0,
+                height: 0,
                 original_size,
                 cropped_size: 0,
                 should_send: false,
@@ -490,12 +498,14 @@ impl VisionEngine {
         let masked = self.apply_privacy_masks(&raw_image, width, height);
 
         // Step 4: 裁剪 + 压缩
-        let cropped = self.crop_to_active_window(&masked, width, height);
+        let (cropped, out_w, out_h) = self.crop_to_active_window(&masked, width, height);
         let cropped_size = cropped.len();
 
         CaptureResult {
             success: true,
             image_data: cropped,
+            width: out_w,
+            height: out_h,
             original_size,
             cropped_size,
             should_send: true,
@@ -620,6 +630,12 @@ pub fn vision_privacy_model_status() -> PrivacyModelStatus {
     check_privacy_model()
 }
 
+#[tauri::command]
+pub fn vision_capture_frame(state: tauri::State<crate::state::AppState>) -> CaptureResult {
+    let mut vision = state.vision.lock().unwrap();
+    vision.process_frame()
+}
+
 /// 视觉引擎节省统计
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VisionSavings {
@@ -712,8 +728,10 @@ mod tests {
         let w = 8u32;
         let h = 8u32;
         let data: Vec<u8> = (0..(w * h * 4) as usize).map(|i| (i % 256) as u8).collect();
-        let out = engine.crop_to_active_window(&data, w, h);
+        let (out, ow, oh) = engine.crop_to_active_window(&data, w, h);
         assert_eq!(out.len(), (4 * 4 * 4) as usize, "应降采样到 4×4×4");
+        assert_eq!(ow, 4);
+        assert_eq!(oh, 4);
     }
 
     #[test]

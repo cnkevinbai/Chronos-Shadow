@@ -204,6 +204,7 @@ pub fn run() {
             agent::detector::get_detector_stats,
             // vision privacy mask
             vision::vision_privacy_model_status,
+            vision::vision_capture_frame,
             // lan health
             agent::router::check_lan_health,
             // worktree commands
