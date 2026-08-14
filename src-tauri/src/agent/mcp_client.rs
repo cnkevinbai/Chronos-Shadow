@@ -600,6 +600,37 @@ mod tests {
         // Clean up
         client.disconnect("test").unwrap();
     }
+
+    #[test]
+    fn test_load_server_configs() {
+        let dir = std::env::temp_dir().join("chronos_mcp_cfg_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("audit-server.json"), r#"{
+            "name": "mcp-server-audit",
+            "displayName": "Audit Vault",
+            "transport": "stdio",
+            "command": "node",
+            "args": ["resources/mcp/audit-server.cjs"]
+        }"#).unwrap();
+        std::fs::write(dir.join("audit-server.cjs"), "// stub").unwrap();
+
+        let servers = load_server_configs(&dir);
+        assert_eq!(servers.len(), 1);
+        let s = &servers[0];
+        assert_eq!(s.id, "mcp-server-audit");
+        assert_eq!(s.name, "Audit Vault");
+        match &s.transport {
+            McpTransport::Stdio { command, args, .. } => {
+                assert_eq!(command, "node");
+                // 相对脚本路径应解析为配置目录下的绝对路径
+                assert_eq!(args[0], dir.join("audit-server.cjs").to_string_lossy());
+            }
+            _ => panic!("expected stdio transport"),
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 // ─── Tauri Commands ──────────────────────────────────────────────

@@ -224,3 +224,58 @@ pub fn get_evolution_stats(state: tauri::State<crate::state::AppState>) -> serde
     result["active_skills"] = serde_json::json!(skill_engine.active_skills().len());
     result
 }
+
+// ─── 单元测试 ──────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::consolidator::EvoDelta;
+    use super::extractor::{DeltaExperience, DeltaTrigger};
+
+    #[test]
+    fn test_evolution_engine_persistence_roundtrip() {
+        let dir = std::env::temp_dir().join("chronos_evo_engine_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let mut engine = EvolutionEngine::new(Some(dir.clone()));
+        // 固化一条技能
+        let delta = DeltaExperience {
+            id: "delta-1".into(),
+            timestamp: "2026-01-01T00:00:00Z".into(),
+            trigger: DeltaTrigger::UserCorrection,
+            original_error: "unwrap()".into(),
+            correction: "use ? operator".into(),
+            correct_result: "compiled".into(),
+            scope: "src/main".into(),
+            embedding: None,
+        };
+        engine.consolidator.consolidate(&delta);
+        // 写入一条记忆
+        {
+            let mut pool = engine.local_consolidator.active_memory_pool.blocking_lock();
+            pool.insert("hash-1".into(), EvoDelta {
+                experience_id: "exp-1".into(),
+                context_trigger_hash: "hash-1".into(),
+                failed_llm_action: "unwrap()".into(),
+                correct_human_action: "? operator".into(),
+                token_sunk_cost_saved: 50,
+                accuracy_weight: 0.7,
+            });
+        }
+
+        engine.save_state(&dir).unwrap();
+
+        let mut engine2 = EvolutionEngine::new(Some(dir.clone()));
+        engine2.load_state(&dir).unwrap();
+
+        assert_eq!(engine2.consolidator.db.skills.len(), 1);
+        assert_eq!(engine2.consolidator.db.skills[0].id, "skill-0001");
+        let pool = engine2.local_consolidator.active_memory_pool.blocking_lock();
+        assert_eq!(pool.len(), 1);
+        assert!(pool.contains_key("hash-1"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
