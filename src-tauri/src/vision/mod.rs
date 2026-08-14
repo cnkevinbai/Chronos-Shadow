@@ -77,7 +77,7 @@ pub struct ScreenDiffResult {
 pub struct CaptureResult {
     /// 是否成功
     pub success: bool,
-    /// 图像数据（BGRA 32bpp 原始像素）
+    /// 图像数据（PNG 编码字节，供前端/VLM 直接消费）
     pub image_data: Vec<u8>,
     /// 输出图像宽度
     pub width: u32,
@@ -411,37 +411,63 @@ impl VisionEngine {
         result
     }
 
-    /// 局部自适应裁剪 + 低分辨率降采样
+    /// 活动窗口裁剪 + 低分辨率降采样
     ///
-    /// 当图像宽度超过压缩阈值时，执行最近邻降采样（保持宽高比），
-    /// 显著降低 VLM 输入 token 成本。返回 (像素数据, 输出宽, 输出高)。
+    /// 1. 裁剪到前台活动窗口（Win32 GetForegroundWindow + GetWindowRect）
+    /// 2. 若仍超过压缩阈值，最近邻降采样（保持宽高比）
+    /// 返回 (像素数据, 输出宽, 输出高)。
     pub fn crop_to_active_window(
         &self,
         image_data: &[u8],
         width: u32,
         height: u32,
     ) -> (Vec<u8>, u32, u32) {
-        if width <= self.compression_threshold || width == 0 || height == 0 {
-            return (image_data.to_vec(), width, height);
-        }
+        // Step 1: 裁剪到活动窗口
+        let (cropped, cw, ch) = match foreground_window_rect() {
+            Some((l, t, r, b)) => {
+                let l = l.min(width);
+                let t = t.min(height);
+                let r = r.min(width);
+                let b = b.min(height);
+                if r > l && b > t {
+                    let w = r - l;
+                    let h = b - t;
+                    let bpp = 4usize;
+                    let mut out = Vec::with_capacity((w as usize) * (h as usize) * bpp);
+                    for y in t..b {
+                        for x in l..r {
+                            let idx = ((y * width + x) as usize) * bpp;
+                            out.extend_from_slice(&image_data[idx..idx + bpp]);
+                        }
+                    }
+                    (out, w, h)
+                } else {
+                    (image_data.to_vec(), width, height)
+                }
+            }
+            None => (image_data.to_vec(), width, height),
+        };
 
-        let scale = self.compression_threshold as f32 / width as f32;
+        // Step 2: 降采样
+        if cw <= self.compression_threshold || cw == 0 || ch == 0 {
+            return (cropped, cw, ch);
+        }
+        let scale = self.compression_threshold as f32 / cw as f32;
         let new_w = self.compression_threshold;
-        let new_h = ((height as f32 * scale).round() as u32).max(1);
-        let bpp = 4usize; // BGRA 32bpp
+        let new_h = ((ch as f32 * scale).round() as u32).max(1);
+        let bpp = 4usize;
         let mut out = Vec::with_capacity(new_w as usize * new_h as usize * bpp);
         for y in 0..new_h {
-            let src_y = ((y as f32 / scale).round() as u32).min(height - 1);
+            let src_y = ((y as f32 / scale).round() as u32).min(ch - 1);
             for x in 0..new_w {
-                let src_x = ((x as f32 / scale).round() as u32).min(width - 1);
-                let src_idx = (src_y * width + src_x) as usize * bpp;
-                out.extend_from_slice(&image_data[src_idx..src_idx + bpp]);
+                let src_x = ((x as f32 / scale).round() as u32).min(cw - 1);
+                let src_idx = (src_y * cw + src_x) as usize * bpp;
+                out.extend_from_slice(&cropped[src_idx..src_idx + bpp]);
             }
         }
-
         tracing::info!(
-            "[Vision] Downsampled {}×{} → {}×{} for VLM cost reduction",
-            width, height, new_w, new_h
+            "[Vision] Cropped+downsampled {}×{} → {}×{} for VLM cost reduction",
+            cw, ch, new_w, new_h
         );
         (out, new_w, new_h)
     }
@@ -501,9 +527,27 @@ impl VisionEngine {
         let (cropped, out_w, out_h) = self.crop_to_active_window(&masked, width, height);
         let cropped_size = cropped.len();
 
+        // Step 5: BGRA → PNG 编码（供前端/VLM 直接消费）
+        let png = match encode_bgra_to_png(&cropped, out_w, out_h) {
+            Ok(p) => p,
+            Err(e) => {
+                return CaptureResult {
+                    success: false,
+                    image_data: vec![],
+                    width: 0,
+                    height: 0,
+                    original_size,
+                    cropped_size,
+                    should_send: false,
+                    masks_applied: 0,
+                    skip_reason: Some(format!("PNG encode failed: {}", e)),
+                };
+            }
+        };
+
         CaptureResult {
             success: true,
-            image_data: cropped,
+            image_data: png,
             width: out_w,
             height: out_h,
             original_size,
@@ -546,6 +590,29 @@ impl VisionEngine {
             estimated_cost_saved: self.tokens_saved as f64 * 0.0001, // ~$0.0001/token
         }
     }
+}
+
+/// 获取前台活动窗口的屏幕矩形 (left, top, right, bottom)
+#[cfg(target_os = "windows")]
+fn foreground_window_rect() -> Option<(u32, u32, u32, u32)> {
+    unsafe {
+        extern "system" {
+            fn GetForegroundWindow() -> isize;
+            fn GetWindowRect(hwnd: isize, rect: *mut i32) -> i32;
+        }
+        let hwnd = GetForegroundWindow();
+        if hwnd == 0 { return None; }
+        let mut rect = [0i32; 4];
+        if GetWindowRect(hwnd, rect.as_mut_ptr()) == 0 { return None; }
+        let (l, t, r, b) = (rect[0], rect[1], rect[2], rect[3]);
+        if r <= l || b <= t { return None; }
+        Some((l as u32, t as u32, r as u32, b as u32))
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn foreground_window_rect() -> Option<(u32, u32, u32, u32)> {
+    None
 }
 
 /// 对 BGRA 图像指定区域执行 5×5 近似高斯模糊（读原始、写目标，避免原地污染）
@@ -591,6 +658,24 @@ fn gaussian_blur_bgra(
             }
         }
     }
+}
+
+/// 将 BGRA 32bpp 像素编码为 PNG（供前端/VLM 直接消费）
+fn encode_bgra_to_png(bgra: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> {
+    // BGRA → RGBA（image crate 使用 RGBA 通道序）
+    let mut rgba = Vec::with_capacity(bgra.len());
+    for px in bgra.chunks_exact(4) {
+        rgba.push(px[2]); // R
+        rgba.push(px[1]); // G
+        rgba.push(px[0]); // B
+        rgba.push(px[3]); // A
+    }
+    let img = image::RgbaImage::from_raw(width, height, rgba)
+        .ok_or_else(|| "Invalid image dimensions".to_string())?;
+    let mut cursor = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut cursor, image::ImageFormat::Png)
+        .map_err(|e| e.to_string())?;
+    Ok(cursor.into_inner())
 }
 
 /// ONNX 隐私遮罩模型状态

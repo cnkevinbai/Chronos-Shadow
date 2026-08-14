@@ -42,6 +42,7 @@ indexmap = "=1.9.2"
 tracing-subscriber = "0.3"
 tracing-appender = "0.2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [profile.release]
 panic = "abort"
