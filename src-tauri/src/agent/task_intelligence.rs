@@ -49,6 +49,12 @@ impl ComplexityLevel {
     }
 }
 
+impl std::fmt::Display for ComplexityLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.label())
+    }
+}
+
 // ─── 任务类型分类 ──────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,6 +85,12 @@ impl TaskCategory {
             Self::DataProcessing => "数据处理",
             Self::SecurityAudit => "安全审计",
         }
+    }
+}
+
+impl std::fmt::Display for TaskCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.label())
     }
 }
 

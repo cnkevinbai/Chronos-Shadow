@@ -698,7 +698,9 @@ impl ChronosVirtualFileSystem {
         } // 写锁释放
 
         // 持久化项目列表到磁盘
-        let _ = self.save_state().await;
+        if let Err(e) = self.save_state().await {
+            tracing::warn!("[VFS] save_state failed: {}", e);
+        }
 
         tracing::info!("[VFS ENGINE] Project sandbox initialized & Scope locked + persisted.");
         Ok(canonical_path)
@@ -1263,7 +1265,9 @@ pub async fn cvfs_create_project(
     let path = cvfs.create_secure_project_workspace(&project_id, PathBuf::from(&target_path)).await
         .map_err(|e| e.to_string())?;
     if let Ok(app_data) = app_handle.path().app_data_dir() {
-        let _ = cvfs.save_state_to(&app_data).await;
+        if let Err(e) = cvfs.save_state_to(&app_data).await {
+            tracing::warn!("[VFS] save_state_to failed: {}", e);
+        }
     }
     Ok(format!("Project '{}' created at {:?}", project_id, path))
 }
@@ -1318,7 +1322,9 @@ pub async fn cvfs_capture_checkpoint_v2(
     let cvfs = state.cvfs.lock().await;
     let cp = cvfs.capture_checkpoint_v2(&project_id, &label, &description).await?;
     if let Ok(dir) = app_handle.path().app_data_dir() {
-        let _ = cvfs.save_state_to(&dir).await;
+        if let Err(e) = cvfs.save_state_to(&dir).await {
+            tracing::warn!("[VFS] save_state_to failed: {}", e);
+        }
     }
     Ok(serde_json::json!({
         "id": cp.checkpoint_id, "timestamp": cp.timestamp,

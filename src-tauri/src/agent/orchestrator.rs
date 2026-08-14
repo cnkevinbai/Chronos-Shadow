@@ -59,6 +59,12 @@ impl AgentRole {
     }
 }
 
+impl std::fmt::Display for AgentRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.label())
+    }
+}
+
 // ─── 任务状态 ──────────────────────────────────────────────────────
 
 /// 任务生命周期状态

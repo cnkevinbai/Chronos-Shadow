@@ -40,6 +40,12 @@ impl IntentCategory {
     }
 }
 
+impl std::fmt::Display for IntentCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.label())
+    }
+}
+
 // ─── Agent 角色 ──────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -63,6 +69,12 @@ impl ScheduledAgent {
             ScheduledAgent::Tester => "🧪", ScheduledAgent::Documenter => "📝",
             ScheduledAgent::Compliance => "⚖️", ScheduledAgent::Generalist => "🤖",
         }
+    }
+}
+
+impl std::fmt::Display for ScheduledAgent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.label())
     }
 }
 
