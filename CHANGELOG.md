@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.0] — 2026-08-14
+
+### Changed — lib.rs 命令迁移重构
+- 53 个 Tauri 命令从 ~1976 行的 `lib.rs` 全部分散到 30+ 个 `agent/*.rs` 模块，`lib.rs` 仅剩模块声明 + `run()` 入口（~470 行）
+- 命令名与前端 `invoke()` 调用点不变，行为零改动
+- 清理迁移过程中产生的全部死 `use` 导入，编译 0 warning
+
+### Added — v0.3.0 待办推进
+- 进化引擎持久化：`EvolutionEngine`/`LocalConsolidator`/`Consolidator` 新增 `save_state`/`load_state`，记忆池、固化技能、嵌入、调节器统计重启保留
+- 动态指标采集：`analyze_task_enhanced` 从硬编码占位改为动态估算 token/复杂度/成本/时长/风险 + 模型推荐（对齐 `billing.rs` 官方定价）
+- MCP 真实脚本集成：3 个真实 Node.js MCP 服务器（audit-vault / win32-registry / local-vector-glue）+ Rust 侧配置加载 + 启动自动注册
+- 前端测试：Vitest + React Testing Library 基建 + 19 个测试（`utils`/`models`/`Modal`/`ErrorBoundary`）+ CI `npm test` 步骤
+
+### Known Limitations
+- ONNX 隐私遮罩：真实像素级高斯打码已实现；真 ONNX 推理仍待真实模型（`privacy_mask.onnx` 现为占位）+ `ort`/`tract` 推理库
+- macOS / Linux 支持未做（需跨平台 CI + 条件编译）
+- Rust Tauri 命令集成测试：单测已做，`tauri::test` harness 未做
+
 ## [0.2.0] — 2026-08-10
 
 ### Added — 新增 7 大核心引擎
