@@ -58,6 +58,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run frontend tests (Vitest + React Testing Library)
+        run: npm test
+
       - name: Build frontend (tauri::generate_context! 需要 dist/)
         run: npm run build
 
