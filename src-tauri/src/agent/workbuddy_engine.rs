@@ -329,3 +329,32 @@ mod tests {
         assert!(!engine.suggestions.is_empty());
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn wb_add_rule(state: tauri::State<crate::state::AppState>, name: String, trigger: String, target: String, delay_ms: u64, priority: u8) -> String {
+    state.workbuddy.lock().unwrap().add_rule(&name, &trigger, &target, delay_ms, priority)
+}
+
+#[tauri::command]
+pub fn wb_record_activity(state: tauri::State<crate::state::AppState>, app_id: String, app_name: String, event_type: String, duration_ms: Option<u64>, bytes: Option<u64>) -> String {
+    state.workbuddy.lock().unwrap().record_activity(&app_id, &app_name, &event_type, duration_ms, bytes);
+    format!("Activity recorded for {}", app_name)
+}
+
+#[tauri::command]
+pub fn wb_generate_report(state: tauri::State<crate::state::AppState>) -> serde_json::Value {
+    let report = state.workbuddy.lock().unwrap().generate_report();
+    serde_json::json!(report)
+}
+
+#[tauri::command]
+pub fn wb_generate_suggestions(state: tauri::State<crate::state::AppState>) -> Vec<serde_json::Value> {
+    let mut wb = state.workbuddy.lock().unwrap();
+    wb.generate_suggestions();
+    wb.suggestions.iter().map(|s| serde_json::json!({
+        "id": s.id, "type": s.suggestion_type, "title": s.title,
+        "description": s.description, "confidence": s.confidence,
+    })).collect()
+}

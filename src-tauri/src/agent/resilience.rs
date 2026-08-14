@@ -224,3 +224,24 @@ mod tests {
         assert!(!health.is_healthy());
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_system_health(state: tauri::State<crate::state::AppState>) -> Vec<serde_json::Value> {
+    let health = &state.system_health;
+    let api_ok = state.api_circuit_breaker.state() == CircuitState::Closed;
+    health.report("api_client", if api_ok { "healthy" } else { "degraded" }, None);
+    let cvfs_ok = state.cvfs.try_lock().is_ok();
+    health.report("cvfs", if cvfs_ok { "healthy" } else { "degraded" }, None);
+    state.system_health.full_report().iter().map(|h| serde_json::json!({
+        "module": h.module, "status": h.status, "message": h.message, "last_check": h.last_check,
+    })).collect()
+}
+
+#[tauri::command]
+pub fn get_circuit_breaker_status(state: tauri::State<crate::state::AppState>) -> serde_json::Value {
+    serde_json::json!({
+        "api": format!("{:?}", state.api_circuit_breaker.state()),
+    })
+}

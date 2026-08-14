@@ -65,59 +65,6 @@ use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-// ─── System Health Commands ─────────────────────────────────────
-
-#[tauri::command]
-fn get_system_health(state: tauri::State<AppState>) -> Vec<serde_json::Value> {
-    // 自动检测各模块状态
-    let health = &state.system_health;
-    let api_ok = state.api_circuit_breaker.state() == agent::resilience::CircuitState::Closed;
-    health.report("api_client", if api_ok { "healthy" } else { "degraded" }, None);
-
-    let cvfs_ok = state.cvfs.try_lock().is_ok();
-    health.report("cvfs", if cvfs_ok { "healthy" } else { "degraded" }, None);
-
-    state.system_health.full_report().iter().map(|h| serde_json::json!({
-        "module": h.module, "status": h.status, "message": h.message, "last_check": h.last_check,
-    })).collect()
-}
-
-#[tauri::command]
-fn get_circuit_breaker_status(state: tauri::State<AppState>) -> serde_json::Value {
-    serde_json::json!({
-        "api": format!("{:?}", state.api_circuit_breaker.state()),
-    })
-}
-
-// ─── WorkBuddy Engine Commands ──────────────────────────────────
-
-#[tauri::command]
-fn wb_add_rule(state: tauri::State<AppState>, name: String, trigger: String, target: String, delay_ms: u64, priority: u8) -> String {
-    state.workbuddy.lock().unwrap().add_rule(&name, &trigger, &target, delay_ms, priority)
-}
-
-#[tauri::command]
-fn wb_record_activity(state: tauri::State<AppState>, app_id: String, app_name: String, event_type: String, duration_ms: Option<u64>, bytes: Option<u64>) -> String {
-    state.workbuddy.lock().unwrap().record_activity(&app_id, &app_name, &event_type, duration_ms, bytes);
-    format!("Activity recorded for {}", app_name)
-}
-
-#[tauri::command]
-fn wb_generate_report(state: tauri::State<AppState>) -> serde_json::Value {
-    let report = state.workbuddy.lock().unwrap().generate_report();
-    serde_json::json!(report)
-}
-
-#[tauri::command]
-fn wb_generate_suggestions(state: tauri::State<AppState>) -> Vec<serde_json::Value> {
-    let mut wb = state.workbuddy.lock().unwrap();
-    wb.generate_suggestions();
-    wb.suggestions.iter().map(|s| serde_json::json!({
-        "id": s.id, "type": s.suggestion_type, "title": s.title,
-        "description": s.description, "confidence": s.confidence,
-    })).collect()
-}
-
 // ─── State Manager Commands ─────────────────────────────────────
 
 #[tauri::command]
@@ -1642,13 +1589,13 @@ pub fn run() {
             state_save_all,
             state_health_report,
             // workbuddy engine
-            wb_add_rule,
-            wb_record_activity,
-            wb_generate_report,
-            wb_generate_suggestions,
+            agent::workbuddy_engine::wb_add_rule,
+            agent::workbuddy_engine::wb_record_activity,
+            agent::workbuddy_engine::wb_generate_report,
+            agent::workbuddy_engine::wb_generate_suggestions,
             // system health
-            get_system_health,
-            get_circuit_breaker_status,
+            agent::resilience::get_system_health,
+            agent::resilience::get_circuit_breaker_status,
             // user profile
             agent::user_profile::get_user_profile,
             agent::user_profile::update_user_profile,
