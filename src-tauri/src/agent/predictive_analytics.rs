@@ -740,3 +740,64 @@ pub struct BudgetSimple {
     pub savings_potential: f64,
     pub suggestions: Vec<String>,
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+fn std_dev(values: &[f64]) -> f64 {
+    if values.is_empty() { return 0.0; }
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64).sqrt()
+}
+
+#[tauri::command]
+pub fn predictive_forecast_tokens(
+    state: tauri::State<crate::state::AppState>,
+    historical: Vec<f64>,
+    periods: Option<usize>,
+) -> Result<Vec<f64>, String> {
+    let engine = state.predictive.lock().unwrap();
+    let forecast = engine.forecast_simple(&historical, periods.unwrap_or(10));
+    Ok(forecast)
+}
+
+#[tauri::command]
+pub fn predictive_detect_cost_anomaly(
+    state: tauri::State<crate::state::AppState>,
+    values: Vec<f64>,
+) -> Result<serde_json::Value, String> {
+    let engine = state.predictive.lock().unwrap();
+    let anomalies = engine.detect_cost_anomaly_simple(&values);
+    Ok(serde_json::json!({
+        "anomaly_count": anomalies.len(),
+        "anomalies": anomalies,
+        "mean": if values.is_empty() { 0.0 } else { values.iter().sum::<f64>() / values.len() as f64 },
+        "std_dev": std_dev(&values),
+    }))
+}
+
+#[tauri::command]
+pub fn predictive_optimize_budget(
+    state: tauri::State<crate::state::AppState>,
+    current_usage: Vec<f64>,
+    budget: f64,
+    _quality_threshold: f64,
+) -> Result<serde_json::Value, String> {
+    let engine = state.predictive.lock().unwrap();
+    let opt = engine.optimize_budget_simple(&current_usage, budget);
+    Ok(serde_json::json!({
+        "recommended_daily": format!("¥{:.2}", opt.recommended_daily),
+        "projected_monthly": format!("¥{:.2}", opt.projected_monthly),
+        "over_budget_risk": format!("{:.1}%", opt.over_budget_risk * 100.0),
+        "savings_potential": format!("¥{:.2}", opt.savings_potential),
+        "suggestions": opt.suggestions,
+    }))
+}
+
+#[tauri::command]
+pub fn predictive_analyze_enhanced(
+    state: tauri::State<crate::state::AppState>,
+    message: String,
+) -> Result<serde_json::Value, String> {
+    let engine = state.predictive.lock().unwrap();
+    Ok(engine.analyze_task_enhanced(&message))
+}

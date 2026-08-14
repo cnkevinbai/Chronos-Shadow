@@ -142,3 +142,52 @@ impl EvolutionEngine {
 impl Default for EvolutionEngine {
     fn default() -> Self { Self::new(Some(std::path::PathBuf::from("."))) }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn evo_validate_experience(
+    state: tauri::State<'_, crate::state::AppState>,
+    experience_id: String,
+    context_hash: String,
+    failed_action: String,
+    correct_action: String,
+    token_saved: u32,
+) -> Result<bool, String> {
+    let delta = EvoDelta {
+        experience_id,
+        context_trigger_hash: context_hash,
+        failed_llm_action: failed_action,
+        correct_human_action: correct_action,
+        token_sunk_cost_saved: token_saved,
+        accuracy_weight: 1.0,
+    };
+    state.evolution.lock().await.validate_and_commit(delta).await
+}
+
+#[tauri::command]
+pub async fn evo_intercept_context(
+    state: tauri::State<'_, crate::state::AppState>,
+    context_hash: String,
+) -> Result<bool, String> {
+    let mut engine = state.evolution.lock().await;
+    engine.intercept_context(&context_hash).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_evolution_stats(state: tauri::State<crate::state::AppState>) -> serde_json::Value {
+    let engine = state.evolution.try_lock();
+    let base = engine.as_ref().map(|e| e.evolution_status()).unwrap_or(serde_json::json!({
+        "state": "locked",
+        "memory_pool_size": 0,
+        "total_interceptions": 0,
+        "contracts_compiled": 0,
+        "total_tokens_saved": 0,
+        "skills_consolidated": 0,
+    }));
+    let skill_engine = state.skill_engine.lock().unwrap();
+    let mut result = base;
+    result["total_skills"] = serde_json::json!(skill_engine.list_all().len());
+    result["active_skills"] = serde_json::json!(skill_engine.active_skills().len());
+    result
+}

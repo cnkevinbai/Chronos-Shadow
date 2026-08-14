@@ -550,3 +550,8 @@ pub fn mcp_cleanup_stale(state: tauri::State<crate::state::AppState>) -> String 
     let count = mcp.connected_servers().len();
     format!("MCP cleanup check: {} active servers (zombie detection pending)", count)
 }
+
+#[tauri::command]
+pub fn list_mcp_servers(state: tauri::State<crate::state::AppState>) -> Vec<McpServer> {
+    state.mcp_client.blocking_lock().connected_servers().into_iter().cloned().collect()
+}

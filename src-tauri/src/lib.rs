@@ -9,58 +9,17 @@ use state::AppState;
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
-use tauri::AppHandle;
-use tauri::Emitter;
 use tauri::WindowEvent;
-use agent::api_client::{ApiClient, ApiResponse, ChatMessage};
-use agent::orchestrator::{AgentRole, Orchestrator, OrchestratorStats};
-use agent::redline::{RedlineGuard, RedlineStatus};
-#[allow(deprecated)]
-use agent::router::{ModelConfig, RouteMode, Router};
-use agent::router::HybridAgentRouter;
-use agent::sandbox::{Sandbox, ChronosVirtualFileSystem};
-use agent::detector::SkillAndMcpDetector;
-use agent::shadow::{ShadowEngine, ShadowStats};
-use agent::skill_engine::{SkillEngine, SkillInstance};
-use agent::mcp_client::{McpClient, McpServer};
-use agent::subagents::SubagentPool;
-use agent::buddy_scan::{BuddyScanner, BuddyScanStats, BuddyScanResult};
-use agent::context_glue::{
-    ContextGlue, ContextGlueStats, AppBinding, DataDirection,
-};
-use agent::evolving::{EvolutionEngine, consolidator::EvoDelta};
-use agent::remote_proxy::{RemoteProxyTunnel, RemoteConfig, RemoteSessionStats};
-use agent::remote_cluster::{RemoteClusterManager, ClusterStats};
 use agent::session_db::{
     save_chat_session_chunk, load_chat_session_chunk,
     list_historical_meta_manifests, list_sessions_by_project,
     delete_chat_session, export_chat_session, rename_chat_session,
     import_chat_session,
 };
-use agent::worktree::WorktreeManager;
-use agent::approval_gate::ApprovalGate;
-use agent::evolving::agent_quality::AgentQualityEngine;
-use agent::evolving::embedding::EmbeddingEngine;
-use agent::local_analytics::LocalAnalytics;
-use agent::state_manager::StateManager;
-use agent::workbuddy_engine::WorkBuddyEngine;
-use agent::resilience::{SystemHealth, CircuitBreaker};
-use agent::user_profile::UserProfile;
-use agent::security_boundary::SecurityBoundary;
-use agent::billing_engine::ChronosParallelBillingEngine;
-use agent::web_intelligence::{WebIntelligence, WebSearchResult, WebFetchResult, ResearchReport, WebAuditEntry, WebIntelStats};
+use agent::web_intelligence::{WebSearchResult, WebFetchResult};
 use agent::redline::AgentAction;
-use agent::collaboration_engine::CollaborationEngine;
-use agent::task_intelligence::TaskIntelligenceEngine;
-use agent::predictive_analytics::PredictiveAnalyticsEngine;
-use agent::evolution_bus::EvolutionBus;
-use agent::data_flywheel::DataFlywheel;
-use agent::key_vault::{cache_key, load_key_file, resolve_key_from_vault};
-use vision::VisionEngine;
-use std::collections::HashMap;
+use agent::key_vault::{cache_key, load_key_file};
 use std::path::PathBuf;
-use std::sync::Mutex;
-use tokio::sync::Mutex as TokioMutex;
 use tracing_subscriber::fmt;
 use tauri::tray::TrayIconBuilder;
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -229,33 +188,6 @@ fn save_settings(app_handle: tauri::AppHandle, new_settings: AppSettings) -> Res
     Ok(format!("Saved to {}", path.display()))
 }
 
-// ─── Agent roster + live windows + evolution ──────────────────
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct AgentRosterEntry {
-    id: String,
-    name: String,
-    model: String,
-}
-
-#[tauri::command]
-fn get_agent_roster(state: tauri::State<AppState>) -> Vec<AgentRosterEntry> {
-    let router = state.router.lock().unwrap();
-    let roles = ["PM", "UIDesigner", "Architect", "Planner", "Coder", "Auditor", "Verifier"];
-    roles.iter().map(|role| {
-        let model = router.route_text_model(role).to_string();
-        AgentRosterEntry {
-            id: role.to_lowercase(),
-            name: match *role {
-                "PM" => "PM", "UIDesigner" => "UI Designer", "Architect" => "Architect",
-                "Planner" => "Planner", "Coder" => "Coder Cluster",
-                "Auditor" => "Auditor", _ => "Verifier",
-            }.into(),
-            model,
-        }
-    }).collect()
-}
-
 #[tauri::command]
 fn list_live_windows() -> Vec<serde_json::Value> {
     // Enumerate top-level windows via Win32 EnumWindows
@@ -294,67 +226,6 @@ fn list_live_windows() -> Vec<serde_json::Value> {
     }
     #[cfg(not(target_os = "windows"))]
     { vec![] }
-}
-
-#[tauri::command]
-async fn evo_validate_experience(
-    state: tauri::State<'_, AppState>,
-    experience_id: String,
-    context_hash: String,
-    failed_action: String,
-    correct_action: String,
-    token_saved: u32,
-) -> Result<bool, String> {
-    let delta = EvoDelta {
-        experience_id,
-        context_trigger_hash: context_hash,
-        failed_llm_action: failed_action,
-        correct_human_action: correct_action,
-        token_sunk_cost_saved: token_saved,
-        accuracy_weight: 1.0,
-    };
-    state.evolution.lock().await.validate_and_commit(delta).await
-}
-
-#[tauri::command]
-async fn evo_intercept_context(
-    state: tauri::State<'_, AppState>,
-    context_hash: String,
-) -> Result<bool, String> {
-    let mut engine = state.evolution.lock().await;
-    engine.intercept_context(&context_hash).await.map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn get_evolution_stats(state: tauri::State<AppState>) -> serde_json::Value {
-    // Merge evolution_status with skill stats
-    let engine = state.evolution.try_lock();
-    let base = engine.as_ref().map(|e| e.evolution_status()).unwrap_or(serde_json::json!({
-        "state": "locked",
-        "memory_pool_size": 0,
-        "total_interceptions": 0,
-        "contracts_compiled": 0,
-        "total_tokens_saved": 0,
-        "skills_consolidated": 0,
-    }));
-    // Add skill stats from skill_engine
-    let skill_engine = state.skill_engine.lock().unwrap();
-    let mut result = base;
-    result["total_skills"] = serde_json::json!(skill_engine.list_all().len());
-    result["active_skills"] = serde_json::json!(skill_engine.active_skills().len());
-    result
-}
-
-// ─── Skill & MCP listing ──────────────────────────────────────
-
-#[tauri::command]
-fn list_skills(state: tauri::State<AppState>) -> Vec<SkillInstance> {
-    state.skill_engine.lock().unwrap().list_all().into_iter().cloned().collect()
-}
-
-#[tauri::command]
-fn list_mcp_servers(state: tauri::State<AppState>) -> Vec<McpServer> {
-    state.mcp_client.blocking_lock().connected_servers().into_iter().cloned().collect()
 }
 
 // ─── 统一行动调度引擎 (Action Dispatch) ────────────────────────────
@@ -869,71 +740,6 @@ async fn execute_agent_action_inner(
     dispatch_action(state, &action).await
 }
 
-// ─── Predictive Analytics Commands ──────────────────────────────────
-
-#[tauri::command]
-fn predictive_forecast_tokens(
-    state: tauri::State<AppState>,
-    historical: Vec<f64>,
-    periods: Option<usize>,
-) -> Result<Vec<f64>, String> {
-    let engine = state.predictive.lock().unwrap();
-    // Simple EMA forecast using local_analytics style
-    let forecast = engine.forecast_simple(&historical, periods.unwrap_or(10));
-    Ok(forecast)
-}
-
-#[tauri::command]
-fn predictive_detect_cost_anomaly(
-    state: tauri::State<AppState>,
-    values: Vec<f64>,
-) -> Result<serde_json::Value, String> {
-    let engine = state.predictive.lock().unwrap();
-    let anomalies = engine.detect_cost_anomaly_simple(&values);
-    Ok(serde_json::json!({
-        "anomaly_count": anomalies.len(),
-        "anomalies": anomalies,
-        "mean": if values.is_empty() { 0.0 } else { values.iter().sum::<f64>() / values.len() as f64 },
-        "std_dev": std_dev(&values),
-    }))
-}
-
-#[tauri::command]
-fn predictive_optimize_budget(
-    state: tauri::State<AppState>,
-    current_usage: Vec<f64>,
-    budget: f64,
-    _quality_threshold: f64,
-) -> Result<serde_json::Value, String> {
-    let engine = state.predictive.lock().unwrap();
-    let opt = engine.optimize_budget_simple(&current_usage, budget);
-    Ok(serde_json::json!({
-        "recommended_daily": format!("¥{:.2}", opt.recommended_daily),
-        "projected_monthly": format!("¥{:.2}", opt.projected_monthly),
-        "over_budget_risk": format!("{:.1}%", opt.over_budget_risk * 100.0),
-        "savings_potential": format!("¥{:.2}", opt.savings_potential),
-        "suggestions": opt.suggestions,
-    }))
-}
-
-#[tauri::command]
-fn predictive_analyze_enhanced(
-    state: tauri::State<AppState>,
-    message: String,
-) -> Result<serde_json::Value, String> {
-    let engine = state.predictive.lock().unwrap();
-    Ok(engine.analyze_task_enhanced(&message))
-}
-
-#[tauri::command]
-fn scheduling_analyze_enhanced(
-    _state: tauri::State<AppState>,
-    message: String,
-) -> Result<serde_json::Value, String> {
-    let engine = agent::scheduling_engine::AgentSchedulingEngine::new();
-    Ok(engine.analyze_enhanced(&message))
-}
-
 // ─── Build Status ───────────────────────────────────────────────────
 
 #[derive(serde::Serialize)]
@@ -1041,35 +847,6 @@ fn scan_dir(dir: &std::path::Path, prefix: &str, out: &mut Vec<BuildFileStatus>)
     }
 }
 
-// ─── Distillation Evolution Commands ────────────────────────────────
-
-#[tauri::command]
-async fn distill_evolution_report(
-    state: tauri::State<'_, AppState>,
-) -> Result<serde_json::Value, String> {
-    let wi = state.web_intelligence.lock().await;
-    Ok(wi.distillation.evolution_report())
-}
-
-#[tauri::command]
-async fn distill_feedback(
-    state: tauri::State<'_, AppState>,
-    url: String,
-    quality_score: f64,
-    content_type: Option<String>,
-) -> Result<String, String> {
-    let mut wi = state.web_intelligence.lock().await;
-    wi.distillation.feedback(&url, quality_score, &content_type.unwrap_or_else(|| "documentation".into()));
-    Ok(format!("Feedback recorded for {}: quality={:.2}", url, quality_score))
-}
-
-/// Helper: compute standard deviation
-fn std_dev(values: &[f64]) -> f64 {
-    if values.is_empty() { return 0.0; }
-    let mean = values.iter().sum::<f64>() / values.len() as f64;
-    (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64).sqrt()
-}
-
 // ─── 应用入口 ──────────────────────────────────────────────────────
 
 pub fn run() {
@@ -1164,15 +941,15 @@ pub fn run() {
             agent::shadow::save_shadow_state,
             agent::shadow::load_shadow_state,
             // agent roster + live windows + evolution
-            get_agent_roster,
+            agent::router::get_agent_roster,
             list_live_windows,
             agent::indomitable_fetcher::indomitable_fetch_url,
             agent::indomitable_fetcher::extract_urls_from_text,
             agent::pptx_engine::pptx_generate,
             agent::pptx_engine::pptx_analyze_reference,
-            get_evolution_stats,
-            evo_validate_experience,
-            evo_intercept_context,
+            agent::evolving::get_evolution_stats,
+            agent::evolving::evo_validate_experience,
+            agent::evolving::evo_intercept_context,
             // agent quality
             agent::evolving::agent_quality::get_agent_quality_scores,
             agent::evolving::agent_quality::record_agent_task_quality,
@@ -1185,8 +962,8 @@ pub fn run() {
             load_settings,
             save_settings,
             // skill & mcp listing
-            list_skills,
-            list_mcp_servers,
+            agent::skill_engine::list_skills,
+            agent::mcp_client::list_mcp_servers,
             // remote cluster
             agent::remote_cluster::cluster_register_server,
             agent::remote_cluster::cluster_unregister_server,
@@ -1307,16 +1084,16 @@ pub fn run() {
             agent::task_intelligence::task_decompose,
             agent::task_intelligence::task_estimate_complexity,
             // predictive analytics
-            predictive_forecast_tokens,
-            predictive_detect_cost_anomaly,
-            predictive_optimize_budget,
-            predictive_analyze_enhanced,
-            scheduling_analyze_enhanced,
+            agent::predictive_analytics::predictive_forecast_tokens,
+            agent::predictive_analytics::predictive_detect_cost_anomaly,
+            agent::predictive_analytics::predictive_optimize_budget,
+            agent::predictive_analytics::predictive_analyze_enhanced,
+            agent::scheduling_engine::scheduling_analyze_enhanced,
             // build status
             get_build_status,
             // distillation evolution
-            distill_evolution_report,
-            distill_feedback,
+            agent::web_intelligence::distill_evolution_report,
+            agent::web_intelligence::distill_feedback,
             // evolution bus
             agent::evolution_bus::evobus_health_report,
             agent::evolution_bus::evobus_record_feedback,

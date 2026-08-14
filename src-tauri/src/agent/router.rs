@@ -1224,3 +1224,28 @@ pub async fn hrouter_get_cluster_status(
 pub async fn check_lan_health() -> Result<Vec<String>, String> {
     Router::check_lan_health().await
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentRosterEntry {
+    id: String,
+    name: String,
+    model: String,
+}
+
+#[tauri::command]
+pub fn get_agent_roster(state: tauri::State<crate::state::AppState>) -> Vec<AgentRosterEntry> {
+    let router = state.router.lock().unwrap();
+    let roles = ["PM", "UIDesigner", "Architect", "Planner", "Coder", "Auditor", "Verifier"];
+    roles.iter().map(|role| {
+        let model = router.route_text_model(role).to_string();
+        AgentRosterEntry {
+            id: role.to_lowercase(),
+            name: match *role {
+                "PM" => "PM", "UIDesigner" => "UI Designer", "Architect" => "Architect",
+                "Planner" => "Planner", "Coder" => "Coder Cluster",
+                "Auditor" => "Auditor", _ => "Verifier",
+            }.into(),
+            model,
+        }
+    }).collect()
+}

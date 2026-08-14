@@ -371,3 +371,10 @@ mod tests {
         assert!(engine.load_from_json("not json").is_err());
     }
 }
+
+// ─── Tauri Commands ──────────────────────────────────────────────
+
+#[tauri::command]
+pub fn list_skills(state: tauri::State<crate::state::AppState>) -> Vec<SkillInstance> {
+    state.skill_engine.lock().unwrap().list_all().into_iter().cloned().collect()
+}

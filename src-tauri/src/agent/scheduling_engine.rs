@@ -566,3 +566,12 @@ pub fn analyze_task(user_message: String) -> SchedulingResult {
     let engine = AgentSchedulingEngine::new();
     engine.analyze(&user_message)
 }
+
+#[tauri::command]
+pub fn scheduling_analyze_enhanced(
+    _state: tauri::State<crate::state::AppState>,
+    message: String,
+) -> Result<serde_json::Value, String> {
+    let engine = AgentSchedulingEngine::new();
+    Ok(engine.analyze_enhanced(&message))
+}

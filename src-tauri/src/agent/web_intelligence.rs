@@ -1579,3 +1579,23 @@ pub async fn web_intel_load_state(
     let mut wi = state.web_intelligence.lock().await;
     wi.load_state(&dir)
 }
+
+#[tauri::command]
+pub async fn distill_evolution_report(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<serde_json::Value, String> {
+    let wi = state.web_intelligence.lock().await;
+    Ok(wi.distillation.evolution_report())
+}
+
+#[tauri::command]
+pub async fn distill_feedback(
+    state: tauri::State<'_, crate::state::AppState>,
+    url: String,
+    quality_score: f64,
+    content_type: Option<String>,
+) -> Result<String, String> {
+    let mut wi = state.web_intelligence.lock().await;
+    wi.distillation.feedback(&url, quality_score, &content_type.unwrap_or_else(|| "documentation".into()));
+    Ok(format!("Feedback recorded for {}: quality={:.2}", url, quality_score))
+}
