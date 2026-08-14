@@ -727,8 +727,83 @@ impl PredictiveAnalyticsEngine {
             suggestions: if avg * 30.0 > budget * 0.8 { vec!["启用缓存降低用量".into()] } else { vec![] },
         }
     }
-    pub fn analyze_task_enhanced(&self, _msg: &str) -> serde_json::Value {
-        serde_json::json!({"analysis":"enhanced","status":"ok"})
+    /// 动态指标采集 — 从任务文本实时估算 Token / 复杂度 / 成本 / 时长 / 风险，
+    /// 替代早期硬编码占位值 `{"analysis":"enhanced","status":"ok"}`。
+    ///
+    /// 定价与 token 估算对齐 `billing.rs` 官方计费标准：
+    ///   - DeepSeek V4-Pro: ¥1.00/M 输入(未命中) + ¥4.00/M 输出
+    ///   - DeepSeek V4-Flash: ¥0.10/M 输入(未命中) + ¥0.40/M 输出
+    ///   - token 估算: 中文≈3.5 chars/token（保守）
+    pub fn analyze_task_enhanced(&self, msg: &str) -> serde_json::Value {
+        let char_count = msg.chars().count() as f64;
+
+        // Token 估算（对齐 billing.rs: 3.5 chars/token）
+        let est_input_tokens = (char_count / 3.5).ceil().max(1.0) as u64;
+        // 输出量经验估算：约输入 Token 的 40%（代码生成场景）
+        let est_output_tokens = (est_input_tokens as f64 * 0.4).ceil() as u64;
+
+        // 成本估算（官方定价，见 billing.rs）
+        let pro_cost = est_input_tokens as f64 / 1_000_000.0 * 1.00
+            + est_output_tokens as f64 / 1_000_000.0 * 4.00;
+        let flash_cost = est_input_tokens as f64 / 1_000_000.0 * 0.10
+            + est_output_tokens as f64 / 1_000_000.0 * 0.40;
+
+        // 复杂度信号 — 关键词动态推断
+        let lower = msg.to_lowercase();
+        let complexity_signals: &[(&str, u32)] = &[
+            ("refactor", 4), ("migrate", 4), ("architecture", 4), ("redesign", 4),
+            ("implement", 3), ("optimize", 3), ("database", 3), ("security", 3),
+            ("integrate", 3), ("debug", 2), ("fix", 2), ("test", 2), ("api", 2),
+        ];
+        let signal_score: u32 = complexity_signals.iter()
+            .filter(|(kw, _)| lower.contains(kw))
+            .map(|(_, s)| *s)
+            .sum();
+        let length_score = (char_count / 800.0).floor().min(3.0) as u32;
+        let complexity = (signal_score + length_score).clamp(1, 10);
+
+        // 风险信号 — 高危操作关键词动态推断
+        let risk_signals: &[(&str, u32)] = &[
+            ("production", 3), ("urgent", 3), ("hotfix", 3), ("delete", 3), ("drop table", 3),
+            ("migration", 2), ("security", 2), ("auth", 2), ("payment", 2), ("password", 2),
+        ];
+        let risk_score: u32 = risk_signals.iter()
+            .filter(|(kw, _)| lower.contains(kw))
+            .map(|(_, s)| *s)
+            .sum();
+        let risk_level = match risk_score { 0 => "low", 1..=4 => "medium", _ => "high" };
+
+        // 时长估算（分钟）：约 2000 token/min 处理速度，复杂度加权
+        let duration_min = (est_input_tokens as f64 + est_output_tokens as f64) / 2000.0
+            * (1.0 + complexity as f64 / 10.0);
+
+        // 推荐模型：高复杂度或高风险 → pro，否则 flash
+        let recommended_model = if complexity >= 6 || risk_score >= 3 { "deepseek-v4-pro" } else { "deepseek-v4-flash" };
+
+        serde_json::json!({
+            "analysis": "enhanced",
+            "status": "ok",
+            "char_count": char_count as u64,
+            "estimated_tokens": {
+                "input": est_input_tokens,
+                "output": est_output_tokens,
+                "total": est_input_tokens + est_output_tokens,
+            },
+            "complexity": {
+                "score": complexity,
+                "level": match complexity { 1..=3 => "simple", 4..=6 => "moderate", _ => "complex" },
+            },
+            "estimated_cost_rmb": {
+                "deepseek-v4-pro": format!("{:.4}", pro_cost),
+                "deepseek-v4-flash": format!("{:.4}", flash_cost),
+            },
+            "estimated_duration_min": format!("{:.1}", duration_min),
+            "risk": {
+                "level": risk_level,
+                "signal_score": risk_score,
+            },
+            "recommended_model": recommended_model,
+        })
     }
 }
 
