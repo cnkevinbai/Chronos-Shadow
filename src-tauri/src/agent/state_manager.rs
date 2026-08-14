@@ -264,15 +264,25 @@ pub fn state_save_all(app_handle: tauri::AppHandle, state: tauri::State<crate::s
     let mut sm = state.state_mgr.lock().unwrap();
     sm.save_all()?;
 
-    // 保存进化引擎状态
-    let _ = state.evolution_bus.lock().unwrap().save_state(&dir);
-    let _ = state.flywheel.lock().unwrap().save_state(&dir);
+    // 保存进化引擎状态（失败告警，不阻断主流程）
+    if let Err(e) = state.evolution_bus.lock().unwrap().save_state(&dir) {
+        tracing::warn!("[STATE] evolution_bus save failed: {}", e);
+    }
+    if let Err(e) = state.flywheel.lock().unwrap().save_state(&dir) {
+        tracing::warn!("[STATE] flywheel save failed: {}", e);
+    }
     if let Ok(evo) = state.evolution.try_lock() {
-        let _ = evo.save_state(&dir);
+        if let Err(e) = evo.save_state(&dir) {
+            tracing::warn!("[STATE] evolution engine save failed: {}", e);
+        }
     }
     if let Ok(wi) = state.web_intelligence.try_lock() {
-        let _ = wi.distillation.save_state(&dir);
-        let _ = wi.cache.save_to_disk(&dir);
+        if let Err(e) = wi.distillation.save_state(&dir) {
+            tracing::warn!("[STATE] distillation save failed: {}", e);
+        }
+        if let Err(e) = wi.cache.save_to_disk(&dir) {
+            tracing::warn!("[STATE] cache save failed: {}", e);
+        }
     }
 
     Ok(format!("All state saved to {:?}", dir))
