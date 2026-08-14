@@ -167,12 +167,15 @@ impl CollaborationEngine {
     pub fn new() -> Self {
         let mut model_profiles = HashMap::new();
 
+        // cost_per_1k_tokens 对齐 billing.rs 官方输入定价（¥/1k tokens）：
+        //   V4-Pro ¥1.00/M · V4-Flash ¥0.10/M · Kimi K3 ¥8/M · K2.7-Code ¥3/M · GLM-5.2 ¥1/M
+
         // DeepSeek 系列
         model_profiles.insert("deepseek-v4-pro".into(), ModelCapability {
             model_name: "deepseek-v4-pro".into(),
             quality_score: 92.0,
             avg_latency_ms: 2500,
-            cost_per_1k_tokens: 0.0045,
+            cost_per_1k_tokens: 0.001,
             context_window: 131072,
             success_rate: 0.995,
             per_task_quality: HashMap::from([
@@ -187,7 +190,7 @@ impl CollaborationEngine {
             model_name: "deepseek-v4-flash".into(),
             quality_score: 85.0,
             avg_latency_ms: 800,
-            cost_per_1k_tokens: 0.0015,
+            cost_per_1k_tokens: 0.0001,
             context_window: 65536,
             success_rate: 0.99,
             per_task_quality: HashMap::from([
@@ -203,7 +206,7 @@ impl CollaborationEngine {
             model_name: "kimi-k3".into(),
             quality_score: 90.0,
             avg_latency_ms: 3000,
-            cost_per_1k_tokens: 0.004,
+            cost_per_1k_tokens: 0.008,
             context_window: 1_000_000,
             success_rate: 0.99,
             per_task_quality: HashMap::from([
@@ -218,7 +221,7 @@ impl CollaborationEngine {
             model_name: "kimi-k2.7-code".into(),
             quality_score: 86.0,
             avg_latency_ms: 1500,
-            cost_per_1k_tokens: 0.002,
+            cost_per_1k_tokens: 0.003,
             context_window: 131072,
             success_rate: 0.985,
             per_task_quality: HashMap::from([
@@ -233,7 +236,7 @@ impl CollaborationEngine {
             model_name: "glm-5.2".into(),
             quality_score: 87.0,
             avg_latency_ms: 2000,
-            cost_per_1k_tokens: 0.004,
+            cost_per_1k_tokens: 0.001,
             context_window: 131072,
             success_rate: 0.99,
             per_task_quality: HashMap::from([
@@ -284,8 +287,9 @@ impl CollaborationEngine {
             let qb = b.per_task_quality.get(task_type).copied().unwrap_or(b.quality_score);
 
             if prefer_cheap {
-                let ea = qa / (a.cost_per_1k_tokens * 1000.0).max(0.01);
-                let eb = qb / (b.cost_per_1k_tokens * 1000.0).max(0.01);
+                // 成本效率 = 质量 / 每百万 token 成本；免费模型（成本 0）效率退化为质量本身
+                let ea = if a.cost_per_1k_tokens <= 0.0 { qa } else { qa / (a.cost_per_1k_tokens * 1000.0).max(0.01) };
+                let eb = if b.cost_per_1k_tokens <= 0.0 { qb } else { qb / (b.cost_per_1k_tokens * 1000.0).max(0.01) };
                 eb.partial_cmp(&ea).unwrap()
             } else {
                 qb.partial_cmp(&qa).unwrap()
