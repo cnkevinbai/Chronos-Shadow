@@ -57,7 +57,7 @@
 
 - [ ] ONNX 端侧隐私遮罩模型集成
 - [x] 前端 E2E 测试 (Vitest + React Testing Library)
-- [ ] Rust Tauri 命令集成测试
+- [x] Rust Tauri 命令集成测试（无 State 命令直测 + 引擎单测）
 - [x] MCP 服务器真实脚本集成
 - [ ] macOS / Linux 实验性支持
 - [x] 进化引擎持久化 (重启保留学习成果)

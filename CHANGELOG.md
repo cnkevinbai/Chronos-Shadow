@@ -20,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Known Limitations
 - ONNX 隐私遮罩：真实像素级高斯打码已实现；真 ONNX 推理仍待真实模型（`privacy_mask.onnx` 现为占位）+ `ort`/`tract` 推理库
 - macOS / Linux 支持未做（需跨平台 CI + 条件编译）
-- Rust Tauri 命令集成测试：单测已做，`tauri::test` harness 未做
+- Rust Tauri 命令集成测试：无 State 命令已直测（`tests/commands.rs`）+ 引擎单测；State 依赖命令待 `tauri::test` harness（`AppState` 私有 + 沙箱无法运行 `cargo test`）
 
 ## [0.2.0] — 2026-08-10
 
