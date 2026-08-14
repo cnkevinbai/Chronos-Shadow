@@ -171,7 +171,7 @@ impl VisionEngine {
 
     /// 抓取桌面截图（GDI BitBlt — 无额外依赖）
     #[cfg(target_os = "windows")]
-    pub fn capture_active_window(&self) -> Result<Vec<u8>, String> {
+    pub fn capture_active_window(&self) -> Result<(Vec<u8>, u32, u32), String> {
         unsafe {
             // GDI FFI bindings
             extern "system" {
@@ -263,12 +263,12 @@ impl VisionEngine {
                 w, h, pixels.len()
             );
 
-            Ok(pixels)
+            Ok((pixels, w as u32, h as u32))
         }
     }
 
     #[cfg(not(target_os = "windows"))]
-    pub fn capture_active_window(&self) -> Result<Vec<u8>, String> {
+    pub fn capture_active_window(&self) -> Result<(Vec<u8>, u32, u32), String> {
         Err("Screen capture only available on Windows".into())
     }
 
@@ -369,10 +369,11 @@ impl VisionEngine {
 
     // ── 隐私脱敏 ──────────────────────────────────────────────────
 
-    /// 应用隐私遮罩到图像数据
+    /// 应用隐私遮罩到图像数据（BGRA 32bpp，紧密排列）
     ///
-    /// 端侧 CV 模型检测敏感区域 → 高斯模糊/像素化
-    pub fn apply_privacy_masks(&self, image_data: &[u8]) -> Vec<u8> {
+    /// 端侧启发式遮罩：将归一化模板区域映射到像素坐标，执行 5×5 近似高斯模糊。
+    /// 真实 ONNX 模型就位后，可在此替换为模型输出的边界框。
+    pub fn apply_privacy_masks(&self, image_data: &[u8], width: u32, height: u32) -> Vec<u8> {
         if !self.privacy_enabled {
             return image_data.to_vec();
         }
@@ -383,23 +384,26 @@ impl VisionEngine {
             .flat_map(|t| t.regions.iter().filter(|r| r.active))
             .collect();
 
-        if active_regions.is_empty() {
+        if active_regions.is_empty() || width == 0 || height == 0 {
             return image_data.to_vec();
         }
 
-        // 生产环境：对每个 region 应用高斯模糊
-        // - 将归一化坐标转换为像素坐标
-        // - 对区域内像素做 kernel 卷积
+        let mut result = image_data.to_vec();
+        for region in &active_regions {
+            let px = (region.x * width as f32).round() as u32;
+            let py = (region.y * height as f32).round() as u32;
+            let pw = (region.width * width as f32).round() as u32;
+            let ph = (region.height * height as f32).round() as u32;
+            gaussian_blur_bgra(image_data, &mut result, width, height, px, py, pw, ph);
+        }
+
         tracing::info!(
-            "[Vision] Applied {} privacy masks to image ({} bytes)",
+            "[Vision] Applied {} privacy masks ({}×{} image, {} bytes)",
             active_regions.len(),
+            width,
+            height,
             image_data.len()
         );
-
-        // 当前版本返回原数据（标记已处理）
-        let mut result = image_data.to_vec();
-        // 在数据尾部追加隐私标记
-        result.extend_from_slice(b"\x00PRIVACY_MASKED");
         result
     }
 
@@ -437,8 +441,8 @@ impl VisionEngine {
     /// 4. 局部裁剪 + WebP 压缩
     pub fn process_frame(&mut self) -> CaptureResult {
         // Step 1: 捕获
-        let raw_image = match self.capture_active_window() {
-            Ok(data) => data,
+        let (raw_image, width, height) = match self.capture_active_window() {
+            Ok((data, w, h)) => (data, w, h),
             Err(e) => {
                 return CaptureResult {
                     success: false,
@@ -472,10 +476,10 @@ impl VisionEngine {
         }
 
         // Step 3: 隐私遮罩
-        let masked = self.apply_privacy_masks(&raw_image);
+        let masked = self.apply_privacy_masks(&raw_image, width, height);
 
         // Step 4: 裁剪 + 压缩
-        let cropped = self.crop_to_active_window(&masked, 1920, 1080);
+        let cropped = self.crop_to_active_window(&masked, width, height);
         let cropped_size = cropped.len();
 
         CaptureResult {
@@ -521,6 +525,88 @@ impl VisionEngine {
             estimated_cost_saved: self.tokens_saved as f64 * 0.0001, // ~$0.0001/token
         }
     }
+}
+
+/// 对 BGRA 图像指定区域执行 5×5 近似高斯模糊（读原始、写目标，避免原地污染）
+fn gaussian_blur_bgra(
+    src: &[u8],
+    dst: &mut [u8],
+    width: u32,
+    height: u32,
+    px: u32,
+    py: u32,
+    pw: u32,
+    ph: u32,
+) {
+    // 1D 高斯核（5 抽头），外积得 2D 可分离核
+    const KERNEL: [f32; 5] = [0.06136, 0.24477, 0.38774, 0.24477, 0.06136];
+    const BPP: u32 = 4;
+    let x0 = px.min(width);
+    let y0 = py.min(height);
+    let x1 = (px + pw).min(width);
+    let y1 = (py + ph).min(height);
+
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let mut acc = [0f32; 4];
+            for ky in 0..5i32 {
+                let sy = (y as i32 + ky - 2).clamp(0, height as i32 - 1) as u32;
+                for kx in 0..5i32 {
+                    let sx = (x as i32 + kx - 2).clamp(0, width as i32 - 1) as u32;
+                    let idx = ((sy * width + sx) * BPP) as usize;
+                    if idx + 3 < src.len() {
+                        let w = KERNEL[ky as usize] * KERNEL[kx as usize];
+                        for c in 0..4 {
+                            acc[c] += src[idx + c] as f32 * w;
+                        }
+                    }
+                }
+            }
+            let idx = ((y * width + x) * BPP) as usize;
+            if idx + 3 < dst.len() {
+                for c in 0..4 {
+                    dst[idx + c] = acc[c].round().clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+    }
+}
+
+/// ONNX 隐私遮罩模型状态
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrivacyModelStatus {
+    pub path: String,
+    pub available: bool,
+    pub size_bytes: u64,
+    pub is_placeholder: bool,
+    pub message: String,
+}
+
+/// 检测 privacy_mask.onnx 模型状态（诚实报告：占位/缺失/就绪）
+pub fn check_privacy_model() -> PrivacyModelStatus {
+    let path = std::path::PathBuf::from(PRIVACY_MODEL_PATH);
+    let exists = path.exists();
+    let size = if exists { std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0) } else { 0 };
+    let is_placeholder = size < 1024; // 真实 ONNX 模型 > 1KB；占位文件仅 ~128 字节
+    let message = if !exists {
+        "模型文件不存在，使用启发式模板遮罩".to_string()
+    } else if is_placeholder {
+        "占位文件 — 真实 ONNX 模型未集成，当前使用启发式模板高斯打码".to_string()
+    } else {
+        "ONNX 模型就绪（推理仍待接入 ort/tract 引擎）".to_string()
+    };
+    PrivacyModelStatus {
+        path: PRIVACY_MODEL_PATH.into(),
+        available: exists && !is_placeholder,
+        size_bytes: size,
+        is_placeholder,
+        message,
+    }
+}
+
+#[tauri::command]
+pub fn vision_privacy_model_status() -> PrivacyModelStatus {
+    check_privacy_model()
 }
 
 /// 视觉引擎节省统计
@@ -603,8 +689,35 @@ mod tests {
         let mut engine = VisionEngine::new();
         engine.privacy_enabled = false;
         let data = b"sensitive data";
-        let result = engine.apply_privacy_masks(data);
+        let result = engine.apply_privacy_masks(data, 4, 2);
         assert_eq!(result, data); // 应该不变
+    }
+
+    #[test]
+    fn test_privacy_masks_blur_region() {
+        let mut engine = VisionEngine::new();
+        engine.privacy_enabled = true;
+        let w = 8u32;
+        let h = 8u32;
+        // 8×8 BGRA：背景暗色，中心 2×2 纯白
+        let mut data = vec![10u8; (w * h * 4) as usize];
+        for y in 3..5 {
+            for x in 3..5 {
+                let idx = ((y * w + x) * 4) as usize;
+                for c in 0..4 { data[idx + c] = 250; }
+            }
+        }
+        // 全图遮罩
+        engine.privacy_templates = vec![PrivacyTemplate {
+            mask_type: PrivacyMaskType::ChatWindow,
+            regions: vec![PrivacyRegion {
+                label: "full".into(), x: 0.0, y: 0.0, width: 1.0, height: 1.0, active: true,
+            }],
+        }];
+        let result = engine.apply_privacy_masks(&data, w, h);
+        // 中心白像素应被高斯模糊拉低
+        let center_idx = ((4 * w + 4) * 4) as usize;
+        assert!(result[center_idx] < 250, "中心像素应被模糊");
     }
 
     #[test]

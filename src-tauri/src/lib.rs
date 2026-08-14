@@ -202,6 +202,8 @@ pub fn run() {
             agent::security_vault::fetch_api_key,
             agent::security_vault::delete_api_key,
             agent::detector::get_detector_stats,
+            // vision privacy mask
+            vision::vision_privacy_model_status,
             // lan health
             agent::router::check_lan_health,
             // worktree commands
