@@ -20,7 +20,7 @@ pub fn cache_key(provider: &str, key: &str) {
 
 /// File-based key persistence (base64) — reliable fallback when keyring is unavailable
 fn key_file_path() -> PathBuf {
-    let dir = crate::CONFIG_DIR.lock().unwrap();
+    let dir = crate::agent::settings::CONFIG_DIR.lock().unwrap();
     dir.as_ref().cloned().unwrap_or_else(|| PathBuf::from("."))
         .join(".chronos_keys")
 }
