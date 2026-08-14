@@ -407,105 +407,6 @@ fn list_mcp_servers(state: tauri::State<AppState>) -> Vec<McpServer> {
     state.mcp_client.blocking_lock().connected_servers().into_iter().cloned().collect()
 }
 
-// ─── Web Intelligence Commands ─────────────────────────────────────
-
-#[tauri::command]
-async fn web_intel_search(
-    state: tauri::State<'_, AppState>,
-    query: String,
-    engine: Option<String>,
-    max_results: Option<u32>,
-) -> Result<Vec<WebSearchResult>, String> {
-    let mut wi = state.web_intelligence.lock().await;
-    wi.search(&query, engine.as_deref(), Some(max_results.unwrap_or(5))).await
-}
-
-#[tauri::command]
-async fn web_intel_fetch(
-    state: tauri::State<'_, AppState>,
-    url: String,
-    distill: Option<bool>,
-) -> Result<WebFetchResult, String> {
-    let mut wi = state.web_intelligence.lock().await;
-    wi.fetch(&url, distill.unwrap_or(true)).await
-}
-
-#[tauri::command]
-async fn web_intel_research(
-    state: tauri::State<'_, AppState>,
-    topic: String,
-    sources: Option<Vec<String>>,
-) -> Result<ResearchReport, String> {
-    let mut wi = state.web_intelligence.lock().await;
-    wi.research(&topic, sources.unwrap_or_default()).await
-}
-
-#[tauri::command]
-async fn web_intel_add_domain(
-    state: tauri::State<'_, AppState>,
-    domain: String,
-    category: Option<String>,
-) -> Result<String, String> {
-    let mut wi = state.web_intelligence.lock().await;
-    wi.add_allowed_domain(&domain, category.as_deref().unwrap_or("custom"))
-        .map(|()| format!("Domain {} added", domain))
-}
-
-#[tauri::command]
-async fn web_intel_remove_domain(
-    state: tauri::State<'_, AppState>,
-    domain: String,
-) -> Result<String, String> {
-    let mut wi = state.web_intelligence.lock().await;
-    wi.remove_allowed_domain(&domain)
-        .map(|()| format!("Domain {} removed", domain))
-}
-
-#[tauri::command]
-async fn web_intel_list_domains(
-    state: tauri::State<'_, AppState>,
-) -> Result<Vec<(String, String)>, String> {
-    let wi = state.web_intelligence.lock().await;
-    Ok(wi.list_allowed_domains())
-}
-
-#[tauri::command]
-async fn web_intel_get_audit_log(
-    state: tauri::State<'_, AppState>,
-    limit: Option<usize>,
-) -> Result<Vec<WebAuditEntry>, String> {
-    let wi = state.web_intelligence.lock().await;
-    Ok(wi.get_audit_log_owned(limit.unwrap_or(50)))
-}
-
-#[tauri::command]
-async fn web_intel_get_stats(
-    state: tauri::State<'_, AppState>,
-) -> Result<WebIntelStats, String> {
-    let wi = state.web_intelligence.lock().await;
-    Ok(wi.get_stats())
-}
-
-#[tauri::command]
-async fn web_intel_save_state(
-    app_handle: AppHandle,
-    state: tauri::State<'_, AppState>,
-) -> Result<String, String> {
-    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    let wi = state.web_intelligence.lock().await;
-    wi.save_state(&dir)
-}
-
-#[tauri::command]
-async fn web_intel_load_state(
-    app_handle: AppHandle,
-    state: tauri::State<'_, AppState>,
-) -> Result<String, String> {
-    let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    let mut wi = state.web_intelligence.lock().await;
-    wi.load_state(&dir)
-}
-
 // ─── 统一行动调度引擎 (Action Dispatch) ────────────────────────────
 
 /// 从 LLM 响应文本中提取所有 JSON 动作块
@@ -1613,16 +1514,16 @@ pub fn run() {
             rename_chat_session,
             import_chat_session,
             // web intelligence
-            web_intel_search,
-            web_intel_fetch,
-            web_intel_research,
-            web_intel_add_domain,
-            web_intel_remove_domain,
-            web_intel_list_domains,
-            web_intel_get_audit_log,
-            web_intel_get_stats,
-            web_intel_save_state,
-            web_intel_load_state,
+            agent::web_intelligence::web_intel_search,
+            agent::web_intelligence::web_intel_fetch,
+            agent::web_intelligence::web_intel_research,
+            agent::web_intelligence::web_intel_add_domain,
+            agent::web_intelligence::web_intel_remove_domain,
+            agent::web_intelligence::web_intel_list_domains,
+            agent::web_intelligence::web_intel_get_audit_log,
+            agent::web_intelligence::web_intel_get_stats,
+            agent::web_intelligence::web_intel_save_state,
+            agent::web_intelligence::web_intel_load_state,
             // action dispatch engine
             execute_agent_action,
             extract_and_execute_actions,
