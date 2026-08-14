@@ -693,6 +693,36 @@ mod tests {
         assert!(lo <= ewma.current && ewma.current <= hi);
     }
 
+    #[test]
+    fn test_analyze_task_enhanced_dynamic() {
+        let engine = PredictiveAnalyticsEngine::new();
+        let simple = engine.analyze_task_enhanced("add a comment");
+        let complex = engine.analyze_task_enhanced(
+            "refactor the production database migration with security auth and delete drop table urgent",
+        );
+
+        // 结构完整
+        assert_eq!(simple["status"], "ok");
+        assert!(simple["estimated_tokens"]["total"].as_u64().unwrap() > 0);
+        assert!(simple["complexity"]["score"].as_u64().unwrap() >= 1);
+
+        // 动态差异：复杂任务 token 数高于简单任务
+        let simple_tokens = simple["estimated_tokens"]["total"].as_u64().unwrap();
+        let complex_tokens = complex["estimated_tokens"]["total"].as_u64().unwrap();
+        assert!(complex_tokens > simple_tokens);
+
+        // 复杂度：复杂任务 >= 简单任务
+        let simple_complexity = simple["complexity"]["score"].as_u64().unwrap();
+        let complex_complexity = complex["complexity"]["score"].as_u64().unwrap();
+        assert!(complex_complexity >= simple_complexity);
+
+        // 风险 + 模型推荐：高危关键词 → high + pro；简单 → low + flash
+        assert_eq!(complex["risk"]["level"], "high");
+        assert_eq!(complex["recommended_model"], "deepseek-v4-pro");
+        assert_eq!(simple["risk"]["level"], "low");
+        assert_eq!(simple["recommended_model"], "deepseek-v4-flash");
+    }
+
     fn rand_noise() -> f64 {
         (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().subsec_nanos() % 100) as f64 / 100.0 - 0.5
     }

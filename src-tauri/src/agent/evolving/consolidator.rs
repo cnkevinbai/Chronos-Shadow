@@ -373,3 +373,71 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
     let norm_b: f64 = b.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
     if norm_a == 0.0 || norm_b == 0.0 { 0.0 } else { dot / (norm_a * norm_b) }
 }
+
+// ─── 单元测试 ──────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_delta(id: &str) -> EvoDelta {
+        EvoDelta {
+            experience_id: id.into(),
+            context_trigger_hash: format!("hash-{}", id),
+            failed_llm_action: "unwrap()".into(),
+            correct_human_action: "? 运算符".into(),
+            token_sunk_cost_saved: 100,
+            accuracy_weight: 0.8,
+        }
+    }
+
+    #[test]
+    fn test_local_consolidator_memory_roundtrip() {
+        let dir = std::env::temp_dir().join("chronos_evo_mem_test");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let lc = LocalConsolidator::new(&dir);
+        {
+            let mut pool = lc.active_memory_pool.blocking_lock();
+            pool.insert("hash-exp-1".into(), sample_delta("exp-1"));
+        }
+        lc.save_state(&dir).unwrap();
+
+        let mut lc2 = LocalConsolidator::new(&dir);
+        lc2.load_state(&dir).unwrap();
+        let pool = lc2.active_memory_pool.blocking_lock();
+        assert_eq!(pool.len(), 1);
+        assert!(pool.contains_key("hash-exp-1"));
+        assert_eq!(pool["hash-exp-1"].correct_human_action, "? 运算符");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_consolidator_skills_roundtrip() {
+        let dir = std::env::temp_dir().join("chronos_evo_skills_test");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let mut c = Consolidator::new();
+        c.db.skills.push(ConsolidatedSkill {
+            id: "skill-0001".into(),
+            name: "test-skill".into(),
+            description: "learned".into(),
+            source_delta_id: "delta-1".into(),
+            tags: vec!["test".into()],
+            embedding: vec![0.1, 0.2, 0.3],
+            confidence: 0.75,
+            use_count: 0,
+            created_at: "2026-01-01T00:00:00Z".into(),
+        });
+        c.save_state(&dir).unwrap();
+
+        let mut c2 = Consolidator::new();
+        c2.load_state(&dir).unwrap();
+        assert_eq!(c2.db.skills.len(), 1);
+        assert_eq!(c2.db.skills[0].id, "skill-0001");
+        assert_eq!(c2.db.skills[0].embedding.len(), 3);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
