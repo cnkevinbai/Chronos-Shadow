@@ -17,10 +17,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - MCP 真实脚本集成：3 个真实 Node.js MCP 服务器（audit-vault / win32-registry / local-vector-glue）+ Rust 侧配置加载 + 启动自动注册
 - 前端测试：Vitest + React Testing Library 基建 + 19 个测试（`utils`/`models`/`Modal`/`ErrorBoundary`）+ CI `npm test` 步骤
 
+### Security — 安全审计加固 (2026-08-15)
+- 路径穿越 ×2：单动作 `file_read/edit`（词法 `starts_with` 被 `../` 绕过）+ 代码块自动保存（Markdown filename hint 无校验）
+- 终端命令黑名单 → 白名单：拒绝 shell 元字符 + 程序名白名单，`cmd`/`powershell`/`bash` 等解释器不入名单
+- `web_fetch` SSRF：拦截内网/环回/链路本地/云元数据字面地址
+- `cvfs_read_file` 任意文件读：复用写保护 Scope 过滤器（canonicalize + 拒绝 `..`）
+- API Key 明文落盘：移除 base64 `.chronos_keys`，仅驻留内存 + Windows 凭据管理器
+- 会话导入/导出加解密一致性：导入改加密、导出改解密
+- GCM nonce 复用：时间戳+固定字节 → `Aes256Gcm::generate_nonce(OsRng)`
+- 审批门禁接入 LLM 动作（`web_search`/`web_fetch`/`mcp_call`）+ `parse_action_type` 死规则修复
+- 安全边界误伤：仅扫描 `Terminal` 命令，不再拦截含 SQL/shell 关键词的正常代码生成
+
+### Added — 功能补齐 (2026-08-15)
+- MCP HTTP+SSE 传输：`endpoint` 事件握手 + POST 通道 + 按 `id` 分发响应（此前 `"SSE transport not yet implemented"`）
+- `ExecuteSkill` 动作：从桩接到真实 `SkillEngine::execute`（此前永远返回 "requires local filesystem access"）
+- 视觉感知哈希：采样 64 字节 → 真实 DCT pHash；高斯模糊可分离化（O(25n) → O(10n)）
+- 特征哈希嵌入：替代 `DefaultHasher` 伪随机向量（`mock_embed`，余弦无意义）
+
 ### Known Limitations
-- ONNX 隐私遮罩：真实像素级高斯打码已实现；真 ONNX 推理仍待真实模型（`privacy_mask.onnx` 现为占位）+ `ort`/`tract` 推理库
+- ONNX 隐私遮罩：真实像素级高斯打码（可分离优化）已实现；真 ONNX 推理仍待真实模型（`privacy_mask.onnx` 现为占位）+ `ort`/`tract` 推理库
 - macOS / Linux 支持未做（需跨平台 CI + 条件编译）
 - Rust Tauri 命令集成测试：无 State 命令已直测（`tests/commands.rs`）+ 引擎单测；State 依赖命令待 `tauri::test` harness（`AppState` 私有 + 沙箱无法运行 `cargo test`）
+- MCP SSE 端到端：实现已 `cargo check --all-targets` 通过，完整链路需连真实 SSE 服务器验证
 
 ## [0.2.0] — 2026-08-10
 
