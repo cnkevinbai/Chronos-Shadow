@@ -318,6 +318,12 @@ async fn extract_and_save_code_blocks(
         };
         let full_path = project_root.join(path);
 
+        // 红线二：自动保存同样受路径沙盒约束，拒绝绝对路径 / 驱动器前缀 / .. 穿越 / 符号链接逃逸
+        if !is_path_within_root(&project_root, path, &full_path) {
+            tracing::warn!("[AutoSave] Blocked path escape attempt: {}", filename);
+            continue;
+        }
+
         if let Some(parent) = full_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -329,6 +335,37 @@ async fn extract_and_save_code_blocks(
         }
     }
     files
+}
+
+/// 校验自动保存的目标路径不逃逸出项目根目录。
+/// 拒绝绝对路径、驱动器前缀、根目录、`..` 穿越；对已存在路径（或其父目录）
+/// 做 canonicalize 校验，拦截符号链接/目录联接逃逸。
+fn is_path_within_root(
+    root: &std::path::Path,
+    rel: &std::path::Path,
+    full: &std::path::Path,
+) -> bool {
+    use std::path::Component;
+    if rel.is_absolute()
+        || rel.components().any(|c| {
+            matches!(
+                c,
+                Component::ParentDir | Component::Prefix(_) | Component::RootDir
+            )
+        })
+    {
+        return false;
+    }
+    let root_canon = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    match full.canonicalize() {
+        Ok(c) => c.starts_with(&root_canon),
+        // 目标文件尚不存在：校验其最近父目录
+        Err(_) => full
+            .parent()
+            .and_then(|p| p.canonicalize().ok())
+            .map(|pc| pc.starts_with(&root_canon))
+            .unwrap_or(false),
+    }
 }
 
 /// 根据语言和内容推断文件名 — 支持任意文件类型，无格式限制
@@ -514,4 +551,32 @@ async fn execute_agent_action_inner(
     }
 
     dispatch_action(state, &action).await
+}
+
+// ─── 单元测试 ──────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_path_within_root_rejects_traversal() {
+        let root = std::path::PathBuf::from("D:/project");
+        let rel = std::path::Path::new("../../etc/passwd");
+        assert!(!is_path_within_root(&root, rel, &root.join(rel)));
+    }
+
+    #[test]
+    fn test_is_path_within_root_rejects_absolute() {
+        let root = std::path::PathBuf::from("D:/project");
+        let rel = std::path::Path::new("C:/Windows/System32/x.dll");
+        assert!(!is_path_within_root(&root, rel, &root.join(rel)));
+    }
+
+    #[test]
+    fn test_is_path_within_root_rejects_drive_relative() {
+        let root = std::path::PathBuf::from("D:/project");
+        let rel = std::path::Path::new("C:evil.txt");
+        assert!(!is_path_within_root(&root, rel, &root.join(rel)));
+    }
 }
