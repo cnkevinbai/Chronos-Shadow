@@ -401,17 +401,11 @@ impl RedlineGuard {
 
     /// 红线二：路径物理沙盒校验 — 对齐白皮书 SandboxViolation
     fn validate_path_redline(&self, target_path: &str) -> Result<(), RedlineError> {
-        let path = Path::new(target_path);
-        let absolute_path = if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            self.schema_validator.project_root.join(path)
-        };
-
-        if !absolute_path.starts_with(&self.schema_validator.project_root) {
-            return Err(RedlineError::SandboxViolation(absolute_path));
+        // 复用强校验 is_path_safe（拒绝 .. + canonicalize + 危险路径），
+        // 避免词法 starts_with 被 ../ 穿越绕过
+        if !self.schema_validator.is_path_safe(target_path) {
+            return Err(RedlineError::SandboxViolation(PathBuf::from(target_path)));
         }
-
         Ok(())
     }
 
