@@ -181,7 +181,7 @@ impl Consolidator {
             .collect();
         tags.push(format!("{:?}", delta.trigger).to_lowercase());
 
-        let embedding = self.mock_embed(&delta.correction);
+        let embedding = self.feature_hash_embed(&delta.correction);
 
         // 添加到真实嵌入引擎
         self.embedding.add(&id, &delta.correction, tags.clone(), "consolidator");
@@ -226,8 +226,8 @@ impl Consolidator {
             }
         }
 
-        // Fallback: 使用旧的 mock_embed + cosine 搜索
-        let query_emb = self.mock_embed(query);
+        // Fallback: 使用 feature-hashing 嵌入 + cosine 搜索
+        let query_emb = self.feature_hash_embed(query);
         let mut scored: Vec<(f64, &ConsolidatedSkill)> = self.db.skills.iter()
             .map(|s| (cosine_similarity(&query_emb, &s.embedding), s))
             .collect();
@@ -318,35 +318,53 @@ impl Consolidator {
         Ok(format!("Consolidator loaded: {} skills", self.db.skills.len()))
     }
 
-    /// 模拟向量嵌入（384-dim 归一化伪随机向量）
+    /// 特征哈希嵌入（hashing trick）— 语义有意义：相似文本共享 token → 相似向量。
     ///
-    /// ⚠️ 仅作降级占位：DefaultHasher 生成的是非语义哈希向量，余弦相似度无意义，
-    /// 且算法跨 Rust 版本不保证稳定。真实语义检索请使用 EmbeddingEngine (TF-IDF)。
-    fn mock_embed(&self, text: &str) -> Vec<f32> {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+    /// 替代旧的 DefaultHasher 伪随机向量（非语义、跨 Rust 版本不稳定）。
+    /// 使用稳定的 FNV-1a 哈希把每个 token 映射到固定维度并累加符号，
+    /// 余弦相似度对语义相似的文本具备区分度。
+    fn feature_hash_embed(&self, text: &str) -> Vec<f32> {
+        let mut vec = vec![0.0f32; self.embedding_dim];
+        if self.embedding_dim == 0 {
+            return vec;
+        }
 
-        let bytes = text.as_bytes();
-        let mut vec = Vec::with_capacity(self.embedding_dim);
-
-        for i in 0..self.embedding_dim {
-            let mut hasher = DefaultHasher::new();
-            bytes.hash(&mut hasher);
-            i.hash(&mut hasher);
-            let h = hasher.finish();
-            // Normalize to [-1, 1]
-            let val = ((h as f64 / u64::MAX as f64) * 2.0 - 1.0) as f32;
-            vec.push(val);
+        for token in embed_tokens(text) {
+            let h = fnv1a(token.as_bytes());
+            let idx = (h % self.embedding_dim as u64) as usize;
+            let sign = if (h >> 63) & 1 == 0 { 1.0f32 } else { -1.0f32 };
+            vec[idx] += sign;
         }
 
         // L2 normalize
         let norm: f32 = vec.iter().map(|v| v * v).sum::<f32>().sqrt();
         if norm > 0.0 {
-            vec.iter_mut().for_each(|v| *v /= norm);
+            for v in &mut vec {
+                *v /= norm;
+            }
         }
-
         vec
     }
+}
+
+/// 稳定的 FNV-1a 64-bit 哈希（跨 Rust 版本稳定，用于特征哈希嵌入）
+fn fnv1a(bytes: &[u8]) -> u64 {
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for &b in bytes {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
+
+/// 特征哈希用分词器（与 embedding.rs 的 tokenize 规则一致）
+fn embed_tokens(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric() && c != '_' && c != '-')
+        .filter_map(|w| {
+            let t = w.trim().to_lowercase();
+            if t.len() >= 2 && t.len() <= 40 { Some(t) } else { None }
+        })
+        .collect()
 }
 
 impl Default for Consolidator {
