@@ -216,7 +216,8 @@ async fn dispatch_action(
             if result.success {
                 Ok(result.output)
             } else {
-                Err(result.error.unwrap_or_else(|| format!("Skill '{}' execution failed", name)))
+                // result.error 已含技能名（"Skill 'x' is Disabled" / "not found"）或脚本 stderr
+                Err(result.error.unwrap_or_else(|| "Skill execution failed".into()))
             }
         }
         AgentAction::McpCall { server_id, tool_name, args } => {
