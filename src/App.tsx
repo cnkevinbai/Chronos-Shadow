@@ -285,7 +285,7 @@ function AppInner() {
     onToggleRouteMode: () => syncRouteMode(routeMode === "auto" ? "manual" : "auto"),
     onOpenSettings: () => setActiveView("settings"),
     onShowShortcuts: () => setShowShortcuts(true),
-  });
+  }, t);
 
   // ── 渲染 ────────────────────────────────────────────────────────
 

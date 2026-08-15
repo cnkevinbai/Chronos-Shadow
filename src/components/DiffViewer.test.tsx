@@ -18,7 +18,7 @@ describe("MiniDiff", () => {
 describe("DiffViewer", () => {
   it("空内容显示占位", () => {
     render(<DiffViewer />);
-    expect(screen.getByText(/Select two snapshots/i)).toBeInTheDocument();
+    expect(screen.getByText(/选择两个快照/i)).toBeInTheDocument();
   });
 
   it("显示增删计数", () => {

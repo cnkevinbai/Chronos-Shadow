@@ -1,6 +1,8 @@
 // Command Palette (Ctrl+K) — 全局命令搜索
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { MessageSquare, GitGraph, Link2, Puzzle, Globe, Route, Server, FolderOpen, Shield, Search, Settings, FilePlus, Save, Download, Trash2, Keyboard, Zap } from "lucide-react";
+import { useT } from "@/lib/i18n-context";
+import type { LocaleDict } from "@/lib/i18n";
 
 export interface PaletteCommand {
   id: string; label: string; description: string;
@@ -12,6 +14,7 @@ export interface PaletteCommand {
 interface Props { commands: PaletteCommand[]; open: boolean; onClose: () => void; }
 
 export default function CommandPalette({ commands, open, onClose }: Props) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,7 +40,7 @@ export default function CommandPalette({ commands, open, onClose }: Props) {
   if (!open) return null;
 
   const cats = ["Navigate","Session","Actions","Settings"] as const;
-  const catLabel: Record<string,string> = { Navigate:"导航", Session:"会话", Actions:"操作", Settings:"设置" };
+  const catLabel: Record<string,string> = { Navigate: t.cmd_cat_navigate, Session: t.cmd_cat_session, Actions: t.cmd_cat_actions, Settings: t.cmd_cat_settings };
   const catColor: Record<string,string> = { Navigate:"text-cyan-400", Session:"text-purple-400", Actions:"text-emerald-400", Settings:"text-amber-400" };
 
   return (
@@ -46,11 +49,11 @@ export default function CommandPalette({ commands, open, onClose }: Props) {
         <div className="flex items-center px-4 py-3 border-b border-cs-border">
           <Search className="w-4 h-4 text-zinc-500 mr-3 shrink-0" />
           <input ref={inputRef} value={query} onChange={e => { setQuery(e.target.value); setSel(0); }} onKeyDown={handleKey}
-            placeholder="输入命令名称搜索…" className="flex-1 bg-transparent text-sm text-white placeholder-zinc-600 outline-none" />
+            placeholder={t.cmd_search_placeholder} className="flex-1 bg-transparent text-sm text-white placeholder-zinc-600 outline-none" />
           <kbd className="text-[10px] text-zinc-600 bg-cs-bg border border-cs-border px-1.5 py-0.5 rounded ml-2">ESC</kbd>
         </div>
         <div ref={listRef} className="max-h-[360px] overflow-y-auto p-2">
-          {filtered.length===0 && <div className="text-center py-8 text-zinc-600 text-sm">未找到匹配命令</div>}
+          {filtered.length===0 && <div className="text-center py-8 text-zinc-600 text-sm">{t.cmd_no_results}</div>}
           {cats.map(cat => {
             const items = filtered.filter(c => c.category===cat);
             if (!items.length) return null;
@@ -69,8 +72,8 @@ export default function CommandPalette({ commands, open, onClose }: Props) {
           })}
         </div>
         <div className="flex items-center justify-between px-4 py-2 border-t border-cs-border text-[9px] text-zinc-600">
-          <div className="flex items-center space-x-3"><span>↑↓ 导航</span><span>↵ 执行</span><span>ESC 关闭</span></div>
-          <span>{filtered.length} 条命令</span>
+          <div className="flex items-center space-x-3"><span>{t.cmd_hint_nav}</span><span>{t.cmd_hint_exec}</span><span>{t.cmd_hint_close}</span></div>
+          <span>{filtered.length} {t.cmd_count}</span>
         </div>
       </div>
     </div>
@@ -82,25 +85,25 @@ export function buildPaletteCommands(opts: {
   onExportSession: () => void; onClearAll: () => void; onToggleSidebar: () => void;
   onFocusInput: () => void; onToggleRouteMode: () => void;
   onOpenSettings: () => void; onShowShortcuts: () => void;
-}): PaletteCommand[] {
+}, t: LocaleDict): PaletteCommand[] {
   return [
-    { id:"nav-chat",label:"全局对话",description:"AI 对话面板",icon:MessageSquare,category:"Navigate",keywords:["chat","对话"],action:()=>opts.onNavigate("chat")},
-    { id:"nav-pipeline",label:"调度流水线",description:"7-Agent SDLC",icon:GitGraph,category:"Navigate",keywords:["pipeline","流水线"],action:()=>opts.onNavigate("pipeline")},
-    { id:"nav-glue",label:"跨软件粘合",description:"WorkBuddy 窗口绑定",icon:Link2,category:"Navigate",keywords:["glue","窗口"],action:()=>opts.onNavigate("glue")},
-    { id:"nav-skills",label:"技能中枢",description:"技能与MCP管理",icon:Puzzle,category:"Navigate",keywords:["skill","mcp"],action:()=>opts.onNavigate("skills")},
-    { id:"nav-webintel",label:"Web智能搜索",description:"搜索/抓取/研究",icon:Globe,category:"Navigate",keywords:["web","搜索"],action:()=>opts.onNavigate("webintel")},
-    { id:"nav-autoroute",label:"自动路由",description:"关键词→Agent路由",icon:Route,category:"Navigate",keywords:["route","路由"],action:()=>opts.onNavigate("autoroute")},
-    { id:"nav-remote",label:"远程服务器",description:"SSH编译管理",icon:Server,category:"Navigate",keywords:["remote","ssh"],action:()=>opts.onNavigate("remote")},
-    { id:"nav-explorer",label:"项目沙盒",description:"文件树/检查点",icon:FolderOpen,category:"Navigate",keywords:["files","沙盒"],action:()=>opts.onNavigate("explorer")},
-    { id:"nav-approval",label:"审批门禁",description:"第四红线安全审批",icon:Shield,category:"Navigate",keywords:["approval","审批"],action:()=>opts.onNavigate("approval")},
-    { id:"sess-new",label:"新建会话",description:"开启空白研发航道",icon:FilePlus,category:"Session",keywords:["new","新建"],action:opts.onNewSession},
-    { id:"sess-save",label:"保存会话",description:"固化当前对话到磁盘",icon:Save,category:"Session",keywords:["save","保存"],action:opts.onSaveSession},
-    { id:"sess-export",label:"导出会话JSON",description:"导出当前会话",icon:Download,category:"Session",keywords:["export","导出"],action:opts.onExportSession},
-    { id:"sess-clear",label:"清空全部会话",description:"删除所有历史档案",icon:Trash2,category:"Session",keywords:["clear","清空"],action:opts.onClearAll},
-    { id:"act-toggle",label:"切换侧栏",description:"展开/收起历史会话",icon:MessageSquare,category:"Actions",keywords:["sidebar","侧栏"],action:opts.onToggleSidebar},
-    { id:"act-focus",label:"聚焦输入框",description:"光标移动到输入框",icon:Zap,category:"Actions",keywords:["focus","输入"],action:opts.onFocusInput},
-    { id:"act-shortcuts",label:"快捷键帮助",description:"查看全部快捷键",icon:Keyboard,category:"Actions",keywords:["shortcut","快捷键"],action:opts.onShowShortcuts},
-    { id:"set-mode",label:"切换路由模式",description:"自动/手动路由",icon:Route,category:"Settings",keywords:["mode","路由"],action:opts.onToggleRouteMode},
-    { id:"set-open",label:"全局配置",description:"API密钥/成本风控",icon:Settings,category:"Settings",keywords:["settings","配置"],action:opts.onOpenSettings},
+    { id:"nav-chat",label:t.cmd_chat,description:t.cmd_chat_desc,icon:MessageSquare,category:"Navigate",keywords:["chat","对话"],action:()=>opts.onNavigate("chat")},
+    { id:"nav-pipeline",label:t.cmd_pipeline,description:t.cmd_pipeline_desc,icon:GitGraph,category:"Navigate",keywords:["pipeline","流水线"],action:()=>opts.onNavigate("pipeline")},
+    { id:"nav-glue",label:t.cmd_glue,description:t.cmd_glue_desc,icon:Link2,category:"Navigate",keywords:["glue","窗口"],action:()=>opts.onNavigate("glue")},
+    { id:"nav-skills",label:t.cmd_skills,description:t.cmd_skills_desc,icon:Puzzle,category:"Navigate",keywords:["skill","mcp"],action:()=>opts.onNavigate("skills")},
+    { id:"nav-webintel",label:t.cmd_webintel,description:t.cmd_webintel_desc,icon:Globe,category:"Navigate",keywords:["web","搜索"],action:()=>opts.onNavigate("webintel")},
+    { id:"nav-autoroute",label:t.cmd_autoroute,description:t.cmd_autoroute_desc,icon:Route,category:"Navigate",keywords:["route","路由"],action:()=>opts.onNavigate("autoroute")},
+    { id:"nav-remote",label:t.cmd_remote,description:t.cmd_remote_desc,icon:Server,category:"Navigate",keywords:["remote","ssh"],action:()=>opts.onNavigate("remote")},
+    { id:"nav-explorer",label:t.cmd_explorer,description:t.cmd_explorer_desc,icon:FolderOpen,category:"Navigate",keywords:["files","沙盒"],action:()=>opts.onNavigate("explorer")},
+    { id:"nav-approval",label:t.cmd_approval,description:t.cmd_approval_desc,icon:Shield,category:"Navigate",keywords:["approval","审批"],action:()=>opts.onNavigate("approval")},
+    { id:"sess-new",label:t.cmd_sess_new,description:t.cmd_sess_new_desc,icon:FilePlus,category:"Session",keywords:["new","新建"],action:opts.onNewSession},
+    { id:"sess-save",label:t.cmd_sess_save,description:t.cmd_sess_save_desc,icon:Save,category:"Session",keywords:["save","保存"],action:opts.onSaveSession},
+    { id:"sess-export",label:t.cmd_sess_export,description:t.cmd_sess_export_desc,icon:Download,category:"Session",keywords:["export","导出"],action:opts.onExportSession},
+    { id:"sess-clear",label:t.cmd_sess_clear,description:t.cmd_sess_clear_desc,icon:Trash2,category:"Session",keywords:["clear","清空"],action:opts.onClearAll},
+    { id:"act-toggle",label:t.cmd_act_toggle,description:t.cmd_act_toggle_desc,icon:MessageSquare,category:"Actions",keywords:["sidebar","侧栏"],action:opts.onToggleSidebar},
+    { id:"act-focus",label:t.cmd_act_focus,description:t.cmd_act_focus_desc,icon:Zap,category:"Actions",keywords:["focus","输入"],action:opts.onFocusInput},
+    { id:"act-shortcuts",label:t.cmd_act_shortcuts,description:t.cmd_act_shortcuts_desc,icon:Keyboard,category:"Actions",keywords:["shortcut","快捷键"],action:opts.onShowShortcuts},
+    { id:"set-mode",label:t.cmd_set_mode,description:t.cmd_set_mode_desc,icon:Route,category:"Settings",keywords:["mode","路由"],action:opts.onToggleRouteMode},
+    { id:"set-open",label:t.cmd_set_open,description:t.cmd_set_open_desc,icon:Settings,category:"Settings",keywords:["settings","配置"],action:opts.onOpenSettings},
   ];
 }

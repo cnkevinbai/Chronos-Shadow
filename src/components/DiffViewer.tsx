@@ -65,8 +65,8 @@ function computeDiff(oldText: string, newText: string): DiffLine[] {
 }
 
 export default function DiffViewer({
-  leftLabel = "Before",
-  rightLabel = "After",
+  leftLabel,
+  rightLabel,
   leftContent = "",
   rightContent = "",
   title,
@@ -83,7 +83,7 @@ export default function DiffViewer({
   if (!leftContent && !rightContent) {
     return (
       <div className="flex items-center justify-center h-full text-cs-muted text-[10px]">
-        Select two snapshots to compare
+        {t.diff_select_hint}
       </div>
     );
   }
@@ -95,7 +95,7 @@ export default function DiffViewer({
         <div className="flex items-center space-x-2">
           <Diff className="w-3 h-3 text-cs-info" />
           <span className="text-[10px] font-bold text-cs-text">
-            {title ?? "Visual Diff"}
+            {title ?? t.diff_title}
           </span>
         </div>
         <div className="flex items-center space-x-2 text-[9px]">

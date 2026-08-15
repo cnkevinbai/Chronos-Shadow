@@ -20,6 +20,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       const saved = localStorage.getItem("cs-lang");
       if (saved === "en" || saved === "zh") return saved;
     } catch {}
+    // 国际版：按浏览器/系统语言自动探测（英文环境 → en，其余 → zh）
+    try {
+      if (typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("en")) {
+        return "en";
+      }
+    } catch {}
     return "zh";
   });
 

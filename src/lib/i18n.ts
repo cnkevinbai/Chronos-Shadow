@@ -367,6 +367,54 @@ export interface LocaleDict {
   ar_agent: string;
   ar_model: string;
   ar_bottom_bar: string;
+
+  // Command Palette
+  cmd_cat_navigate: string;
+  cmd_cat_session: string;
+  cmd_cat_actions: string;
+  cmd_cat_settings: string;
+  cmd_search_placeholder: string;
+  cmd_no_results: string;
+  cmd_hint_nav: string;
+  cmd_hint_exec: string;
+  cmd_hint_close: string;
+  cmd_count: string;
+  cmd_chat: string;
+  cmd_chat_desc: string;
+  cmd_pipeline: string;
+  cmd_pipeline_desc: string;
+  cmd_glue: string;
+  cmd_glue_desc: string;
+  cmd_skills: string;
+  cmd_skills_desc: string;
+  cmd_webintel: string;
+  cmd_webintel_desc: string;
+  cmd_autoroute: string;
+  cmd_autoroute_desc: string;
+  cmd_remote: string;
+  cmd_remote_desc: string;
+  cmd_explorer: string;
+  cmd_explorer_desc: string;
+  cmd_approval: string;
+  cmd_approval_desc: string;
+  cmd_sess_new: string;
+  cmd_sess_new_desc: string;
+  cmd_sess_save: string;
+  cmd_sess_save_desc: string;
+  cmd_sess_export: string;
+  cmd_sess_export_desc: string;
+  cmd_sess_clear: string;
+  cmd_sess_clear_desc: string;
+  cmd_act_toggle: string;
+  cmd_act_toggle_desc: string;
+  cmd_act_focus: string;
+  cmd_act_focus_desc: string;
+  cmd_act_shortcuts: string;
+  cmd_act_shortcuts_desc: string;
+  cmd_set_mode: string;
+  cmd_set_mode_desc: string;
+  cmd_set_open: string;
+  cmd_set_open_desc: string;
 }
 
 const zh: LocaleDict = {
@@ -718,6 +766,54 @@ const zh: LocaleDict = {
   ar_agent: "Agent",
   ar_model: "模型",
   ar_bottom_bar: "自动按关键词匹配最优Agent+模型 · 27条路由规则",
+
+  // Command Palette
+  cmd_cat_navigate: "导航",
+  cmd_cat_session: "会话",
+  cmd_cat_actions: "操作",
+  cmd_cat_settings: "设置",
+  cmd_search_placeholder: "输入命令名称搜索…",
+  cmd_no_results: "未找到匹配命令",
+  cmd_hint_nav: "↑↓ 导航",
+  cmd_hint_exec: "↵ 执行",
+  cmd_hint_close: "ESC 关闭",
+  cmd_count: "条命令",
+  cmd_chat: "全局对话",
+  cmd_chat_desc: "AI 对话面板",
+  cmd_pipeline: "调度流水线",
+  cmd_pipeline_desc: "7-Agent SDLC",
+  cmd_glue: "跨软件粘合",
+  cmd_glue_desc: "WorkBuddy 窗口绑定",
+  cmd_skills: "技能中枢",
+  cmd_skills_desc: "技能与MCP管理",
+  cmd_webintel: "Web智能搜索",
+  cmd_webintel_desc: "搜索/抓取/研究",
+  cmd_autoroute: "自动路由",
+  cmd_autoroute_desc: "关键词→Agent路由",
+  cmd_remote: "远程服务器",
+  cmd_remote_desc: "SSH编译管理",
+  cmd_explorer: "项目沙盒",
+  cmd_explorer_desc: "文件树/检查点",
+  cmd_approval: "审批门禁",
+  cmd_approval_desc: "第四红线安全审批",
+  cmd_sess_new: "新建会话",
+  cmd_sess_new_desc: "开启空白研发航道",
+  cmd_sess_save: "保存会话",
+  cmd_sess_save_desc: "固化当前对话到磁盘",
+  cmd_sess_export: "导出会话JSON",
+  cmd_sess_export_desc: "导出当前会话",
+  cmd_sess_clear: "清空全部会话",
+  cmd_sess_clear_desc: "删除所有历史档案",
+  cmd_act_toggle: "切换侧栏",
+  cmd_act_toggle_desc: "展开/收起历史会话",
+  cmd_act_focus: "聚焦输入框",
+  cmd_act_focus_desc: "光标移动到输入框",
+  cmd_act_shortcuts: "快捷键帮助",
+  cmd_act_shortcuts_desc: "查看全部快捷键",
+  cmd_set_mode: "切换路由模式",
+  cmd_set_mode_desc: "自动/手动路由",
+  cmd_set_open: "全局配置",
+  cmd_set_open_desc: "API密钥/成本风控",
 };
 
 const en: LocaleDict = {
@@ -1069,6 +1165,54 @@ const en: LocaleDict = {
   ar_agent: "Agent",
   ar_model: "Model",
   ar_bottom_bar: "Auto-match optimal Agent+Model by keyword · 27 routing rules",
+
+  // Command Palette
+  cmd_cat_navigate: "Navigate",
+  cmd_cat_session: "Session",
+  cmd_cat_actions: "Actions",
+  cmd_cat_settings: "Settings",
+  cmd_search_placeholder: "Search commands…",
+  cmd_no_results: "No matching commands",
+  cmd_hint_nav: "↑↓ Navigate",
+  cmd_hint_exec: "↵ Execute",
+  cmd_hint_close: "ESC Close",
+  cmd_count: "commands",
+  cmd_chat: "Global Chat",
+  cmd_chat_desc: "AI chat panel",
+  cmd_pipeline: "Pipeline",
+  cmd_pipeline_desc: "7-Agent SDLC",
+  cmd_glue: "App Glue",
+  cmd_glue_desc: "WorkBuddy window binding",
+  cmd_skills: "Skill Hub",
+  cmd_skills_desc: "Skills & MCP management",
+  cmd_webintel: "Web Intelligence",
+  cmd_webintel_desc: "Search / fetch / research",
+  cmd_autoroute: "Auto Routing",
+  cmd_autoroute_desc: "Keyword → Agent routing",
+  cmd_remote: "Remote Server",
+  cmd_remote_desc: "SSH compile management",
+  cmd_explorer: "Project Sandbox",
+  cmd_explorer_desc: "File tree / checkpoints",
+  cmd_approval: "Approval Gate",
+  cmd_approval_desc: "Fourth redline approval",
+  cmd_sess_new: "New Session",
+  cmd_sess_new_desc: "Start a blank session",
+  cmd_sess_save: "Save Session",
+  cmd_sess_save_desc: "Persist current chat to disk",
+  cmd_sess_export: "Export Session JSON",
+  cmd_sess_export_desc: "Export current session",
+  cmd_sess_clear: "Clear All",
+  cmd_sess_clear_desc: "Delete all history",
+  cmd_act_toggle: "Toggle Sidebar",
+  cmd_act_toggle_desc: "Expand / collapse history",
+  cmd_act_focus: "Focus Input",
+  cmd_act_focus_desc: "Move cursor to input",
+  cmd_act_shortcuts: "Shortcuts",
+  cmd_act_shortcuts_desc: "View all shortcuts",
+  cmd_set_mode: "Toggle Route Mode",
+  cmd_set_mode_desc: "Auto / manual routing",
+  cmd_set_open: "Settings",
+  cmd_set_open_desc: "API keys / cost control",
 };
 
 export const locales: Record<Lang, LocaleDict> = { zh, en };
