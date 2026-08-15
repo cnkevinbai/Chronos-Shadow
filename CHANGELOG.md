@@ -15,7 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 进化引擎持久化：`EvolutionEngine`/`LocalConsolidator`/`Consolidator` 新增 `save_state`/`load_state`，记忆池、固化技能、嵌入、调节器统计重启保留
 - 动态指标采集：`analyze_task_enhanced` 从硬编码占位改为动态估算 token/复杂度/成本/时长/风险 + 模型推荐（对齐 `billing.rs` 官方定价）
 - MCP 真实脚本集成：3 个真实 Node.js MCP 服务器（audit-vault / win32-registry / local-vector-glue）+ Rust 侧配置加载 + 启动自动注册
-- 前端测试：Vitest + React Testing Library 基建 + 19 个测试（`utils`/`models`/`Modal`/`ErrorBoundary`）+ CI `npm test` 步骤
+- ONNX 隐私遮罩集成：`is_valid_onnx` 真实 ModelProto 头校验（替代尺寸启发式）+ `detect_sensitive_regions` 模型驱动检测脚手架（真推理待真实模型 + tract/ort）
+- 前端测试：Vitest + React Testing Library 基建 + 29 个测试（`utils`/`models`/`i18n`/`Modal`/`ErrorBoundary`/`ToastProvider`/`DiffViewer`）+ CI `npm test` 步骤
 
 ### Security — 安全审计加固 (2026-08-15)
 - 路径穿越 ×2：单动作 `file_read/edit`（词法 `starts_with` 被 `../` 绕过）+ 代码块自动保存（Markdown filename hint 无校验）
@@ -35,7 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 特征哈希嵌入：替代 `DefaultHasher` 伪随机向量（`mock_embed`，余弦无意义）
 
 ### Known Limitations
-- ONNX 隐私遮罩：真实像素级高斯打码（可分离优化）已实现；真 ONNX 推理仍待真实模型（`privacy_mask.onnx` 现为占位）+ `ort`/`tract` 推理库
+- ONNX 隐私遮罩：真实像素级高斯打码（可分离优化）+ `is_valid_onnx` 格式校验已实现；真 ONNX 推理仍待真实模型（`privacy_mask.onnx` 现为占位）+ `ort`/`tract` 推理库
 - macOS / Linux 支持未做（需跨平台 CI + 条件编译）
 - Rust Tauri 命令集成测试：无 State 命令已直测（`tests/commands.rs`）+ 引擎单测；State 依赖命令待 `tauri::test` harness（`AppState` 私有 + 沙箱无法运行 `cargo test`）
 - MCP SSE 端到端：实现已 `cargo check --all-targets` 通过，完整链路需连真实 SSE 服务器验证
