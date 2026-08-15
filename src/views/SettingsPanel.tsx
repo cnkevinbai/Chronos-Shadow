@@ -6,11 +6,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useLang, useT } from "@/lib/i18n-context";
 import { useToast } from "@/components/ToastProvider";
-import { loadSettings, saveSettings, checkLanHealth } from "@/lib/tauri";
+import { loadSettings, saveSettings, checkLanHealth, getUserProfile, updateUserProfile, getAchievements } from "@/lib/tauri";
 import { ChronosLogo, KeyIcon, GlobeIcon, ShieldIcon, CoinsIcon } from "@/components/SvgIcons";
 import { MODELS } from "@/lib/models";
+import type { Achievement } from "@/lib/types";
 
-type Tab = "api" | "cost" | "lan" | "security" | "lang" | "about";
+type Tab = "api" | "cost" | "lan" | "security" | "lang" | "personalization" | "about";
 
 interface SettingsPanelProps {
   hasKeys: { deepseek: boolean; kimi: boolean; glm: boolean };
@@ -39,6 +40,18 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
   const [astAudit, setAstAudit] = useState(true);
   const [blockGpl, setBlockGpl] = useState(true);
   const [privacyBlur, setPrivacyBlur] = useState(true);
+
+  // 个性化
+  const [displayName, setDisplayName] = useState("开发者");
+  const [nickname, setNickname] = useState("伙伴");
+  const [avatar, setAvatar] = useState("🦀");
+  const [personality, setPersonality] = useState("friendly");
+  const [theme, setTheme] = useState("dark");
+  const [workHoursStart, setWorkHoursStart] = useState(9);
+  const [workHoursEnd, setWorkHoursEnd] = useState(18);
+  const [skillLevel, setSkillLevel] = useState(50);
+  const [workMode, setWorkMode] = useState("solo");
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
 
   const [saving, setSaving] = useState(false);
   const savingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,6 +84,22 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
     }).catch(() => {});
   }, []);
 
+  // 加载个性化画像 + 成就
+  useEffect(() => {
+    getUserProfile().then((p) => {
+      setDisplayName(p.display_name);
+      setNickname(p.nickname);
+      setAvatar(p.avatar);
+      setPersonality(p.personality);
+      setTheme(p.theme);
+      setWorkHoursStart(p.work_hours_start);
+      setWorkHoursEnd(p.work_hours_end);
+      setSkillLevel(p.skill_level);
+      setWorkMode(p.work_mode);
+    }).catch(() => {});
+    getAchievements().then(setAchievements).catch(() => {});
+  }, []);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -83,6 +112,11 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
         ast_audit: astAudit, block_gpl: blockGpl, privacy_blur: privacyBlur,
         caching_priority: cachingPriority, accumulated_cost: 0,
         api_key_deepseek: "", api_key_kimi: "", api_key_glm: "",
+      });
+      // 个性化画像（独立于 config.json，存内存 + 重启恢复）
+      await updateUserProfile({
+        displayName, nickname, avatar, personality, theme,
+        workHoursStart, workHoursEnd, skillLevel, workMode,
       });
       // Router keys are now vault-resolved server-side — no sync needed
       toast.showToast("success", "CONFIG SAVED", result);
@@ -99,6 +133,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
     { id: "lan", icon: <GlobeIcon size={14} className="stroke-current" />, label: t.settings_lan_gateway },
     { id: "security", icon: <ShieldIcon size={14} className="stroke-current" />, label: t.settings_security },
     { id: "lang", icon: <GlobeIcon size={14} className="stroke-current" />, label: t.settings_language },
+    { id: "personalization", icon: <span className="text-[14px]">🎨</span>, label: "个性化" },
     { id: "about", icon: <ChronosLogo size={14} className="stroke-current" />, label: "关于 & 开源隐私" },
   ];
 
@@ -358,6 +393,117 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                   {lang === code && <span className="text-emerald-400 text-lg">✓</span>}
                 </button>
               ))}
+            </div>
+          </SettingsSection>
+        )}
+
+        {activeTab === "personalization" && (
+          <SettingsSection title="🎨 个性化" desc="让 Chronos-Shadow 记住你，成为有温度的伙伴。">
+            {/* 头像 + 名字 */}
+            <div className="flex items-center space-x-3">
+              <div className="text-4xl w-14 h-14 flex items-center justify-center bg-black border border-cs-border rounded-xl shrink-0">
+                {avatar}
+              </div>
+              <div className="flex-1 space-y-2">
+                <div className="flex flex-col space-y-1">
+                  <label className="text-[11px] font-medium text-zinc-400">你的名字</label>
+                  <input value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+                    className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none" />
+                </div>
+                <div className="flex flex-col space-y-1">
+                  <label className="text-[11px] font-medium text-zinc-400">昵称（用于问候）</label>
+                  <input value={nickname} onChange={(e) => setNickname(e.target.value)}
+                    className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none" />
+                </div>
+              </div>
+            </div>
+
+            {/* 头像 emoji 选择 */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-[11px] font-medium text-zinc-400">头像</label>
+              <div className="flex flex-wrap gap-1.5">
+                {["🦀", "🦊", "🐱", "🐼", "🦄", "🐙", "🤖", "👾", "🌟", "🔥", "🌙", "⚡"].map((e) => (
+                  <button key={e} onClick={() => setAvatar(e)}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg border transition-all ${avatar === e ? "border-emerald-400 bg-emerald-400/20" : "border-cs-border hover:border-zinc-500"}`}>
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 系统人格 */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-[11px] font-medium text-zinc-400">系统人格</label>
+              <div className="flex space-x-2">
+                {[
+                  { v: "professional", l: "💼 专业" },
+                  { v: "friendly", l: "🤗 友好" },
+                  { v: "playful", l: "🎮 活泼" },
+                ].map(({ v, l }) => (
+                  <button key={v} onClick={() => setPersonality(v)}
+                    className={`px-3 py-1.5 rounded border text-xs transition-all ${personality === v ? "border-emerald-400 bg-emerald-400/20 text-emerald-300" : "border-cs-border text-zinc-400 hover:border-zinc-500"}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 工作时段 */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-[11px] font-medium text-zinc-400">工作时段（影响问候语）</label>
+              <div className="flex items-center space-x-2">
+                <input type="number" min={0} max={23} value={workHoursStart} onChange={(e) => setWorkHoursStart(Number(e.target.value))}
+                  className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none w-20" />
+                <span className="text-zinc-500">—</span>
+                <input type="number" min={1} max={24} value={workHoursEnd} onChange={(e) => setWorkHoursEnd(Number(e.target.value))}
+                  className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none w-20" />
+                <span className="text-[10px] text-zinc-600">时</span>
+              </div>
+            </div>
+
+            {/* 技能等级 */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-[11px] font-medium text-zinc-400">技能熟练度：{skillLevel}</label>
+              <input type="range" min={0} max={100} value={skillLevel} onChange={(e) => setSkillLevel(Number(e.target.value))}
+                className="w-full accent-emerald-500" />
+            </div>
+
+            {/* 工作模式 */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-[11px] font-medium text-zinc-400">工作模式</label>
+              <div className="flex space-x-2">
+                {[
+                  { v: "solo", l: "🧑‍💻 独自" },
+                  { v: "collaborative", l: "🤝 协作" },
+                  { v: "learning", l: "📚 学习" },
+                ].map(({ v, l }) => (
+                  <button key={v} onClick={() => setWorkMode(v)}
+                    className={`px-3 py-1.5 rounded border text-xs transition-all ${workMode === v ? "border-emerald-400 bg-emerald-400/20 text-emerald-300" : "border-cs-border text-zinc-400 hover:border-zinc-500"}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 成就墙 */}
+            <div className="pt-2 border-t border-cs-border/50">
+              <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">🏆 成就</div>
+              {achievements.length === 0 ? (
+                <div className="text-[11px] text-zinc-600">使用 Chronos-Shadow 后，成就将在此点亮。</div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {achievements.map((a) => (
+                    <div key={a.id} className={`p-2 rounded border text-center ${a.unlocked ? "border-emerald-500/40 bg-emerald-950/20" : "border-cs-border/50 bg-black/40 opacity-60"}`}>
+                      <div className="text-xl">{a.unlocked ? a.emoji : "🔒"}</div>
+                      <div className="text-[10px] font-bold text-zinc-300 mt-1">{a.name}</div>
+                      <div className="text-[9px] text-zinc-500 mt-0.5">{a.description}</div>
+                      <div className="mt-1 h-1 bg-zinc-800 rounded overflow-hidden">
+                        <div className="h-full bg-emerald-400" style={{ width: `${Math.round(a.progress * 100)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </SettingsSection>
         )}

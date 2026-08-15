@@ -42,8 +42,12 @@ import {
   getAvailableModels,
   setRouteMode as setRouteModeIpc,
   submitForApproval,
+  getGreeting,
+  getUserProfile,
+  getHeartbeat,
+  touchInteraction,
 } from "@/lib/tauri";
-import type { RedlineStatus, OrchestratorStats } from "@/lib/types";
+import type { RedlineStatus, OrchestratorStats, Heartbeat } from "@/lib/types";
 
 const SHORTCUTS: { keys: string[]; desc: string }[] = [
   { keys: ["Ctrl", "K"], desc: "打开 / 关闭命令面板" },
@@ -104,6 +108,19 @@ function AppInner() {
   // ── API 密钥 ────────────────────────────────────────────────────
   // API key presence flags — actual keys never leave Rust backend
   const [hasKeys, setHasKeys] = useState({ deepseek: false, kimi: false, glm: false });
+
+  // ── 个性化 (用户画像) ──────────────────────────────────────────
+  const [greeting, setGreeting] = useState("");
+  const [avatar, setAvatar] = useState("🦀");
+  const [heartbeat, setHeartbeat] = useState<Heartbeat | null>(null);
+
+  // 启动时加载个性化问候 + 头像 + 心跳，并记录一次交互
+  useEffect(() => {
+    getGreeting().then(setGreeting).catch(() => {});
+    getUserProfile().then((p) => { setAvatar(p.avatar); }).catch(() => {});
+    getHeartbeat().then(setHeartbeat).catch(() => {});
+    touchInteraction().catch(() => {});
+  }, []);
 
   // ── 启动时恢复持久化配置 (延迟确保 IPC 就绪) ─────────────────
   useEffect(() => {
@@ -356,6 +373,26 @@ function AppInner() {
           </button>
         </div>
       </header>
+
+      {/* 个性化问候条 — 时间问候 + 头像 + 连续天数 */}
+      {!minimized && greeting && (
+        <div className="flex items-center justify-between px-4 py-1.5 border-b border-cs-border/50 bg-cs-surface/40 text-xs text-zinc-400 select-none">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm leading-none">{avatar}</span>
+            <span className="text-zinc-300">{greeting}</span>
+          </div>
+          {heartbeat && (
+            <div className="flex items-center space-x-1.5 text-[10px] text-zinc-600 shrink-0">
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                heartbeat.energy === "high" ? "bg-emerald-400" : heartbeat.energy === "medium" ? "bg-amber-400" : "bg-zinc-600"
+              }`} />
+              <span>🔥 连续 {heartbeat.streak} 天</span>
+              <span className="text-zinc-700">·</span>
+              <span>今日 {heartbeat.today} 次</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Mini 模式：隐藏主界面，仅显示悬浮球 */}
       {minimized && (

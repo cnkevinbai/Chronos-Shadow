@@ -15,6 +15,9 @@ import type {
   SystemSnapshot,
   ChatSessionPayload,
   SessionMetaManifest,
+  UserProfile,
+  Achievement,
+  Heartbeat,
 } from "./types";
 
 // ─── 环境检测 ──────────────────────────────────────────────────────
@@ -807,6 +810,57 @@ export async function loadSettings(): Promise<AppSettings> {
 export async function saveSettings(settings: AppSettings): Promise<string> {
   // Tauri auto-converts camelCase → snake_case for command args
   return await invoke<string>("save_settings", { newSettings: settings });
+}
+
+// ─── User Profile (个性化) ──────────────────────────────────────
+
+export async function getUserProfile(): Promise<UserProfile> {
+  try {
+    return await invoke<UserProfile>("get_user_profile");
+  } catch {
+    return {
+      display_name: "开发者", nickname: "伙伴", avatar: "🦀", timezone_offset: 8,
+      language: "zh-CN", theme: "dark", first_seen: "", last_active: "",
+      total_interactions: 0, streak_days: 1, today_interactions: 0,
+      personality: "friendly", default_text_model: "deepseek-v4-pro",
+      default_vision_model: "glm-5v-turbo", prefer_auto_routing: true,
+      prefer_distillation: true, notifications_enabled: true,
+      work_hours_start: 9, work_hours_end: 18, skill_level: 50, work_mode: "solo",
+    };
+  }
+}
+
+export async function updateUserProfile(args: {
+  displayName: string; nickname: string; avatar: string; personality: string;
+  theme?: string; language?: string; defaultModel?: string; visionModel?: string;
+  autoRouting?: boolean; distillation?: boolean;
+  workHoursStart?: number; workHoursEnd?: number; skillLevel?: number; workMode?: string;
+}): Promise<string> {
+  try {
+    return await invoke<string>("update_user_profile", { ...args });
+  } catch {
+    return `Profile updated — 你好，${args.nickname || "伙伴"}！`;
+  }
+}
+
+export async function getGreeting(): Promise<string> {
+  try { return await invoke<string>("get_greeting"); }
+  catch { return "早上好，伙伴~ 我在这里陪着你 ❤️"; }
+}
+
+export async function getHeartbeat(): Promise<Heartbeat> {
+  try { return await invoke<Heartbeat>("get_heartbeat"); }
+  catch { return { energy: "high", mood: "happy", streak: 1, total_interactions: 0, today: 0, avatar: "🦀" }; }
+}
+
+export async function getAchievements(): Promise<Achievement[]> {
+  try { return await invoke<Achievement[]>("get_achievements"); }
+  catch { return []; }
+}
+
+export async function touchInteraction(): Promise<string> {
+  try { return await invoke<string>("touch_interaction"); }
+  catch { return "💓 0"; }
 }
 
 // ─── Skill & MCP listing ────────────────────────────────────────

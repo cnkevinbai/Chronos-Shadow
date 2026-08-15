@@ -335,3 +335,48 @@ export interface WebIntelStats {
   unified_cache_misses: number;
   api_calls_saved: number;
 }
+
+// ─── User Profile (个性化) ────────────────────────────────────────
+
+export interface UserProfile {
+  display_name: string;
+  nickname: string;
+  avatar: string;
+  timezone_offset: number;
+  language: string;
+  theme: string;
+  first_seen: string;
+  last_active: string;
+  total_interactions: number;
+  streak_days: number;
+  today_interactions: number;
+  personality: string;
+  default_text_model: string;
+  default_vision_model: string;
+  prefer_auto_routing: boolean;
+  prefer_distillation: boolean;
+  notifications_enabled: boolean;
+  work_hours_start: number;
+  work_hours_end: number;
+  skill_level: number;
+  work_mode: string;
+}
+
+export interface Heartbeat {
+  energy: string;
+  mood: string;
+  streak: number;
+  total_interactions: number;
+  today: number;
+  avatar: string;
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  unlocked: boolean;
+  unlocked_at?: string | null;
+  progress: number;
+}
