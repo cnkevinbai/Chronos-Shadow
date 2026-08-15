@@ -525,6 +525,19 @@ fn split_tokens(total: u32, content: &str) -> (u32, u32) {
     (prompt, completion)
 }
 
+/// 生成个性化系统提示词前缀（用户名字/昵称/人格/技能/工作模式）
+fn personalization_prompt(profile: &crate::agent::user_profile::UserProfile) -> String {
+    let tone = match profile.personality.as_str() {
+        "professional" => "professional and concise",
+        "playful" => "playful and energetic",
+        _ => "warm and friendly",
+    };
+    format!(
+        "## Your user\n- Name: {}\n- Nickname: {}\n- Tone: {}\n- Skill level: {}/100\n- Work mode: {}\n\nAddress the user warmly by their nickname when appropriate.",
+        profile.display_name, profile.nickname, tone, profile.skill_level, profile.work_mode
+    )
+}
+
 #[tauri::command]
 pub async fn chat_api(
     state: tauri::State<'_, crate::state::AppState>,
@@ -562,11 +575,17 @@ Templates: Corporate,TechMinimal,Creative,Academic,MinimalWhite,DarkMode
 
 IMPORTANT: Put the JSON on its own line. Write REAL code, not placeholders. Create complete, working files."#;
 
+    // 注入个性化画像前缀
+    let full_instructions = {
+        let profile = state.user_profile.lock().unwrap();
+        format!("{}\n\n{}", personalization_prompt(&profile), action_instructions)
+    };
+
     // 检查是否已有系统消息，有则追加指令
     if msgs.first().map(|m| m.role.as_str()) == Some("system") {
-        msgs[0].content = format!("{}\n\n{}", msgs[0].content, action_instructions);
+        msgs[0].content = format!("{}\n\n{}", msgs[0].content, full_instructions);
     } else {
-        msgs.insert(0, ChatMessage { role: "system".into(), content: action_instructions.into() });
+        msgs.insert(0, ChatMessage { role: "system".into(), content: full_instructions });
     }
 
     // Rate limit: minimum 1.5s between calls
@@ -758,10 +777,16 @@ SlideTypes: TitleSlide,SectionHeader,Content,TwoColumn,QuoteSlide,TableSlide,Cha
 
 IMPORTANT: JSON on its own line. Complete code, real content, no placeholders."#;
 
+    // 注入个性化画像前缀
+    let full_instructions = {
+        let profile = state.user_profile.lock().unwrap();
+        format!("{}\n\n{}", personalization_prompt(&profile), action_instructions)
+    };
+
     if msgs.first().map(|m| m.role.as_str()) == Some("system") {
-        msgs[0].content = format!("{}\n\n{}", msgs[0].content, action_instructions);
+        msgs[0].content = format!("{}\n\n{}", msgs[0].content, full_instructions);
     } else {
-        msgs.insert(0, ChatMessage { role: "system".into(), content: action_instructions.into() });
+        msgs.insert(0, ChatMessage { role: "system".into(), content: full_instructions });
     }
 
     // Rate limit — same 1.5s gate as chat_api
