@@ -650,6 +650,10 @@ fn parse_action_type(s: &str) -> Result<ApprovalActionType, String> {
         "cost_override" | "cost_threshold" | "CostThreshold" => Ok(ApprovalActionType::CostThreshold),
         "file_delete" | "FileDelete" => Ok(ApprovalActionType::FileDelete),
         "config_change" | "ConfigChange" => Ok(ApprovalActionType::ConfigChange),
+        // 外网信息获取 — 此前漏映射，导致 rule-web-search/rule-web-fetch/rule-api-call 成为死规则
+        "web_search" | "WebSearch" => Ok(ApprovalActionType::WebSearch),
+        "web_fetch" | "WebFetch" => Ok(ApprovalActionType::WebFetch),
+        "api_call" | "ApiCall" => Ok(ApprovalActionType::ApiCall),
         other => Ok(ApprovalActionType::Custom(other.into())),
     }
 }
@@ -671,6 +675,24 @@ mod tests {
         // max(9, 10-2=8, 3, 6) = 9
         let p = ApprovalActionType::RemoteCommand.risk_profile();
         assert_eq!(p.final_risk(), 9);
+    }
+
+    #[test]
+    fn test_parse_action_type_maps_web_actions() {
+        // 此前 WebSearch/WebFetch/ApiCall 落到 Custom，使对应规则成为死规则
+        assert!(matches!(parse_action_type("WebSearch").unwrap(), ApprovalActionType::WebSearch));
+        assert!(matches!(parse_action_type("WebFetch").unwrap(), ApprovalActionType::WebFetch));
+        assert!(matches!(parse_action_type("ApiCall").unwrap(), ApprovalActionType::ApiCall));
+        // snake_case 别名同样映射
+        assert!(matches!(parse_action_type("web_fetch").unwrap(), ApprovalActionType::WebFetch));
+    }
+
+    #[test]
+    fn test_web_fetch_auto_approves_low_risk() {
+        let mut gate = ApprovalGate::new();
+        let req = gate.submit("WebFetch", "https://example.com", "抓取", "{}").unwrap();
+        // 风险 3 ≤ 阈值 4 → 自动放行（若落 Custom 则为 Pending）
+        assert_eq!(req.status, "AutoApproved");
     }
 
     #[test]

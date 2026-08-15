@@ -84,11 +84,69 @@ fn format_fetch_for_llm(result: &WebFetchResult) -> String {
     out
 }
 
+/// 将需审批的外网动作映射到审批门禁的 (动作类型, 目标ID, 描述)
+fn approval_target(action: &AgentAction) -> Option<(&'static str, String, String)> {
+    match action {
+        AgentAction::WebSearch { query, .. } => {
+            Some(("WebSearch", query.clone(), format!("Web 搜索: {}", query)))
+        }
+        AgentAction::WebFetch { url, .. } => {
+            Some(("WebFetch", url.clone(), format!("网页抓取: {}", url)))
+        }
+        AgentAction::McpCall { server_id, tool_name, .. } => Some((
+            "ApiCall",
+            format!("{}:{}", server_id, tool_name),
+            format!("MCP 调用: {}.{}", server_id, tool_name),
+        )),
+        _ => None,
+    }
+}
+
+/// 第四红线审批门禁：已批准则放行，否则提交审批（低风险自动放行，高风险拦截要求人工核准）
+fn gate_approval(
+    state: &AppState,
+    action_type: &str,
+    target_id: &str,
+    description: &str,
+) -> Result<(), String> {
+    // 1. 已有批准记录（此前运行已核准）→ 直接放行
+    {
+        let gate = state.approval_gate.lock().unwrap();
+        if gate.check_approval(action_type, target_id).is_ok() {
+            return Ok(());
+        }
+    }
+    // 2. 提交审批（预算压力会通过 submit_with_cost 升级风险等级）
+    let budget = state.billing_engine.get_budget_total();
+    let cap = state.billing_engine.get_cost_cap();
+    let req = state.approval_gate.lock().unwrap().submit_with_cost(
+        action_type,
+        target_id,
+        description,
+        "{}",
+        0.0,
+        Some(budget),
+        (cap > 0.0).then_some(cap),
+    )?;
+    if req.status == "Pending" || req.status == "AuditorPreScreened" {
+        return Err(format!(
+            "⛔ 第四红线：操作「{}」需人工审批（审批单 {}）。请在审批面板核准后重试。",
+            description, req.id
+        ));
+    }
+    Ok(())
+}
+
 /// 核心行动调度器 — 验证 + 执行 + 返回结果文本
 async fn dispatch_action(
     state: &AppState,
     action: &AgentAction,
 ) -> Result<String, String> {
+    // 第四红线审批门禁：外网动作（搜索/抓取/MCP）执行前先过审批
+    if let Some((atype, target, desc)) = approval_target(action) {
+        gate_approval(state, atype, &target, &desc)?;
+    }
+
     match action {
         AgentAction::WebSearch { query, engine, max_results } => {
             tracing::info!("[DISPATCH] WebSearch: {}", query);
