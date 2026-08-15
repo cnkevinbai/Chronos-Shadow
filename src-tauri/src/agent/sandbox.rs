@@ -1279,15 +1279,12 @@ pub async fn cvfs_read_file(
     relative_path: String,
 ) -> Result<String, String> {
     let cvfs = state.cvfs.lock().await;
-    let projects = cvfs.get_projects().await;
-    let project_root = projects.iter()
-        .find(|(id, _)| id == &project_id)
-        .map(|(_, r)| r.clone())
-        .ok_or_else(|| format!("项目 {} 不存在", project_id))?;
-    let full_path = project_root.join(&relative_path);
-    if !full_path.exists() {
-        return Err(format!("文件不存在: {}", relative_path));
-    }
+    // 复用写保护 Scope 过滤器做路径穿越/越权校验（canonicalize + 拒绝 `..`），
+    // 读操作同样必须落在项目沙盒内，防止通过 ../../ 逃逸读取任意文件
+    let full_path = cvfs
+        .verify_write_scope_permission(&project_id, &relative_path)
+        .await
+        .map_err(|e| format!("读取被拦截: {}", e))?;
     std::fs::read_to_string(&full_path)
         .map_err(|e| format!("读取失败: {}", e))
 }
