@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import ErrorBoundary from "./ErrorBoundary";
 
-function ThrowsError() {
+// React 19 更严格的 JSX 类型要求组件有显式返回类型（否则 "cannot be used as a JSX component"）
+function ThrowsError(): ReactNode {
   throw new Error("boom");
 }
 
