@@ -191,6 +191,44 @@ fn contains_shell_metachar(command: &str) -> bool {
     })
 }
 
+/// SSRF 防护：拦截指向内网/环回/链路本地/云元数据地址的 URL。
+/// 字面检测 host（IPv4 私有段 + localhost + 内网后缀），阻断 LLM 被诱导抓取内部 HTTPS 服务。
+/// 注：DNS 重绑定与 IPv6 内网地址不在本次覆盖范围。
+fn is_internal_url(url: &str) -> bool {
+    let host = url
+        .split("://")
+        .nth(1)
+        .and_then(|rest| rest.split('/').next())
+        .and_then(|h| h.split(':').next())
+        .unwrap_or("")
+        .to_lowercase();
+
+    if host.is_empty() {
+        return false;
+    }
+
+    // localhost / 内网域名后缀
+    if host == "localhost" || host.ends_with(".localhost") || host.ends_with(".local") || host.ends_with(".internal") {
+        return true;
+    }
+
+    // 字面 IPv4 私有/保留段
+    let parts: Vec<&str> = host.split('.').collect();
+    if parts.len() == 4 {
+        if let (Ok(a), Ok(b)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
+            if a == 10 || a == 127 || a == 0
+                || (a == 172 && (16..=31).contains(&b))
+                || (a == 192 && b == 168)
+                || (a == 169 && b == 254)
+            {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
 /// 危险文件路径模式
 const DANGEROUS_PATHS: &[&str] = &[
     "C:\\Windows\\System32",
@@ -428,6 +466,12 @@ impl RedlineGuard {
                         format!("WebFetch URL appears invalid: {}", url)
                     ));
                 }
+                // SSRF 防护：禁止内网/环回/链路本地地址
+                if is_internal_url(&lower_url) {
+                    return Err(RedlineError::FormatViolation(
+                        "WebFetch URL points to an internal/private address — blocked (SSRF)".into()
+                    ));
+                }
             }
             _ => {}
         }
@@ -569,6 +613,12 @@ impl RedlineGuard {
                     return Err(RedlineResult::Fail {
                         message: format!("Action[{}] WebFetch: URL must use HTTPS ({})", index, url),
                         code: "INSECURE_PROTOCOL".into(),
+                    });
+                }
+                if is_internal_url(url) {
+                    return Err(RedlineResult::Fail {
+                        message: format!("Action[{}] WebFetch: internal/private URL blocked (SSRF): {}", index, url),
+                        code: "SSRF_BLOCKED".into(),
                     });
                 }
             }
@@ -756,6 +806,20 @@ mod tests {
     fn test_command_whitelist_allows_dev_command() {
         let guard = make_guard();
         let raw = r#"{"action": "terminal", "params": {"command": "cargo test --lib"}}"#;
+        assert!(guard.validate_and_parse(raw).is_ok());
+    }
+
+    #[test]
+    fn test_webfetch_blocks_internal_url() {
+        let guard = make_guard();
+        let raw = r#"{"action": "web_fetch", "params": {"url": "https://127.0.0.1:8443/admin"}}"#;
+        assert!(guard.validate_and_parse(raw).is_err());
+    }
+
+    #[test]
+    fn test_webfetch_allows_public_url() {
+        let guard = make_guard();
+        let raw = r#"{"action": "web_fetch", "params": {"url": "https://example.com/docs"}}"#;
         assert!(guard.validate_and_parse(raw).is_ok());
     }
 
