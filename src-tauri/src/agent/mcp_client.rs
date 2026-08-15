@@ -12,7 +12,9 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
+use tokio::sync::{Mutex, oneshot};
+use futures_util::StreamExt;
 use tauri::Manager;
 
 // ─── JSON-RPC 2.0 协议类型 ─────────────────────────────────────────
@@ -105,6 +107,18 @@ struct McpProcess {
     request_id: u64,
 }
 
+/// 活跃的 SSE 连接（HTTP + Server-Sent Events）
+struct SseConnection {
+    http: reqwest::Client,
+    /// 发送 JSON-RPC 消息的 POST 端点 URI（来自 endpoint 事件）
+    post_url: String,
+    /// request_id → 响应发送器（后台 GET 流按 id 分发响应）
+    pending: Arc<Mutex<HashMap<u64, oneshot::Sender<Result<serde_json::Value, String>>>>>,
+    request_id: Arc<AtomicU64>,
+    /// 后台读取任务句柄（disconnect 时 abort）
+    task: tokio::task::JoinHandle<()>,
+}
+
 // ─── MCP 客户端 ────────────────────────────────────────────────────
 
 pub struct McpClient {
@@ -113,6 +127,8 @@ pub struct McpClient {
     pub resources: HashMap<String, Vec<McpResource>>,
     /// Stdio 进程句柄映射（server_id → process）
     processes: HashMap<String, Arc<Mutex<McpProcess>>>,
+    /// SSE 连接映射（server_id → 连接）
+    sse: HashMap<String, SseConnection>,
     pub distillation_threshold: usize,
 }
 
@@ -123,6 +139,7 @@ impl McpClient {
             tools: HashMap::new(),
             resources: HashMap::new(),
             processes: HashMap::new(),
+            sse: HashMap::new(),
             distillation_threshold: 1024,
         }
     }
@@ -160,6 +177,14 @@ impl McpClient {
 
     /// JSON-RPC 2.0 请求 → 响应（线程安全）
     async fn send_request(&self, server_id: &str, method: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
+        // SSE 传输走独立的 POST + 流式响应通道
+        let is_sse = self.servers.get(server_id)
+            .map(|s| matches!(&s.transport, McpTransport::Sse { .. }))
+            .unwrap_or(false);
+        if is_sse {
+            return self.send_request_sse(server_id, method, params).await;
+        }
+
         let proc_arc = self.processes.get(server_id)
             .ok_or_else(|| format!("Server '{}' has no active process", server_id))?;
         let mut proc = proc_arc.lock().await;
@@ -190,6 +215,43 @@ impl McpClient {
             return Err(format!("MCP error: {:?}", err));
         }
         response.result.ok_or_else(|| "MCP empty result".into())
+    }
+
+    /// SSE 传输的请求发送：POST JSON-RPC 到 endpoint，等待后台 GET 流按 id 返回响应
+    async fn send_request_sse(&self, server_id: &str, method: &str, params: serde_json::Value) -> Result<serde_json::Value, String> {
+        let conn = self.sse.get(server_id)
+            .ok_or_else(|| format!("SSE server '{}' not connected", server_id))?;
+        let id = conn.request_id.fetch_add(1, Ordering::Relaxed);
+        let request = JsonRpcRequest { jsonrpc: "2.0".into(), id, method: method.into(), params };
+        let raw = serde_json::to_string(&request).map_err(|e| e.to_string())?;
+
+        let (tx, rx) = oneshot::channel();
+        conn.pending.lock().await.insert(id, tx);
+
+        let resp = match conn.http.post(&conn.post_url)
+            .header("Accept", "text/event-stream")
+            .header("Content-Type", "application/json")
+            .body(raw)
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                conn.pending.lock().await.remove(&id);
+                return Err(format!("SSE POST failed: {}", e));
+            }
+        };
+
+        if !resp.status().is_success() {
+            conn.pending.lock().await.remove(&id);
+            return Err(format!("SSE POST returned {}", resp.status()));
+        }
+
+        match tokio::time::timeout(std::time::Duration::from_secs(30), rx).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err("SSE response channel closed".into()),
+            Err(_) => { conn.pending.lock().await.remove(&id); Err("SSE response timeout".into()) }
+        }
     }
 
     // ── 协议握手（对齐白皮书 initialize_handshake） ───────────────
@@ -269,8 +331,8 @@ impl McpClient {
                 let process = McpProcess { child, request_id: 1 };
                 self.processes.insert(server_id.into(), Arc::new(Mutex::new(process)));
             }
-            McpTransport::Sse { .. } => {
-                return Err("SSE transport not yet implemented".into());
+            McpTransport::Sse { url, .. } => {
+                self.connect_sse(server_id, url).await?;
             }
         }
 
@@ -284,6 +346,71 @@ impl McpClient {
         self.initialize_handshake(server_id).await?;
         self.fetch_and_clean_tools(server_id).await?;
 
+        Ok(())
+    }
+
+    /// 建立 SSE 连接：GET SSE 端点 → 解析 endpoint 事件 → 后台任务持续读取并分发 message 事件
+    async fn connect_sse(&mut self, server_id: &str, url: &str) -> Result<(), String> {
+        let http = reqwest::Client::new();
+        let resp = http.get(url)
+            .header("Accept", "text/event-stream")
+            .send()
+            .await
+            .map_err(|e| format!("SSE connect failed: {}", e))?;
+        if !resp.status().is_success() {
+            return Err(format!("SSE connect returned {}", resp.status()));
+        }
+
+        let mut stream = resp.bytes_stream();
+        let pending: Arc<Mutex<HashMap<u64, oneshot::Sender<Result<serde_json::Value, String>>>>> =
+            Arc::new(Mutex::new(HashMap::new()));
+        let (endpoint_tx, endpoint_rx) = oneshot::channel::<String>();
+        let pending_clone = pending.clone();
+
+        let task = tokio::spawn(async move {
+            let mut endpoint_tx = Some(endpoint_tx);
+            let mut buf = String::new();
+            let mut endpoint_sent = false;
+            while let Some(chunk) = stream.next().await {
+                let bytes = match chunk { Ok(b) => b, Err(_) => break };
+                // 归一化 CRLF → LF，便于按 \n\n 切分事件
+                buf.push_str(&String::from_utf8_lossy(&bytes).replace("\r\n", "\n"));
+                while let Some(pos) = buf.find("\n\n") {
+                    let block: String = buf.drain(..pos + 2).collect();
+                    if let Some((event, data)) = parse_sse_event(&block) {
+                        if event == "endpoint" && !endpoint_sent {
+                            if let Some(tx) = endpoint_tx.take() {
+                                let _ = tx.send(data.clone());
+                            }
+                            endpoint_sent = true;
+                        } else if event == "message" || event.is_empty() {
+                            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                                if let Some(id) = v.get("id").and_then(|i| i.as_u64()) {
+                                    if let Some(tx) = pending_clone.lock().await.remove(&id) {
+                                        let _ = tx.send(Ok(v));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        let endpoint = tokio::time::timeout(std::time::Duration::from_secs(10), endpoint_rx)
+            .await
+            .map_err(|_| "SSE endpoint event timeout".to_string())?
+            .map_err(|_| "SSE endpoint channel closed".to_string())?;
+
+        let post_url = resolve_url(url, &endpoint);
+
+        self.sse.insert(server_id.to_string(), SseConnection {
+            http,
+            post_url,
+            pending,
+            request_id: Arc::new(AtomicU64::new(1)),
+            task,
+        });
         Ok(())
     }
 
@@ -306,6 +433,10 @@ impl McpClient {
             if let Ok(mut proc) = proc_arc.try_lock() {
                 let _ = proc.child.kill();
             }
+        }
+        // Abort SSE 后台读取任务
+        if let Some(conn) = self.sse.remove(server_id) {
+            conn.task.abort();
         }
         Ok(())
     }
@@ -489,6 +620,41 @@ pub fn register_builtin_servers(mcp: &mut McpClient, app_handle: &tauri::AppHand
 
 // ─── 工具函数 ──────────────────────────────────────────────────────
 
+/// 解析单个 SSE 事件块（`event:` / `data:` 行），返回 (事件类型, 数据)。多行 data 以 `\n` 拼接。
+fn parse_sse_event(block: &str) -> Option<(String, String)> {
+    let mut event = String::new();
+    let mut data_lines: Vec<&str> = Vec::new();
+    for line in block.lines() {
+        if let Some(v) = line.strip_prefix("event:") {
+            event = v.trim().to_string();
+        } else if let Some(v) = line.strip_prefix("data:") {
+            data_lines.push(v.trim_start_matches(' '));
+        }
+    }
+    if data_lines.is_empty() {
+        return None;
+    }
+    Some((event, data_lines.join("\n")))
+}
+
+/// 将（可能相对的）endpoint URI 解析为绝对 URL，相对 SSE URL 的 origin 解析
+fn resolve_url(base: &str, endpoint: &str) -> String {
+    if endpoint.starts_with("http://") || endpoint.starts_with("https://") {
+        return endpoint.to_string();
+    }
+    if let Some(scheme_end) = base.find("://") {
+        let rest = &base[scheme_end + 3..];
+        let host_end = rest.find(|c| c == '/' || c == '?' || c == '#').unwrap_or(rest.len());
+        let origin = &base[..scheme_end + 3 + host_end];
+        return if endpoint.starts_with('/') {
+            format!("{}{}", origin, endpoint)
+        } else {
+            format!("{}/{}", origin, endpoint)
+        };
+    }
+    endpoint.to_string()
+}
+
 fn distill_value(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Number(n) => n.to_string(),
@@ -634,6 +800,41 @@ mod tests {
         }
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_parse_sse_event_endpoint() {
+        let block = "event: endpoint\ndata: /messages?sessionId=abc\n\n";
+        let (event, data) = parse_sse_event(block).unwrap();
+        assert_eq!(event, "endpoint");
+        assert_eq!(data, "/messages?sessionId=abc");
+    }
+
+    #[test]
+    fn test_parse_sse_event_message() {
+        let block = "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":7,\"result\":{}}\n\n";
+        let (event, data) = parse_sse_event(block).unwrap();
+        assert_eq!(event, "message");
+        assert!(data.contains("\"id\":7"));
+    }
+
+    #[test]
+    fn test_parse_sse_event_multiline_data() {
+        let block = "event: message\ndata: line1\ndata: line2\n\n";
+        let (event, data) = parse_sse_event(block).unwrap();
+        assert_eq!(event, "message");
+        assert_eq!(data, "line1\nline2");
+    }
+
+    #[test]
+    fn test_resolve_url_absolute() {
+        assert_eq!(resolve_url("https://host/sse", "https://other/messages"), "https://other/messages");
+    }
+
+    #[test]
+    fn test_resolve_url_relative() {
+        assert_eq!(resolve_url("https://host:8080/sse", "/messages?sid=1"), "https://host:8080/messages?sid=1");
+        assert_eq!(resolve_url("https://host/sse", "messages"), "https://host/messages");
     }
 }
 
