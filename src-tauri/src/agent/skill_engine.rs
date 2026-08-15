@@ -121,6 +121,7 @@ fn run_command(program: &str, args: &[&str]) -> Result<String, String> {
 }
 
 /// Skill 热加载运行时引擎
+#[derive(Clone)]
 pub struct SkillEngine {
     /// 已加载的 Skill 实例映射表
     pub skills: HashMap<String, SkillInstance>,
@@ -170,6 +171,15 @@ impl SkillEngine {
         Ok(())
     }
 
+    /// 激活所有已加载的 Skill（Loaded → Active），使其可执行并暴露给 Prompt
+    pub fn activate_all(&mut self) {
+        for skill in self.skills.values_mut() {
+            if skill.state == SkillState::Loaded {
+                skill.state = SkillState::Active;
+            }
+        }
+    }
+
     /// 禁用 Skill
     pub fn deactivate(&mut self, id: &str) -> Result<(), String> {
         let skill = self
@@ -190,8 +200,8 @@ impl SkillEngine {
 
     // ── 执行 ───────────────────────────────────────────────────────
 
-    /// 执行 Skill — 通过 std::process::Command 真实执行脚本
-    pub async fn execute(&self, id: &str, args: &serde_json::Value) -> SkillResult {
+    /// 执行 Skill — 通过 std::process::Command 真实执行脚本（阻塞 I/O，调用方应放入 spawn_blocking）
+    pub fn execute(&self, id: &str, args: &serde_json::Value) -> SkillResult {
         let start = std::time::Instant::now();
 
         let skill = match self.skills.get(id) {
@@ -339,8 +349,7 @@ mod tests {
         engine.load_from_json(&sample_manifest()).unwrap();
         engine.deactivate("ppt-gen").unwrap();
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let result = rt.block_on(engine.execute("ppt-gen", &serde_json::json!({})));
+        let result = engine.execute("ppt-gen", &serde_json::json!({}));
         assert!(!result.success);
         assert!(result.error.unwrap().contains("Disabled"));
     }

@@ -205,17 +205,19 @@ async fn dispatch_action(
             }
         }
         AgentAction::ExecuteSkill { name, args } => {
-            // Skill execution via sync blocking to avoid Send issues
-            let name_c = name.clone();
-            let _args_c = args.clone();
-            let result = tokio::task::spawn_blocking(move || {
-                // Use a fresh SkillEngine for this blocking call
-                let _engine = crate::agent::skill_engine::SkillEngine::new();
-                // Note: in production this should use the real engine from state
-                // For now, return a placeholder since skills require filesystem access
-                Err::<String, String>(format!("Skill '{}' requires local filesystem access", name_c))
-            }).await.map_err(|e| format!("Skill spawn failed: {}", e))?;
-            Err(result.err().unwrap_or_else(|| format!("Skill '{}' execution failed", name)))
+            // 真实执行：克隆已加载的 SkillEngine 到阻塞池执行（脚本是阻塞 I/O，
+            // 避免 MutexGuard 跨 await 导致 future 非 Send）
+            let engine = state.skill_engine.lock().unwrap().clone();
+            let name = name.clone();
+            let args = args.clone();
+            let result = tokio::task::spawn_blocking(move || engine.execute(&name, &args))
+                .await
+                .map_err(|e| format!("Skill spawn failed: {}", e))?;
+            if result.success {
+                Ok(result.output)
+            } else {
+                Err(result.error.unwrap_or_else(|| format!("Skill '{}' execution failed", name)))
+            }
         }
         AgentAction::McpCall { server_id, tool_name, args } => {
             let mcp = state.mcp_client.lock().await;

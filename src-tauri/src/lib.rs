@@ -396,6 +396,8 @@ pub fn run() {
                         }
                     }
                 }
+                // 激活所有已加载技能，使其可被 ExecuteSkill 动作执行 + 暴露给 Prompt
+                skill_engine.activate_all();
             }
 
             // 注册统一持久化管理器 — 使用 Send+Sync 的 AppHandle
