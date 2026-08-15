@@ -155,18 +155,41 @@ pub struct RedlineStatus {
 
 // ─── Schema 校验配置 ───────────────────────────────────────────────
 
-/// 危险命令模式 — 终端命令黑名单
-const DANGEROUS_COMMANDS: &[&str] = &[
-    "rm -rf /",
-    "rm -rf ~",
-    "del /F /S C:\\",
-    "format ",
-    "shutdown",
-    "dd if=",
-    "mkfs.",
-    "> /dev/sda",
-    ":(){ :|:& };:", // fork bomb
+/// 终端命令白名单 — 仅放行开发/构建/版本控制/只读文件系统等安全程序名。
+/// 结合 shell 元字符拒绝，从根上阻断命令链式注入与解释器绕过
+/// （`cmd`/`powershell`/`bash`/`wscript`/`rundll32` 等解释器刻意不在白名单内）。
+const ALLOWED_COMMANDS: &[&str] = &[
+    // 构建 / 包管理
+    "npm", "npx", "pnpm", "yarn", "bun",
+    "cargo", "rustc", "rustup",
+    "node", "python", "py", "pip", "pip3",
+    "go", "gofmt",
+    "dotnet", "msbuild",
+    "java", "javac", "mvn", "gradle",
+    "tsc", "vite", "vitest", "eslint", "prettier", "oxlint",
+    "make", "cmake", "ninja", "mingw32-make", "gcc", "g++", "clang", "cl",
+    "docker", "docker-compose", "kubectl", "helm",
+    // 版本控制
+    "git", "svn", "hg",
+    // 只读 / 查询文件系统 (cmd 内建 + 工具)
+    "dir", "ls", "type", "cat", "echo", "cd", "chdir", "pwd",
+    "where", "which", "tree", "find", "findstr",
+    // 网络 / 归档
+    "curl", "wget", "ssh", "scp", "tar", "unzip", "zip", "7z",
+    // 环境 / 诊断 (只读)
+    "set", "ver", "whoami", "hostname", "systeminfo", "tasklist",
 ];
+
+/// 危险 shell 元字符 — 出现即拒绝，阻断链式 (`&&`)、管道 (`|`)、重定向 (`>` `<`)、
+/// 变量替换 (`%` `!` `$`)、转义 (`^`)、子命令 (`` ` `` `(` `)`) 与换行注入。
+fn contains_shell_metachar(command: &str) -> bool {
+    command.chars().any(|c| {
+        matches!(c,
+            '&' | '|' | '<' | '>' | '^' | ';' | '%' | '!' | '`' | '$' | '(' | ')'
+            | '\n' | '\r' | '\t'
+        )
+    })
+}
 
 /// 危险文件路径模式
 const DANGEROUS_PATHS: &[&str] = &[
@@ -230,15 +253,25 @@ impl SchemaValidator {
         true
     }
 
-    /// 校验终端命令是否安全
-    pub fn is_command_safe(&self, command: &str) -> bool {
-        let lower = command.to_lowercase();
-        for dangerous in DANGEROUS_COMMANDS {
-            if lower.contains(&dangerous.to_lowercase()) {
-                return false;
-            }
+    /// 校验终端命令是否在白名单内且不含 shell 元字符（白名单模式，默认拒绝）
+    pub fn is_command_allowed(&self, command: &str) -> bool {
+        let trimmed = command.trim();
+        if trimmed.is_empty() || trimmed.len() > 1024 {
+            return false;
         }
-        true
+        if contains_shell_metachar(trimmed) {
+            return false;
+        }
+        // 取第一个 token 作为程序名，剥离路径前缀，去掉 .exe/.cmd/.bat 后缀防变体绕过
+        let program = trimmed.split_whitespace().next().unwrap_or("");
+        let basename = program.rsplit(|c| c == '\\' || c == '/').next().unwrap_or(program);
+        let lower = basename.to_lowercase();
+        let name: &str = lower
+            .strip_suffix(".exe")
+            .or_else(|| lower.strip_suffix(".cmd"))
+            .or_else(|| lower.strip_suffix(".bat"))
+            .unwrap_or(&lower);
+        ALLOWED_COMMANDS.contains(&name)
     }
 }
 
@@ -363,8 +396,11 @@ impl RedlineGuard {
                 self.validate_path_redline(path)?;
             }
             AgentAction::Terminal { command, .. } => {
-                if !self.schema_validator.is_command_safe(command) {
-                    return Err(RedlineError::FormatViolation(format!("Dangerous command blocked: {}", command)));
+                if !self.schema_validator.is_command_allowed(command) {
+                    return Err(RedlineError::FormatViolation(format!(
+                        "Command not in whitelist or contains shell metacharacters: {}",
+                        command
+                    )));
                 }
             }
             AgentAction::WebSearch { query, .. } => {
@@ -488,13 +524,13 @@ impl RedlineGuard {
                         code: "EMPTY_COMMAND".into(),
                     });
                 }
-                if !self.schema_validator.is_command_safe(command) {
+                if !self.schema_validator.is_command_allowed(command) {
                     return Err(RedlineResult::Fail {
                         message: format!(
-                            "Action[{}] Terminal: '{}' is a dangerous command — blocked",
+                            "Action[{}] Terminal: '{}' is not in the command whitelist — blocked",
                             index, command
                         ),
-                        code: "DANGEROUS_COMMAND".into(),
+                        code: "COMMAND_NOT_ALLOWED".into(),
                     });
                 }
             }
@@ -700,6 +736,27 @@ mod tests {
         let raw = r#"{"action": "terminal", "params": {"command": "rm -rf /"}}"#;
         let result = guard.validate_and_parse(raw);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_command_whitelist_blocks_interpreter_injection() {
+        let guard = make_guard();
+        let raw = r#"{"action": "terminal", "params": {"command": "powershell -Command Remove-Item"}}"#;
+        assert!(guard.validate_and_parse(raw).is_err());
+    }
+
+    #[test]
+    fn test_command_whitelist_blocks_chain_injection() {
+        let guard = make_guard();
+        let raw = r#"{"action": "terminal", "params": {"command": "npm run build && del /s /q"}}"#;
+        assert!(guard.validate_and_parse(raw).is_err());
+    }
+
+    #[test]
+    fn test_command_whitelist_allows_dev_command() {
+        let guard = make_guard();
+        let raw = r#"{"action": "terminal", "params": {"command": "cargo test --lib"}}"#;
+        assert!(guard.validate_and_parse(raw).is_ok());
     }
 
     #[test]
