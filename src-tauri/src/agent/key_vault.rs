@@ -1,5 +1,8 @@
 // Chronos-Shadow 密钥保管箱子系统
-// 内存缓存 → 文件持久化(base64) → Windows 凭据管理器回退
+// 内存缓存 → Windows 凭据管理器 (CredWriteW/CredReadW)
+//
+// 安全约束：API Key 绝不落盘明文（含 base64 等价物）——
+// 密钥仅驻留内存缓存与 Windows 内核凭据保险箱。
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -9,55 +12,30 @@ use std::sync::{LazyLock, Mutex};
 static KEY_CACHE: LazyLock<Mutex<HashMap<String, String>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Store key in memory cache AND persist to file as reliable fallback
+/// Store key in memory cache (only). The authoritative store is Windows
+/// Credential Manager (security_vault); the in-memory cache is a same-session
+/// fast path. Keys are never written to disk in any reversible form.
 pub fn cache_key(provider: &str, key: &str) {
     if let Ok(mut cache) = KEY_CACHE.lock() {
         cache.insert(provider.to_string(), key.to_string());
     }
-    // Also persist to file — reliable cross-restart storage
-    let _ = save_key_file(provider, key);
+    // 迁移清理：删除旧版本遗留的明文 base64 密钥文件（安全加固）
+    purge_legacy_key_file();
 }
 
-/// File-based key persistence (base64) — reliable fallback when keyring is unavailable
-fn key_file_path() -> PathBuf {
+/// 一次性删除旧版本遗留的 `.chronos_keys` 明文密钥文件。
+/// 旧版本曾把 API Key 以 base64 落盘，与「零明文磁盘留存」安全模型相悖。
+fn purge_legacy_key_file() {
     let dir = crate::agent::settings::CONFIG_DIR.lock().unwrap();
-    dir.as_ref().cloned().unwrap_or_else(|| PathBuf::from("."))
-        .join(".chronos_keys")
+    let base = dir.as_ref().cloned().unwrap_or_else(|| PathBuf::from("."));
+    let path = base.join(".chronos_keys");
+    if path.exists() {
+        let _ = std::fs::remove_file(&path);
+        tracing::warn!("[VAULT] Removed legacy plaintext key file {}", path.display());
+    }
 }
 
-fn save_key_file(provider: &str, key: &str) -> std::io::Result<()> {
-    let path = key_file_path();
-    let mut map: HashMap<String, String> = if path.exists() {
-        let data = std::fs::read_to_string(&path).unwrap_or_default();
-        serde_json::from_str(&data).unwrap_or_default()
-    } else {
-        HashMap::new()
-    };
-    map.insert(provider.to_string(), simple_encode(key));
-    std::fs::write(&path, serde_json::to_string(&map).unwrap_or_default())
-}
-
-pub fn load_key_file(provider: &str) -> Option<String> {
-    let path = key_file_path();
-    if !path.exists() { return None; }
-    let data = std::fs::read_to_string(&path).ok()?;
-    let map: HashMap<String, String> = serde_json::from_str(&data).ok()?;
-    map.get(provider).map(|v| simple_decode(v))
-}
-
-fn simple_encode(s: &str) -> String {
-    use base64::Engine;
-    base64::engine::general_purpose::STANDARD.encode(s.as_bytes())
-}
-
-fn simple_decode(s: &str) -> String {
-    use base64::Engine;
-    base64::engine::general_purpose::STANDARD.decode(s)
-        .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
-        .unwrap_or_default()
-}
-
-/// Resolve API key: memory cache → file → Windows Credential Manager vault
+/// Resolve API key: memory cache → Windows Credential Manager vault
 pub fn resolve_key_from_vault(model: &str) -> String {
     let target = if model.contains("deepseek") { "deepseek" }
         else if model.contains("kimi") { "kimi" }
@@ -77,19 +55,7 @@ pub fn resolve_key_from_vault(model: &str) -> String {
         }
     }
 
-    // 2. Try file-based persistence (reliable cross-restart)
-    if let Some(key) = load_key_file(target) {
-        if !key.is_empty() {
-            tracing::info!("[VAULT] Key resolved from file for '{}'", target);
-            // Restore to memory cache
-            if let Ok(mut cache) = KEY_CACHE.lock() {
-                cache.insert(target.to_string(), key.clone());
-            }
-            return key;
-        }
-    }
-
-    // 3. Fall back to Windows Credential Manager
+    // 2. Fall back to Windows Credential Manager
     let vault = crate::agent::security_vault::NativeSecurityVault::new();
     match vault.fetch_api_key_native(target) {
         Ok(key) if !key.is_empty() => {
