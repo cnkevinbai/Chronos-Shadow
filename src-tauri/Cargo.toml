@@ -1,6 +1,6 @@
 [package]
 name = "chronos-shadow"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Chronos-Shadow (时空之影) - Windows 桌面智能体研发与协同工具"
 authors = ["Chronos-Shadow Team"]
