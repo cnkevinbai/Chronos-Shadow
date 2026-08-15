@@ -278,7 +278,12 @@ pub async fn execute_agent_action(
     // 安全边界校验 (drop before await)
     {
         let mut boundary = state.security_boundary.lock().unwrap();
-        let scan_text = format!("{:?}", action);
+        // 仅扫描终端命令：文件/网页内容含 SQL/shell 等关键词属正常代码生成，
+        // 不应误伤（文件路径由 redline 沙盒校验，web 由 SSRF 校验）
+        let scan_text = match &action {
+            AgentAction::Terminal { command, .. } => command.clone(),
+            _ => String::new(),
+        };
         let violations = boundary.scan_llm_output(&scan_text);
         if !violations.is_empty() {
             return Err(format!(
@@ -540,7 +545,11 @@ async fn execute_agent_action_inner(
 
     {
         let mut boundary = state.security_boundary.lock().unwrap();
-        let scan_text = format!("{:?}", action);
+        // 仅扫描终端命令，避免误伤含 SQL/shell 关键词的文件写入
+        let scan_text = match &action {
+            AgentAction::Terminal { command, .. } => command.clone(),
+            _ => String::new(),
+        };
         let violations = boundary.scan_llm_output(&scan_text);
         if !violations.is_empty() {
             return Err(format!(
