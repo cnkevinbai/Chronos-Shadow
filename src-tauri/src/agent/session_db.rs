@@ -385,13 +385,24 @@ pub async fn export_chat_session(
 
     let meta_raw =
         fs::read_to_string(&meta_path).map_err(|e| e.to_string())?;
-    let chunk_raw =
-        fs::read_to_string(&chunk_path).map_err(|e| e.to_string())?;
+    let chunk_data = fs::read(&chunk_path).map_err(|e| e.to_string())?;
 
     let meta: SessionMetaManifest =
         serde_json::from_str(&meta_raw).map_err(|e| e.to_string())?;
-    let messages: Vec<ChatMessageEntity> =
-        serde_json::from_str(&chunk_raw).map_err(|e| e.to_string())?;
+
+    // AES-256-GCM 解密（与 load_chat_session_chunk 一致）；旧明文格式向后兼容
+    let messages: Vec<ChatMessageEntity> = if chunk_data.len() > 12 {
+        let nonce = &chunk_data[..12];
+        let ciphertext = &chunk_data[12..];
+        let vault = crate::agent::security_vault::NativeSecurityVault::new();
+        vault
+            .decrypt_session_blob(ciphertext, nonce)
+            .map_err(|e| format!("会话解密失败: {}", e))?
+            .messages
+    } else {
+        let chunk_raw = String::from_utf8_lossy(&chunk_data).to_string();
+        serde_json::from_str(&chunk_raw).map_err(|e| e.to_string())?
+    };
 
     let payload = ChatSessionPayload { meta, messages };
     serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())
@@ -438,8 +449,15 @@ pub async fn import_chat_session(
 
     let meta_raw =
         serde_json::to_string_pretty(&payload.meta).map_err(|e| e.to_string())?;
-    let chunk_raw =
-        serde_json::to_string_pretty(&payload.messages).map_err(|e| e.to_string())?;
+
+    // AES-256-GCM 加密消息体（与 save_chat_session_chunk 一致），禁止明文落盘
+    let vault = crate::agent::security_vault::NativeSecurityVault::new();
+    let chunk_encrypted = vault
+        .encrypt_session_payload(&payload)
+        .map_err(|e| format!("会话加密失败: {}", e))?;
+    // 格式: [12 bytes nonce][ciphertext]
+    let mut chunk_data = chunk_encrypted.1;
+    chunk_data.extend_from_slice(&chunk_encrypted.0);
 
     fs::write(
         base_dir.join(format!("{}.meta", &sid)),
@@ -448,7 +466,7 @@ pub async fn import_chat_session(
     .map_err(|e| e.to_string())?;
     fs::write(
         base_dir.join(format!("{}.chunks", &sid)),
-        chunk_raw,
+        &chunk_data,
     )
     .map_err(|e| e.to_string())?;
 
