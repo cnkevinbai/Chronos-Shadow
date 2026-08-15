@@ -85,7 +85,7 @@ impl ContentFragment {
             Self::Paragraph { text, .. } => text,
             Self::RawText { text } => text,
         };
-        text.len() / 4
+        estimate_tokens(text)
     }
 
     /// 重要性评分 0-10
@@ -337,7 +337,7 @@ impl DistillationEngine {
         let key_insights = self.extract_key_insights(&fragments, level);
 
         let distilled_size = markdown.len();
-        let estimated_tokens = markdown.len() / 4;
+        let estimated_tokens = estimate_tokens(&markdown);
         let bytes_saved = original_size.saturating_sub(distilled_size);
         self.total_bytes_saved += bytes_saved as u64;
 
@@ -401,6 +401,18 @@ impl DistillationEngine {
         );
 
         result
+    }
+
+    /// 按目标模型蒸馏：根据模型上下文窗口自动设置预算
+    pub fn distill_for_model(
+        &mut self,
+        content: &str,
+        source_url: &str,
+        level: DistillationLevel,
+        model: &str,
+    ) -> DistillationResult {
+        let budget = budget_for_model(model, level);
+        self.distill(content, source_url, level, Some(budget))
     }
 
     // ── 加权内容片段提取 (进化版) ────────────────────────────
@@ -572,9 +584,9 @@ impl DistillationEngine {
         if level == DistillationLevel::Light {
             output.push_str(&format!("> Source: {}\n\n", source_url));
             for frag in &sorted {
-                if token_count >= target_tokens * 4 { break; }
+                if token_count >= target_tokens { break; }
                 let rendered = render_fragment_light(frag);
-                token_count += rendered.len();
+                token_count += estimate_tokens(&rendered);
                 output.push_str(&rendered);
                 output.push('\n');
             }
@@ -619,8 +631,8 @@ impl DistillationEngine {
                 .collect();
             for p in &paragraphs {
                 let rendered = render_fragment_medium(p);
-                if token_count + rendered.len() > target_tokens * 4 { break; }
-                token_count += rendered.len();
+                if token_count + estimate_tokens(&rendered) > target_tokens { break; }
+                token_count += estimate_tokens(&rendered);
                 output.push_str(&rendered);
             }
 
@@ -1178,17 +1190,24 @@ fn fact_confidence(line: &str) -> f64 {
 
 fn paragraph_importance(line: &str) -> f64 {
     let line = line.trim().to_lowercase();
-    let mut score: f32 = 0.3; // base
+    let mut score = 0.3f64; // base
 
-    if line.len() > 200 { score += 0.2; }
-    if line.contains("example") || line.contains("示例") { score += 0.15; }
-    if line.contains("api") || line.contains("function") || line.contains("method") { score += 0.2; }
-    if line.contains("deprecated") || line.contains("breaking") { score += 0.25; }
-    if line.contains("version") { score += 0.1; }
-    if line.contains("`") { score += 0.1; } // contains inline code
-    if line.starts_with("> ") { score += 0.05; } // blockquote
+    if line.chars().count() > 200 { score += 0.2; }
 
-    score.min(1.0) as f64
+    // 关键词密度加权（重复出现比单次更重要，最多计 3 次避免长文本刷分）
+    let keywords: &[(&str, f64)] = &[
+        ("example", 0.06), ("示例", 0.06),
+        ("api", 0.08), ("function", 0.08), ("method", 0.08),
+        ("deprecated", 0.1), ("breaking", 0.1),
+        ("version", 0.05), ("usage", 0.05), ("install", 0.05), ("config", 0.05),
+        ("`", 0.03),
+    ];
+    for (kw, w) in keywords {
+        score += w * (line.matches(kw).count() as f64).min(3.0);
+    }
+    if line.starts_with("> ") { score += 0.05; }
+
+    score.min(1.0)
 }
 
 fn is_noise(line: &str) -> bool {
@@ -1200,6 +1219,29 @@ fn is_noise(line: &str) -> bool {
 }
 
 // ─── 工具函数 ──────────────────────────────────────────────────────
+
+/// 模型感知 token 估算：ASCII ≈ 4 字符/token，CJK/非ASCII ≈ 1.5 字符/token。
+/// 比固定 len/4 更精确——中文是 UTF-8 3 字节/字，len/4 会把中文高估约 25%，
+/// 导致过度压缩。兼容 DeepSeek/Kimi/GLM/Ollama 的子词分词器。
+pub fn estimate_tokens(text: &str) -> usize {
+    let mut tokens = 0.0f64;
+    for c in text.chars() {
+        tokens += if c.is_ascii() { 0.25 } else { 0.6 };
+    }
+    tokens.ceil() as usize
+}
+
+/// 根据模型上下文窗口返回合理的蒸馏 token 预算。
+/// Light 保留更多（ctx/4），Deep 压得更狠（ctx/16），clamp 到 [1000, 16000] 防溢出。
+pub fn budget_for_model(model: &str, level: DistillationLevel) -> usize {
+    let ctx = crate::agent::api_client::get_context_window(model);
+    let base = match level {
+        DistillationLevel::Light => ctx / 4,
+        DistillationLevel::Medium => ctx / 8,
+        DistillationLevel::Deep => ctx / 16,
+    };
+    base.clamp(1000, 16000)
+}
 
 fn truncate_words(text: &str, max_words: usize) -> String {
     let words: Vec<&str> = text.split_whitespace().collect();
@@ -1441,6 +1483,27 @@ Note that `Send` bounds are not automatically inferred. You may need explicit `S
 
 © 2024 Rust Team. All rights reserved.
 "#.to_string()
+    }
+
+    #[test]
+    fn test_estimate_tokens_ascii_vs_cjk() {
+        // 纯 ASCII：100 字符 ≈ 25 token（4 字符/token）
+        assert_eq!(estimate_tokens(&"a".repeat(100)), 25);
+        // 纯中文：100 字 ≈ 60 token（旧 len/4 是 300 字节/4 = 75，高估 25%）
+        assert_eq!(estimate_tokens(&"中".repeat(100)), 60);
+        assert_eq!(estimate_tokens(""), 0);
+    }
+
+    #[test]
+    fn test_budget_for_model_levels() {
+        let light = budget_for_model("deepseek-v4-pro", DistillationLevel::Light);
+        let medium = budget_for_model("deepseek-v4-pro", DistillationLevel::Medium);
+        let deep = budget_for_model("deepseek-v4-pro", DistillationLevel::Deep);
+        assert_eq!(light, 16000);   // 120000/4 = 30000 → clamp 16000
+        assert_eq!(medium, 15000);  // 120000/8
+        assert_eq!(deep, 7500);     // 120000/16
+        // 小上下文模型（ollama 8K）→ clamp 下限 1000
+        assert_eq!(budget_for_model("ollama-local", DistillationLevel::Deep), 1000);
     }
 
     #[test]
