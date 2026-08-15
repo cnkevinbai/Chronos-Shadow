@@ -278,22 +278,73 @@ impl VisionEngine {
 
     // ── 图像哈希 ──────────────────────────────────────────────────
 
-    /// 计算感知哈希 (pHash) — 简化版
+    /// 计算感知哈希 (pHash) — 真实 DCT 实现
     ///
-    /// 算法：图像 → 灰度 → 缩放 8×8 → 均值比较 → 64-bit 哈希
-    pub fn compute_phash(&self, image_data: &[u8]) -> u64 {
-        if image_data.is_empty() {
-            return 0;
+    /// 算法：BGRA → 灰度 → 缩放 32×32 → 2D DCT → 左上 8×8 低频系数 → 中值阈值 → 64-bit。
+    /// 相比旧的「采样 64 字节」版本，能容忍轻微噪声/动画，仅对真实画面变化敏感。
+    pub fn compute_phash(&self, image_data: &[u8], width: u32, height: u32) -> u64 {
+        const N: usize = 32;
+        const LOW: usize = 8;
+        const BPP: usize = 4;
+        let w = width as usize;
+        let h = height as usize;
+
+        // 输入不足一张完整帧时，退化到字节采样哈希（保持稳定非零输出）
+        if w == 0 || h == 0 || image_data.len() < w * h * BPP {
+            return fallback_byte_hash(image_data);
         }
 
-        // 简化实现：采样 64 个点，比较是否超过 128
-        let mut hash: u64 = 0;
-        let len = image_data.len();
-        let step = (len / 64).max(1);
+        // 1. 灰度 + 最近邻缩放到 32×32
+        let mut gray = [[0f32; N]; N];
+        for y in 0..N {
+            let sy = (y * h / N).min(h - 1);
+            for x in 0..N {
+                let sx = (x * w / N).min(w - 1);
+                let i = (sy * w + sx) * BPP;
+                let b = image_data[i] as f32;
+                let g = image_data[i + 1] as f32;
+                let r = image_data[i + 2] as f32;
+                gray[y][x] = 0.299 * r + 0.587 * g + 0.114 * b;
+            }
+        }
 
-        for i in 0..64 {
-            let idx = ((i * step) % len).min(len - 1);
-            if image_data[idx] > 128 {
+        // 2. 可分离 2D DCT-II（先对行，再对列）
+        let mut tmp = [[0f32; N]; N];
+        let mut dct = [[0f32; N]; N];
+        let factor = std::f32::consts::PI / N as f32;
+        for y in 0..N {
+            for k in 0..N {
+                let mut sum = 0f32;
+                for n in 0..N {
+                    sum += gray[y][n] * (factor * (n as f32 + 0.5) * k as f32).cos();
+                }
+                tmp[y][k] = sum;
+            }
+        }
+        for x in 0..N {
+            for k in 0..N {
+                let mut sum = 0f32;
+                for n in 0..N {
+                    sum += tmp[n][x] * (factor * (n as f32 + 0.5) * k as f32).cos();
+                }
+                dct[k][x] = sum;
+            }
+        }
+
+        // 3. 左上 8×8 低频系数 → 中值阈值 → 64-bit
+        let mut coeffs = [0f32; LOW * LOW];
+        for y in 0..LOW {
+            for x in 0..LOW {
+                coeffs[y * LOW + x] = dct[y][x];
+            }
+        }
+        let mut sorted = coeffs;
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let median = (sorted[31] + sorted[32]) * 0.5;
+
+        let mut hash: u64 = 0;
+        for (i, c) in coeffs.iter().enumerate() {
+            if *c > median {
                 hash |= 1u64 << i;
             }
         }
@@ -332,8 +383,8 @@ impl VisionEngine {
     /// 1. 计算当前帧 pHash
     /// 2. 与前一帧比较
     /// 3. 无变动 → 阻断云端请求（避免多模态 Token 浪费）
-    pub fn should_send_to_cloud(&mut self, image_data: &[u8]) -> ScreenDiffResult {
-        let current_hash = self.compute_phash(image_data);
+    pub fn should_send_to_cloud(&mut self, image_data: &[u8], width: u32, height: u32) -> ScreenDiffResult {
+        let current_hash = self.compute_phash(image_data, width, height);
 
         // First frame always sends (no previous hash to compare)
         let is_first = self.previous_hash.is_none();
@@ -502,7 +553,7 @@ impl VisionEngine {
         let original_size = raw_image.len();
 
         // Step 2: 0 Token Blocker
-        let diff = self.should_send_to_cloud(&raw_image);
+        let diff = self.should_send_to_cloud(&raw_image, width, height);
         if !diff.changed {
             return CaptureResult {
                 success: true,
@@ -615,7 +666,24 @@ fn foreground_window_rect() -> Option<(u32, u32, u32, u32)> {
     None
 }
 
-/// 对 BGRA 图像指定区域执行 5×5 近似高斯模糊（读原始、写目标，避免原地污染）
+/// 退化字节采样哈希（输入非完整帧时使用，保持稳定非零输出）
+fn fallback_byte_hash(image_data: &[u8]) -> u64 {
+    if image_data.is_empty() {
+        return 0;
+    }
+    let mut hash: u64 = 0;
+    let len = image_data.len();
+    let step = (len / 64).max(1);
+    for i in 0..64 {
+        let idx = ((i * step) % len).min(len - 1);
+        if image_data[idx] > 128 {
+            hash |= 1u64 << i;
+        }
+    }
+    hash
+}
+
+/// 对 BGRA 图像指定区域执行 5×5 可分离高斯模糊（水平+垂直两趟，O(10n) 优于逐像素 5×5 核 O(25n)）
 fn gaussian_blur_bgra(
     src: &[u8],
     dst: &mut [u8],
@@ -626,34 +694,58 @@ fn gaussian_blur_bgra(
     pw: u32,
     ph: u32,
 ) {
-    // 1D 高斯核（5 抽头），外积得 2D 可分离核
+    // 1D 高斯核（5 抽头），可分离：先水平再垂直，等价于外积 2D 核
     const KERNEL: [f32; 5] = [0.06136, 0.24477, 0.38774, 0.24477, 0.06136];
     const BPP: u32 = 4;
     let x0 = px.min(width);
     let y0 = py.min(height);
     let x1 = (px + pw).min(width);
     let y1 = (py + ph).min(height);
+    if x1 <= x0 || y1 <= y0 {
+        return;
+    }
 
+    let rw = (x1 - x0) as usize;
+    let rh = (y1 - y0) as usize;
+    let mut tmp: Vec<u8> = vec![0u8; rw * rh * BPP as usize];
+
+    // 水平一趟：src → tmp（读全图宽以取正确左右边界）
     for y in y0..y1 {
         for x in x0..x1 {
             let mut acc = [0f32; 4];
-            for ky in 0..5i32 {
-                let sy = (y as i32 + ky - 2).clamp(0, height as i32 - 1) as u32;
-                for kx in 0..5i32 {
-                    let sx = (x as i32 + kx - 2).clamp(0, width as i32 - 1) as u32;
-                    let idx = ((sy * width + sx) * BPP) as usize;
-                    if idx + 3 < src.len() {
-                        let w = KERNEL[ky as usize] * KERNEL[kx as usize];
-                        for c in 0..4 {
-                            acc[c] += src[idx + c] as f32 * w;
-                        }
+            for k in 0..5i32 {
+                let sx = (x as i32 + k - 2).clamp(0, width as i32 - 1) as u32;
+                let idx = ((y * width + sx) * BPP) as usize;
+                if idx + 3 < src.len() {
+                    let w = KERNEL[k as usize];
+                    for c in 0..4 {
+                        acc[c] += src[idx + c] as f32 * w;
                     }
                 }
             }
-            let idx = ((y * width + x) * BPP) as usize;
-            if idx + 3 < dst.len() {
+            let oidx = (((y - y0) as usize * rw) + (x - x0) as usize) * BPP as usize;
+            for c in 0..4 {
+                tmp[oidx + c] = acc[c].round().clamp(0.0, 255.0) as u8;
+            }
+        }
+    }
+
+    // 垂直一趟：tmp → dst（上下边界按区域行 clamp）
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let mut acc = [0f32; 4];
+            for k in 0..5i32 {
+                let sy = (y as i32 + k - 2).clamp(y0 as i32, y1 as i32 - 1) as u32;
+                let idx = (((sy - y0) as usize * rw) + (x - x0) as usize) * BPP as usize;
+                let w = KERNEL[k as usize];
                 for c in 0..4 {
-                    dst[idx + c] = acc[c].round().clamp(0.0, 255.0) as u8;
+                    acc[c] += tmp[idx + c] as f32 * w;
+                }
+            }
+            let oidx = ((y * width + x) * BPP) as usize;
+            if oidx + 3 < dst.len() {
+                for c in 0..4 {
+                    dst[oidx + c] = acc[c].round().clamp(0.0, 255.0) as u8;
                 }
             }
         }
@@ -744,27 +836,27 @@ mod tests {
     #[test]
     fn test_phash_consistency() {
         let engine = VisionEngine::new();
-        let data = b"test image data for hashing";
-        let hash1 = engine.compute_phash(data);
-        let hash2 = engine.compute_phash(data);
+        let data = vec![128u8; 32 * 32 * 4];
+        let hash1 = engine.compute_phash(&data, 32, 32);
+        let hash2 = engine.compute_phash(&data, 32, 32);
         assert_eq!(hash1, hash2); // 相同输入 → 相同哈希
     }
 
     #[test]
     fn test_phash_difference() {
         let engine = VisionEngine::new();
-        let data1 = vec![0u8; 200];
-        let data2 = vec![255u8; 200];
-        let hash1 = engine.compute_phash(&data1);
-        let hash2 = engine.compute_phash(&data2);
+        let data1 = vec![0u8; 32 * 32 * 4];
+        let data2 = vec![255u8; 32 * 32 * 4];
+        let hash1 = engine.compute_phash(&data1, 32, 32);
+        let hash2 = engine.compute_phash(&data2, 32, 32);
         assert_ne!(hash1, hash2, "Different images should produce different hashes");
     }
 
     #[test]
     fn test_should_send_first_frame() {
         let mut engine = VisionEngine::new();
-        let data = vec![100u8; 256]; // longer data for stable hash
-        let result = engine.should_send_to_cloud(&data);
+        let data = vec![100u8; 32 * 32 * 4];
+        let result = engine.should_send_to_cloud(&data, 32, 32);
         assert!(result.changed, "First frame should always be sent");
         assert_eq!(result.diff_ratio, 1.0);
     }
@@ -772,9 +864,9 @@ mod tests {
     #[test]
     fn test_should_block_unchanged() {
         let mut engine = VisionEngine::new();
-        let data = vec![100u8; 256];
-        engine.should_send_to_cloud(&data); // first frame — sent
-        let result = engine.should_send_to_cloud(&data); // same frame — blocked
+        let data = vec![100u8; 32 * 32 * 4];
+        engine.should_send_to_cloud(&data, 32, 32); // first frame — sent
+        let result = engine.should_send_to_cloud(&data, 32, 32); // same frame — blocked
         assert!(!result.changed, "Unchanged frame should be blocked");
         assert_eq!(engine.blocked_requests, 1);
     }
@@ -849,10 +941,10 @@ mod tests {
     #[test]
     fn test_savings_tracking() {
         let mut engine = VisionEngine::new();
-        let data = vec![100u8; 256];
-        engine.should_send_to_cloud(&data); // first frame — sent
-        engine.should_send_to_cloud(&data); // same frame — blocked (1)
-        engine.should_send_to_cloud(&data); // same frame — blocked (2)
+        let data = vec![100u8; 32 * 32 * 4];
+        engine.should_send_to_cloud(&data, 32, 32); // first frame — sent
+        engine.should_send_to_cloud(&data, 32, 32); // same frame — blocked (1)
+        engine.should_send_to_cloud(&data, 32, 32); // same frame — blocked (2)
 
         let savings = engine.savings();
         assert_eq!(savings.blocked_requests, 2);
