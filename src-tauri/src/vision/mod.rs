@@ -427,17 +427,19 @@ impl VisionEngine {
     /// 应用隐私遮罩到图像数据（BGRA 32bpp，紧密排列）
     ///
     /// 端侧启发式遮罩：将归一化模板区域映射到像素坐标，执行 5×5 近似高斯模糊。
-    /// 真实 ONNX 模型就位后，可在此替换为模型输出的边界框。
+    /// 模型驱动区域（detect_sensitive_regions）就位后自动合并；当前回退模板。
     pub fn apply_privacy_masks(&self, image_data: &[u8], width: u32, height: u32) -> Vec<u8> {
         if !self.privacy_enabled {
             return image_data.to_vec();
         }
 
-        let active_regions: Vec<&PrivacyRegion> = self
+        // 模板区域 + 模型检测区域（真实 ONNX 就位后追加；当前 detect 返回空）
+        let mut active_regions: Vec<PrivacyRegion> = self
             .privacy_templates
             .iter()
-            .flat_map(|t| t.regions.iter().filter(|r| r.active))
+            .flat_map(|t| t.regions.iter().filter(|r| r.active).cloned())
             .collect();
+        active_regions.extend(self.detect_sensitive_regions());
 
         if active_regions.is_empty() || width == 0 || height == 0 {
             return image_data.to_vec();
@@ -460,6 +462,15 @@ impl VisionEngine {
             image_data.len()
         );
         result
+    }
+
+    /// 模型驱动的敏感区域检测（真实 ONNX 推理接入点）
+    ///
+    /// 当前 `privacy_mask.onnx` 为占位文件，且未接入 ort/tract 推理引擎，
+    /// 诚实返回空列表，由 `apply_privacy_masks` 回退到模板启发式高斯打码。
+    /// 真实模型 + tract-onnx 就位后，此方法应返回模型输出的敏感区域边界框。
+    pub fn detect_sensitive_regions(&self) -> Vec<PrivacyRegion> {
+        Vec::new()
     }
 
     /// 活动窗口裁剪 + 低分辨率降采样
@@ -780,12 +791,24 @@ pub struct PrivacyModelStatus {
     pub message: String,
 }
 
+/// 校验是否为真实 ONNX 模型（ModelProto protobuf 头部含 "onnx" producer 或 "ai.onnx" domain）
+fn is_valid_onnx(path: &std::path::Path) -> bool {
+    use std::io::Read;
+    let mut buf = [0u8; 256];
+    let mut f = match std::fs::File::open(path) { Ok(f) => f, Err(_) => return false };
+    let n = match f.read(&mut buf) { Ok(n) => n, Err(_) => return false };
+    let head = &buf[..n];
+    head.windows(4).any(|w| w == b"onnx") || head.windows(7).any(|w| w == b"ai.onnx")
+}
+
 /// 检测 privacy_mask.onnx 模型状态（诚实报告：占位/缺失/就绪）
 pub fn check_privacy_model() -> PrivacyModelStatus {
     let path = std::path::PathBuf::from(PRIVACY_MODEL_PATH);
     let exists = path.exists();
     let size = if exists { std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0) } else { 0 };
-    let is_placeholder = size < 1024; // 真实 ONNX 模型 > 1KB；占位文件仅 ~128 字节
+    // 真实 ONNX 校验：protobuf 头部含 "onnx" 标识（替代尺寸启发式）
+    let valid = exists && is_valid_onnx(&path);
+    let is_placeholder = exists && !valid;
     let message = if !exists {
         "模型文件不存在，使用启发式模板遮罩".to_string()
     } else if is_placeholder {
@@ -795,7 +818,7 @@ pub fn check_privacy_model() -> PrivacyModelStatus {
     };
     PrivacyModelStatus {
         path: PRIVACY_MODEL_PATH.into(),
-        available: exists && !is_placeholder,
+        available: valid,
         size_bytes: size,
         is_placeholder,
         message,
@@ -949,5 +972,23 @@ mod tests {
         let savings = engine.savings();
         assert_eq!(savings.blocked_requests, 2);
         assert!(savings.tokens_saved > 0);
+    }
+
+    #[test]
+    fn test_onnx_validation() {
+        let dir = std::env::temp_dir().join("chronos_onnx_test");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // 占位文本（无 "onnx" 标识）→ 非有效模型
+        let placeholder = dir.join("placeholder.onnx");
+        std::fs::write(&placeholder, b"PLACEHOLDER not a real model").unwrap();
+        assert!(!is_valid_onnx(&placeholder));
+
+        // 含 "ai.onnx" domain 的 protobuf 头 → 识别为有效（仅格式校验）
+        let valid = dir.join("valid.onnx");
+        std::fs::write(&valid, b"\x08\x07\x12\x04onnx\x2a\x07ai.onnx").unwrap();
+        assert!(is_valid_onnx(&valid));
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
