@@ -2,6 +2,29 @@
 
 > 免费开源 · 接受捐赠 · 社区驱动
 
+## 📋 v0.4.0 — 计划中 (2026-08-16 草案)
+
+> 主题：**生态互联 · 跨端协同** — 从单机工具扩展为可协作、可扩展的 Agent 平台
+
+### P0 核心
+- [ ] **MCP Skill 市场** — 技能/MCP 服务器一键发布·安装·卸载·版本管理 + manifest 签名校验（复用 `skill_engine` + `mcp_client` + `detector`）
+- [ ] **移动端远程控制面板** — 安全 WebSocket 通道（TLS + 令牌认证）+ 移动端响应式 UI + 实时状态推送（复用 `remote_cluster`）
+- [ ] **ONNX 隐私遮罩真推理**（v0.3.0 收尾）— 接入 `tract` 纯 Rust runtime + NanoDet/YOLOv8-nano 检测模型，替换启发式模板
+
+### P1 增强
+- [ ] **多用户团队协作基础** — 共享项目/会话 + 角色权限（owner/member/viewer）+ 全量操作审计
+- [ ] **macOS / Linux 实验性**（v0.3.0 收尾）— Win32 FFI 条件编译拆平台 + 跨平台 CI
+
+### P2 远期（依赖 P0/P1 落地）
+- [ ] 云端 Agent 托管服务
+- [ ] 联邦学习隐私保护
+- [ ] 跨平台统一体验
+
+### 依赖与风险
+- ONNX 真推理依赖外部真实模型（NanoDet/YOLOv8-nano），`tract` 编译成本高
+- 移动端/多用户引入远程攻击面，需安全审计（复用四红线 + 审批门禁）
+- 跨平台需重构大量 Win32 FFI（vision / win_hooks / live_windows / registry）
+
 ## ✅ v0.2.0 — 已完成 (2026-08-10)
 
 ### 新增 7 大核心引擎
