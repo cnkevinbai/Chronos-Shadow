@@ -63,6 +63,57 @@ pub struct TextVerification {
     pub passed: bool,
 }
 
+/// OCR 模型路径（未来 PP-OCR ONNX 模型）
+pub const OCR_MODEL_PATH: &str = "resources/ocr_model.onnx";
+
+/// OCR 模型状态
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OcrModelStatus {
+    pub path: String,
+    pub available: bool,
+    pub message: String,
+}
+
+/// 检测 OCR 模型状态（诚实报告：缺失/就绪）
+pub fn check_ocr_model() -> OcrModelStatus {
+    let path = std::path::PathBuf::from(OCR_MODEL_PATH);
+    let exists = path.exists();
+    let valid = exists && is_valid_ocr_model(&path);
+    let message = if !exists {
+        "OCR 模型不存在，文案复核将 fail-closed（阻断未经验证的点击）".to_string()
+    } else if !valid {
+        "OCR 模型文件无效（非 ONNX），文案复核 fail-closed".to_string()
+    } else {
+        "OCR 模型就绪（推理仍待接入 ONNX runtime）".to_string()
+    };
+    OcrModelStatus { path: OCR_MODEL_PATH.into(), available: valid, message }
+}
+
+/// 校验是否为有效 ONNX 模型（与 vision 模块的 is_valid_onnx 同逻辑）
+fn is_valid_ocr_model(path: &std::path::Path) -> bool {
+    use std::io::Read;
+    let mut buf = [0u8; 256];
+    let mut f = match std::fs::File::open(path) { Ok(f) => f, Err(_) => return false };
+    let n = match f.read(&mut buf) { Ok(n) => n, Err(_) => return false };
+    let head = &buf[..n];
+    head.windows(4).any(|w| w == b"onnx") || head.windows(7).any(|w| w == b"ai.onnx")
+}
+
+/// 真实 OCR 识别（ONNX PP-OCR 接入点）
+///
+/// 当前无真实 OCR 模型，诚实返回 None（由 verify_text 降级为 fail-closed）。
+/// 真实 PP-OCR 模型 + ONNX runtime 就位后，此方法应返回识别出的文本。
+pub fn detect_ocr_text(region_image: &[u8]) -> Option<String> {
+    if region_image.is_empty() {
+        return None; // 无图像数据，无法识别
+    }
+    if !check_ocr_model().available {
+        return None; // 无真实模型
+    }
+    // TODO(ocr): 接入 ONNX PP-OCR（det 文本检测 + rec 文本识别两阶段）
+    None
+}
+
 /// 扫描统计
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuddyScanStats {
@@ -321,27 +372,29 @@ impl BuddyScanner {
     pub fn verify_text(&mut self, expected: &str, region_image: &[u8]) -> TextVerification {
         self.stats.text_verifications += 1;
 
-        // 生产环境：ONNX PP-OCR 推理 → 返回识别文本
-        // 当前：基于像素哈希的简化模拟
-
-        let simulated_text = if region_image.is_empty() {
-            String::new()
-        } else {
-            // 模拟 OCR 结果（基于图像内容采样）
-            let sample: u32 = region_image.iter().take(16).map(|&b| b as u32).sum();
-            match sample % 3 {
-                0 => expected.to_string(),           // 完全匹配
-                1 => format!("{} ", expected),       // 尾部差异
-                _ => expected.chars().take(expected.len().saturating_sub(1)).collect(), // 缺失末字
+        // 真实 OCR 识别；无模型/无图像时诚实 fail-closed（不再伪造"接近预期"文本）
+        let detected_text = match detect_ocr_text(region_image) {
+            Some(text) => text,
+            None => {
+                tracing::warn!(
+                    "[BuddyScan] OCR unavailable — fail-closed verification for '{}'",
+                    expected
+                );
+                return TextVerification {
+                    expected_text: expected.into(),
+                    detected_text: String::new(),
+                    similarity: 0.0,
+                    passed: false,
+                };
             }
         };
 
-        let similarity = if simulated_text == expected {
+        let similarity = if detected_text == expected {
             1.0
-        } else if simulated_text.starts_with(expected) || expected.starts_with(&simulated_text) {
+        } else if detected_text.starts_with(expected) || expected.starts_with(&detected_text) {
             0.85
         } else {
-            let matching = expected.chars().zip(simulated_text.chars()).filter(|(a, b)| a == b).count();
+            let matching = expected.chars().zip(detected_text.chars()).filter(|(a, b)| a == b).count();
             matching as f32 / expected.len().max(1) as f32
         };
 
@@ -353,7 +406,7 @@ impl BuddyScanner {
             self.stats.estimated_cost_saved += 800.0 * 0.0001; // ~$0.0001/token
             tracing::warn!(
                 "[BuddyScan] TEXT MISMATCH: expected='{}' detected='{}' sim={:.2} — BLOCKED",
-                expected, simulated_text, similarity,
+                expected, detected_text, similarity,
             );
         }
 
@@ -364,7 +417,7 @@ impl BuddyScanner {
 
         TextVerification {
             expected_text: expected.into(),
-            detected_text: simulated_text,
+            detected_text,
             similarity,
             passed,
         }
