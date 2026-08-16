@@ -11,7 +11,16 @@
 
 Chronos-Shadow 是一款将大模型潜能与 Windows 系统底层操控完美缝合的工业级开源桌面智能体。内置 41 个 Rust 后端模块、9 个前端可视化面板、多模型混合路由中枢、端侧进化引擎集群、AES-256-GCM 会话加密，以及全链路安全审批体系。
 
-> ✅ **v0.2.0 已发布** — 新增 Web 智能搜索、多级语义蒸馏、统一缓存引擎、多模型协作、任务智能分解、预测分析、9引擎进化总线。详见 [CHANGELOG.md](CHANGELOG.md)。
+> ✅ **v0.3.0 已发布** — 进化引擎持久化、动态指标采集、MCP 真实脚本集成、安全审计加固、i18n 浏览器自动探测，以及 lib.rs 命令迁移重构。详见 [CHANGELOG.md](CHANGELOG.md)。
+
+### 🚀 v0.3.0 新增
+- **进化引擎持久化**：学习成果（固化技能/记忆池/嵌入）重启保留
+- **动态指标采集**：`analyze_task_enhanced` 从任务文本动态估算 token/复杂度/成本/风险/模型推荐
+- **MCP 真实脚本集成**：3 个 Node.js stdio 服务器（audit-vault / win32-registry / local-vector-glue）启动自动注册
+- **安全审计加固**：路径穿越×2、SSRF、密钥明文落盘、终端白名单、GCM nonce 复用等
+- **i18n**：浏览器语言自动探测 + CommandPalette 全量本地化
+- **前端测试**：Vitest + React Testing Library（29 测试）
+- **代码重构**：53 个 Tauri 命令从 lib.rs 迁移到 30+ 个 agent 模块
 
 ---
 
@@ -104,13 +113,13 @@ Chronos-Shadow 是一款将大模型潜能与 Windows 系统底层操控完美�
 | 层 | 技术 | 规模 |
 |----|------|------|
 | **桌面框架** | Tauri v2 (Rust) | — |
-| **前端** | React 19 + TypeScript + Tailwind CSS 4 + Vite | 1815 modules, 469 KB JS |
+| **前端** | React 19 + TypeScript + Tailwind CSS 4 + Vite | 1817 modules, 508 KB JS |
 | **后端** | Rust | 41 模块, ~936 KB 源码 |
 | **加密** | AES-256-GCM + SHA-256 + keyring (Windows FFI) | — |
 | **AI 路由** | reqwest + SSE 流式 + Context Caching | — |
 | **存储** | 分块 JSON (Chronos Vault) | — |
 | **测试** | Rust `#[cfg(test)]` + TypeScript strict mode | — |
-| **i18n** | 中英文双语 | 333 个翻译键 |
+| **i18n** | 中英文双语 | 369 个翻译键 |
 
 ---
 
@@ -142,8 +151,8 @@ npm run build
 npx tauri build
 
 # 产物:
-#   src-tauri/target/release/chronos-shadow.exe       (9.34 MB)
-#   src-tauri/target/release/bundle/msi/*.msi         (4.2 MB)
+#   src-tauri/target/release/chronos-shadow.exe       (11.7 MB)
+#   src-tauri/target/release/bundle/msi/*.msi         (5.7 MB)
 ```
 
 ---
