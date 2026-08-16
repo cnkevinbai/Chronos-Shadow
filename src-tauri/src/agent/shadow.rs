@@ -186,6 +186,29 @@ impl ShadowEngine {
         Some(card)
     }
 
+    /// 处理来自钩子的活动事件（键盘/鼠标），更新影子状态
+    pub fn on_activity_event(&mut self, event: ActivityEvent) {
+        if !self.enabled {
+            return;
+        }
+        match event {
+            ActivityEvent::KeyPress { .. } | ActivityEvent::MouseMove { .. } => {
+                // 有活动：非分析/建议态 → 回到监听态
+                if !matches!(self.state, ShadowState::Analyzing | ShadowState::Suggesting(_)) {
+                    self.state = ShadowState::Listening;
+                }
+            }
+            ActivityEvent::BuildError { error, count, .. } => {
+                self.error_count = self.error_count.max(count);
+                let _ = self.on_build_error(&error);
+            }
+            ActivityEvent::IdleTimeout { duration_secs, .. } => {
+                let _ = self.on_idle(duration_secs);
+            }
+            _ => {}
+        }
+    }
+
     /// 采纳建议
     pub fn accept_suggestion(&mut self, id: &str) -> bool {
         if let Some(card) = self.suggestions.iter().find(|s| s.id == id) {

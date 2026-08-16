@@ -348,6 +348,40 @@ pub fn run() {
                 let _ = agent::mcp_client::register_builtin_servers(&mut mcp, &handle);
             }
 
+            // Shadow Mode 钩子监听 + 事件转发（键盘/鼠标 → ShadowEngine）
+            {
+                let app_handle = _app.handle().clone();
+                let rx = agent::win_hooks::init_event_channel();
+                // 消费线程：把钩子事件转换为 ActivityEvent 并转发给 ShadowEngine
+                let _ = std::thread::Builder::new()
+                    .name("shadow-event-consumer".into())
+                    .spawn(move || {
+                        while let Ok(event) = rx.recv() {
+                            let state = app_handle.state::<AppState>();
+                            let mut shadow = state.shadow.lock().unwrap();
+                            let activity = match event {
+                                agent::win_hooks::HookEvent::Key { vk_code, is_key_up } if !is_key_up => {
+                                    agent::shadow::ActivityEvent::KeyPress {
+                                        key: format!("VK{vk_code}"),
+                                        timestamp: chrono::Utc::now().to_rfc3339(),
+                                    }
+                                }
+                                agent::win_hooks::HookEvent::Mouse { x, y, .. } => {
+                                    agent::shadow::ActivityEvent::MouseMove {
+                                        x,
+                                        y,
+                                        timestamp: chrono::Utc::now().to_rfc3339(),
+                                    }
+                                }
+                                _ => continue,
+                            };
+                            shadow.on_activity_event(activity);
+                        }
+                    });
+                // 安装钩子 + 消息泵（后台线程）
+                let _ = agent::win_hooks::spawn_hook_listener();
+            }
+
             // 自动恢复 C-VFS 项目池
             {
                 if let Ok(app_data) = _app.handle().path().app_data_dir() {

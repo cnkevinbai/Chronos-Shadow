@@ -3,8 +3,13 @@
 // 通过 SetWindowsHookExW 实现低级别键盘和鼠标事件监听，
 // 用于 Shadow Mode（影子结对驾驶）的非侵入式随航监控。
 //
-// 仅在 #[cfg(target_os = "windows")] 时编译真实实现，
-// 其他平台返回空操作。
+// 回调中：累加全局原子计数 + 通过 mpsc 通道转发事件给应用层消费。
+// 低级别钩子需要消息泵，spawn_hook_listener 在后台线程安装钩子并循环取消息。
+// 仅在 #[cfg(target_os = "windows")] 时编译真实实现，其他平台返回空操作。
+
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 /// Windows 钩子类型常量
 #[allow(dead_code)]
@@ -17,10 +22,23 @@ mod hook_types {
 #[cfg(target_os = "windows")]
 type HookProc = unsafe extern "system" fn(code: i32, w_param: usize, l_param: isize) -> isize;
 
+/// Windows 消息结构（消息泵用）
+#[cfg(target_os = "windows")]
+#[repr(C)]
+struct Msg {
+    hwnd: isize,
+    message: u32,
+    w_param: usize,
+    l_param: isize,
+    time: u32,
+    pt_x: i32,
+    pt_y: i32,
+}
+
 /// Windows FFI 声明
 #[cfg(target_os = "windows")]
 mod ffi {
-    use super::HookProc;
+    use super::{HookProc, Msg};
 
     #[link(name = "user32")]
     extern "system" {
@@ -39,6 +57,17 @@ mod ffi {
             w_param: usize,
             l_param: isize,
         ) -> isize;
+
+        pub fn GetMessageW(
+            lp_msg: *mut Msg,
+            h_wnd: isize,
+            w_msg_filter_min: u32,
+            w_msg_filter_max: u32,
+        ) -> i32;
+
+        pub fn TranslateMessage(lp_msg: *const Msg) -> i32;
+
+        pub fn DispatchMessageW(lp_msg: *const Msg) -> isize;
     }
 
     #[link(name = "kernel32")]
@@ -65,6 +94,40 @@ pub struct MouseEvent {
     pub is_up: bool,
 }
 
+/// 钩子事件（回调 → 应用层消费）
+#[derive(Debug, Clone)]
+pub enum HookEvent {
+    /// 键盘按下/抬起
+    Key { vk_code: u32, is_key_up: bool },
+    /// 鼠标移动/按键（message 为 Windows 鼠标消息，如 0x0200 移动、0x0201 左键按下）
+    Mouse { x: i32, y: i32, message: u32 },
+}
+
+// ─── 全局状态（钩子回调与主线程共享） ─────────────────────────────
+
+static KEY_COUNT: AtomicU64 = AtomicU64::new(0);
+static MOUSE_COUNT: AtomicU64 = AtomicU64::new(0);
+static EVENT_TX: OnceLock<Sender<HookEvent>> = OnceLock::new();
+
+/// 初始化事件通道，返回接收端（应在安装钩子前调用一次）
+pub fn init_event_channel() -> Receiver<HookEvent> {
+    let (tx, rx) = channel();
+    let _ = EVENT_TX.set(tx);
+    rx
+}
+
+/// 累计键盘事件数
+pub fn key_event_count() -> u64 {
+    KEY_COUNT.load(Ordering::Relaxed)
+}
+
+/// 累计鼠标事件数
+pub fn mouse_event_count() -> u64 {
+    MOUSE_COUNT.load(Ordering::Relaxed)
+}
+
+// ─── Windows 钩子管理器 ──────────────────────────────────────────
+
 /// Windows 钩子管理器
 pub struct WinHookManager {
     /// 键盘钩子句柄
@@ -73,10 +136,6 @@ pub struct WinHookManager {
     mouse_hook: Option<isize>,
     /// 是否已安装
     installed: bool,
-    /// 累计键盘事件
-    pub key_count: u64,
-    /// 累计鼠标事件
-    pub mouse_count: u64,
 }
 
 impl WinHookManager {
@@ -85,8 +144,6 @@ impl WinHookManager {
             keyboard_hook: None,
             mouse_hook: None,
             installed: false,
-            key_count: 0,
-            mouse_count: 0,
         }
     }
 
@@ -103,8 +160,6 @@ impl WinHookManager {
                 return Err("GetModuleHandleW failed".into());
             }
 
-            // Use a null callback for low-level hooks — we'd normally process events here
-            // In production: implement a proper callback that routes events to the ShadowEngine
             let hook = ffi::SetWindowsHookExW(
                 hook_types::WH_KEYBOARD_LL,
                 keyboard_proc as HookProc,
@@ -196,6 +251,43 @@ impl Drop for WinHookManager {
     }
 }
 
+// ─── 后台监听线程（安装钩子 + 消息泵） ────────────────────────────
+
+/// 在后台线程安装键盘/鼠标钩子并运行消息泵。
+///
+/// 低级别钩子要求安装线程持续派发消息，否则回调不会触发。
+/// 返回线程句柄，线程退出时自动卸载钩子。
+#[cfg(target_os = "windows")]
+pub fn spawn_hook_listener() -> std::thread::JoinHandle<()> {
+    std::thread::Builder::new()
+        .name("win-hooks".into())
+        .spawn(|| {
+            let mut mgr = WinHookManager::new();
+            if let Err(e) = mgr.install_keyboard_hook() {
+                tracing::warn!("[WinHook] keyboard hook install failed: {}", e);
+            }
+            if let Err(e) = mgr.install_mouse_hook() {
+                tracing::warn!("[WinHook] mouse hook install failed: {}", e);
+            }
+            // 消息泵：GetMessageW 阻塞直到收到消息，返回 0 表示 WM_QUIT
+            unsafe {
+                let mut msg: Msg = std::mem::zeroed();
+                while ffi::GetMessageW(&mut msg, 0, 0, 0) > 0 {
+                    ffi::TranslateMessage(&msg);
+                    ffi::DispatchMessageW(&msg);
+                }
+            }
+            mgr.uninstall_all();
+            tracing::info!("[WinHook] hook listener thread exiting");
+        })
+        .expect("failed to spawn win-hooks thread")
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn spawn_hook_listener() -> std::thread::JoinHandle<()> {
+    std::thread::spawn(|| {})
+}
+
 // ─── 钩子回调（最低级别处理） ──────────────────────────────────────
 
 #[cfg(target_os = "windows")]
@@ -209,20 +301,15 @@ unsafe extern "system" fn keyboard_proc(
         return ffi::CallNextHookEx(0, n_code, w_param, l_param);
     }
 
-    // Parse KBDLLHOOKSTRUCT
-    // vk_code = *(u32*)(l_param)
-    // scan_code = *(u32*)(l_param + 4)
-    // flags = *(u32*)(l_param + 8)
+    // KBDLLHOOKSTRUCT: vk_code = *(u32*)(l_param)
     let vk_code = *(l_param as *const u32);
-    let _scan_code = *((l_param + 4) as *const u32);
-    let _flags = *((l_param + 8) as *const u32);
-
     // WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101
-    let _is_key_up = w_param == 0x0101;
+    let is_key_up = w_param == 0x0101;
 
-    // In production: send event to ShadowEngine via channel
-    // For now: just track count (would use atomic counter)
-    tracing::trace!("[WinHook] Key event: vk={}", vk_code);
+    KEY_COUNT.fetch_add(1, Ordering::Relaxed);
+    if let Some(tx) = EVENT_TX.get() {
+        let _ = tx.send(HookEvent::Key { vk_code, is_key_up });
+    }
 
     // Always pass to next hook
     ffi::CallNextHookEx(0, n_code, w_param, l_param)
@@ -238,10 +325,15 @@ unsafe extern "system" fn mouse_proc(
         return ffi::CallNextHookEx(0, n_code, w_param, l_param);
     }
 
-    // Parse MSLLHOOKSTRUCT
+    // MSLLHOOKSTRUCT: pt 在结构体开头（x, y 两个 i32）
     let pt_x = *((l_param + 0) as *const i32);
     let pt_y = *((l_param + 4) as *const i32);
+    let message = w_param as u32;
 
-    tracing::trace!("[WinHook] Mouse event: ({}, {})", pt_x, pt_y);
+    MOUSE_COUNT.fetch_add(1, Ordering::Relaxed);
+    if let Some(tx) = EVENT_TX.get() {
+        let _ = tx.send(HookEvent::Mouse { x: pt_x, y: pt_y, message });
+    }
+
     ffi::CallNextHookEx(0, n_code, w_param, l_param)
 }
