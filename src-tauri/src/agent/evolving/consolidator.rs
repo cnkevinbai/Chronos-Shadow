@@ -57,7 +57,7 @@ pub struct ConsolidatedSkill {
     pub created_at: String,
 }
 
-/// 本地技能数据库 (模拟 SQLite)
+/// 本地技能数据库
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillDatabase {
     pub skills: Vec<ConsolidatedSkill>,
@@ -68,15 +68,12 @@ pub struct SkillDatabase {
 
 /// 本地经验验证与固化器
 pub struct LocalConsolidator {
-    pub db_path: std::path::PathBuf,
     pub active_memory_pool: Arc<Mutex<HashMap<String, EvoDelta>>>,
 }
 
 impl LocalConsolidator {
-    pub fn new(sandbox_root: &std::path::Path) -> Self {
-        let db = sandbox_root.join(".chronos_storage/evolution.db");
+    pub fn new() -> Self {
         Self {
-            db_path: db,
             active_memory_pool: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -124,25 +121,73 @@ impl LocalConsolidator {
         self.active_memory_pool.clone()
     }
 
-    /// 持久化活跃记忆池（重启保留学习成果）
+    /// 持久化活跃记忆池到 SQLite（重启保留学习成果）
     pub fn save_state(&self, dir: &std::path::Path) -> Result<String, String> {
-        let path = dir.join("evolution_memory.json");
+        let conn = open_sqlite(&dir.join("evolution.db"))?;
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS memory (
+                context_hash TEXT PRIMARY KEY,
+                experience_id TEXT NOT NULL,
+                failed_action TEXT NOT NULL,
+                correct_action TEXT NOT NULL,
+                token_saved INTEGER NOT NULL,
+                accuracy_weight REAL NOT NULL
+            );"
+        ).map_err(|e| e.to_string())?;
+
         let pool = self.active_memory_pool.blocking_lock();
-        let json = serde_json::to_string_pretty(&*pool).map_err(|e| e.to_string())?;
-        std::fs::write(&path, json).map_err(|e| e.to_string())?;
-        Ok(format!("Evolution memory saved: {} experiences", pool.len()))
+        let mut stmt = conn.prepare(
+            "INSERT OR REPLACE INTO memory VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
+        ).map_err(|e| e.to_string())?;
+        for (hash, delta) in pool.iter() {
+            stmt.execute(rusqlite::params![
+                hash,
+                delta.experience_id,
+                delta.failed_llm_action,
+                delta.correct_human_action,
+                delta.token_sunk_cost_saved,
+                delta.accuracy_weight,
+            ]).map_err(|e| e.to_string())?;
+        }
+        Ok(format!("Evolution memory saved to SQLite: {} experiences", pool.len()))
     }
 
-    /// 从磁盘恢复活跃记忆池
+    /// 从 SQLite 恢复活跃记忆池
     pub fn load_state(&mut self, dir: &std::path::Path) -> Result<String, String> {
-        let path = dir.join("evolution_memory.json");
-        if !path.exists() { return Ok("No saved evolution memory".into()); }
-        let json = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        let pool: HashMap<String, EvoDelta> = serde_json::from_str(&json).map_err(|e| e.to_string())?;
-        let mut guard = self.active_memory_pool.blocking_lock();
-        *guard = pool;
-        let count = guard.len();
-        Ok(format!("Evolution memory loaded: {} experiences", count))
+        let db = dir.join("evolution.db");
+        if !db.exists() { return Ok("No saved evolution memory".into()); }
+        let conn = open_sqlite(&db)?;
+        let mut stmt = conn.prepare(
+            "SELECT context_hash, experience_id, failed_action, correct_action, token_saved, accuracy_weight FROM memory"
+        ).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, u32>(4)?,
+                row.get::<_, f32>(5)?,
+            ))
+        }).map_err(|e| e.to_string())?;
+
+        let mut pool = self.active_memory_pool.blocking_lock();
+        pool.clear();
+        let mut count = 0;
+        for row in rows {
+            if let Ok((hash, id, failed, correct, token, weight)) = row {
+                pool.insert(hash.clone(), EvoDelta {
+                    experience_id: id,
+                    context_trigger_hash: hash,
+                    failed_llm_action: failed,
+                    correct_human_action: correct,
+                    token_sunk_cost_saved: token,
+                    accuracy_weight: weight,
+                });
+                count += 1;
+            }
+        }
+        Ok(format!("Evolution memory loaded from SQLite: {} experiences", count))
     }
 }
 
@@ -294,28 +339,77 @@ impl Consolidator {
         }
     }
 
-    /// 持久化固化技能库 + 嵌入状态
+    /// 持久化固化技能库到 SQLite + 嵌入状态
     pub fn save_state(&self, dir: &std::path::Path) -> Result<String, String> {
-        let path = dir.join("evolution_skills.json");
-        let json = serde_json::to_string_pretty(&self.db).map_err(|e| e.to_string())?;
-        std::fs::write(&path, json).map_err(|e| e.to_string())?;
+        let conn = open_sqlite(&dir.join("evolution_skills.db"))?;
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS skills (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL,
+                source_delta_id TEXT NOT NULL,
+                tags TEXT NOT NULL,
+                embedding TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                use_count INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            );"
+        ).map_err(|e| e.to_string())?;
+
+        let mut stmt = conn.prepare(
+            "INSERT OR REPLACE INTO skills VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+        ).map_err(|e| e.to_string())?;
+        for s in &self.db.skills {
+            let tags = serde_json::to_string(&s.tags).unwrap_or_default();
+            let embedding = serde_json::to_string(&s.embedding).unwrap_or_default();
+            stmt.execute(rusqlite::params![
+                s.id, s.name, s.description, s.source_delta_id,
+                tags, embedding, s.confidence, s.use_count, s.created_at,
+            ]).map_err(|e| e.to_string())?;
+        }
         if let Err(e) = self.embedding.save_state(dir) {
             tracing::warn!("[CONSOLIDATOR] Embedding save failed: {}", e);
         }
-        Ok(format!("Consolidator saved: {} skills", self.db.skills.len()))
+        Ok(format!("Consolidator saved to SQLite: {} skills", self.db.skills.len()))
     }
 
-    /// 从磁盘恢复固化技能库 + 嵌入状态
+    /// 从 SQLite 恢复固化技能库 + 嵌入状态
     pub fn load_state(&mut self, dir: &std::path::Path) -> Result<String, String> {
-        let path = dir.join("evolution_skills.json");
-        if path.exists() {
-            let json = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-            self.db = serde_json::from_str::<SkillDatabase>(&json).map_err(|e| e.to_string())?;
+        let db = dir.join("evolution_skills.db");
+        if db.exists() {
+            let conn = open_sqlite(&db)?;
+            let mut stmt = conn.prepare(
+                "SELECT id, name, description, source_delta_id, tags, embedding, confidence, use_count, created_at FROM skills"
+            ).map_err(|e| e.to_string())?;
+            let rows = stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, f32>(6)?,
+                    row.get::<_, u32>(7)?,
+                    row.get::<_, String>(8)?,
+                ))
+            }).map_err(|e| e.to_string())?;
+            self.db.skills.clear();
+            for row in rows {
+                if let Ok((id, name, desc, src, tags_json, emb_json, conf, use_count, created)) = row {
+                    let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+                    let embedding: Vec<f32> = serde_json::from_str(&emb_json).unwrap_or_default();
+                    self.db.skills.push(ConsolidatedSkill {
+                        id, name, description: desc, source_delta_id: src, tags, embedding,
+                        confidence: conf, use_count, created_at: created,
+                    });
+                }
+            }
         }
         if let Err(e) = self.embedding.load_state(dir) {
             tracing::warn!("[CONSOLIDATOR] Embedding load failed: {}", e);
         }
-        Ok(format!("Consolidator loaded: {} skills", self.db.skills.len()))
+        Ok(format!("Consolidator loaded from SQLite: {} skills", self.db.skills.len()))
     }
 
     /// 特征哈希嵌入（hashing trick）— 语义有意义：相似文本共享 token → 相似向量。
@@ -399,6 +493,14 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
     if norm_a == 0.0 || norm_b == 0.0 { 0.0 } else { dot / (norm_a * norm_b) }
 }
 
+/// 打开（必要时创建父目录）SQLite 数据库连接
+fn open_sqlite(path: &std::path::Path) -> Result<rusqlite::Connection, String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    rusqlite::Connection::open(path).map_err(|e| e.to_string())
+}
+
 // ─── 单元测试 ──────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -421,14 +523,14 @@ mod tests {
         let dir = std::env::temp_dir().join("chronos_evo_mem_test");
         std::fs::create_dir_all(&dir).unwrap();
 
-        let lc = LocalConsolidator::new(&dir);
+        let lc = LocalConsolidator::new();
         {
             let mut pool = lc.active_memory_pool.blocking_lock();
             pool.insert("hash-exp-1".into(), sample_delta("exp-1"));
         }
         lc.save_state(&dir).unwrap();
 
-        let mut lc2 = LocalConsolidator::new(&dir);
+        let mut lc2 = LocalConsolidator::new();
         lc2.load_state(&dir).unwrap();
         let pool = lc2.active_memory_pool.blocking_lock();
         assert_eq!(pool.len(), 1);

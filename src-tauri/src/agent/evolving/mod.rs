@@ -44,7 +44,7 @@ pub struct EvolutionStats {
 impl EvolutionEngine {
     pub fn new(sandbox_root: Option<std::path::PathBuf>) -> Self {
         let root = sandbox_root.unwrap_or_else(|| std::path::PathBuf::from("."));
-        let local_cons = LocalConsolidator::new(&root);
+        let local_cons = LocalConsolidator::new();
         let pool = local_cons.memory_pool();
         Self {
             extractor: ShadowExtractor::new(),
