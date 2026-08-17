@@ -1161,16 +1161,41 @@ pub fn set_model_api_key(
     model_key: String,
     api_key: String,
 ) -> Result<String, String> {
-    let mut router = state.router.lock().unwrap();
-    if let Some(config) = router.models.get_mut(&model_key) {
-        if let ModelConfig::Cloud { api_key: ref mut key, .. } = config {
-            *key = api_key;
-            Ok(format!("API key set for {}", model_key))
+    // 1. 更新内存路由配置
+    {
+        let mut router = state.router.lock().unwrap();
+        if let Some(config) = router.models.get_mut(&model_key) {
+            if let ModelConfig::Cloud { api_key: ref mut key, .. } = config {
+                *key = api_key.clone();
+            } else {
+                return Err(format!("{} is a local model, no API key needed", model_key));
+            }
         } else {
-            Err(format!("{} is a local model, no API key needed", model_key))
+            return Err(format!("Model {} not found", model_key));
         }
+    }
+
+    // 2. 持久化到 Windows 凭据管理器（CredWriteW）+ 内存缓存，避免重启丢失
+    let provider = provider_from_model(&model_key);
+    let vault = crate::agent::security_vault::NativeSecurityVault::new();
+    vault
+        .vault_api_key_native(provider, &api_key)
+        .map_err(|e| format!("API key set but failed to persist to vault: {}", e))?;
+    crate::agent::key_vault::cache_key(provider, &api_key);
+
+    Ok(format!("API key set and persisted for {}", model_key))
+}
+
+/// 从模型 key 推导 provider（与 key_vault::resolve_key_from_vault 一致）
+fn provider_from_model(model: &str) -> &str {
+    if model.contains("deepseek") {
+        "deepseek"
+    } else if model.contains("kimi") {
+        "kimi"
+    } else if model.contains("glm") {
+        "glm"
     } else {
-        Err(format!("Model {} not found", model_key))
+        "unknown"
     }
 }
 

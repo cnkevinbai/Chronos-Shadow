@@ -12,7 +12,7 @@ import {
   Search, Activity,
   ArrowRight, Layers,
 } from "lucide-react";
-import { collabGetModelRanking } from "@/lib/tauri";
+import { collabGetModelRanking, collabSelectModelUcb, schedulingAnalyzeWithContext } from "@/lib/tauri";
 import { useT } from "@/lib/i18n-context";
 
 // ─── 路由规则定义 ─────────────────────────────────────────────────
@@ -112,6 +112,8 @@ export default function AutoRoutingPanel() {
   const [filterTier, setFilterTier] = useState<"all" | "pro" | "flash">("all");
   const [selectedRule, setSelectedRule] = useState<RouteRule | null>(null);
   const [modelRanking, setModelRanking] = useState<ModelInfo[]>([]);
+  const [ucbModel, setUcbModel] = useState<{ model: string; task_type: string } | null>(null);
+  const [ctxDomain, setCtxDomain] = useState<string | null>(null);
 
   useEffect(() => {
     collabGetModelRanking().then((r) => {
@@ -122,6 +124,8 @@ export default function AutoRoutingPanel() {
         })));
       }
     }).catch(() => {});
+    collabSelectModelUcb("code_generation").then((r) => { if (r?.model) setUcbModel(r); }).catch(() => {});
+    schedulingAnalyzeWithContext("", ["database", "sql"]).then((r) => { if (r?.context_domain) setCtxDomain(r.context_domain); }).catch(() => {});
   }, []);
 
   const filteredRules = useMemo(() =>
@@ -275,6 +279,16 @@ export default function AutoRoutingPanel() {
         {/* ─── Models Tab ──────────────────────────────────────────── */}
         {activeTab === "models" && (
           <div className="p-2 space-y-2">
+            {/* v2: UCB 探索-利用选型 + 上下文感知路由 */}
+            {(ucbModel || ctxDomain) && (
+              <div className="p-2 rounded border border-violet-900/40 bg-violet-950/15">
+                <div className="flex items-center justify-between text-[8px]">
+                  <span className="text-violet-400 font-bold">引擎 v2 智能选型</span>
+                  {ucbModel && <span className="text-violet-300 font-mono">UCB → {ucbModel.model}</span>}
+                  {ctxDomain && <span className="text-sky-300 font-mono">上下文域 → {ctxDomain}</span>}
+                </div>
+              </div>
+            )}
             {/* Model cards */}
             {modelRanking.length > 0 ? (
               modelRanking.map((m) => (

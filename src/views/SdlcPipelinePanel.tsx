@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useT } from "@/lib/i18n-context";
-import { getAgentRoster, type AgentRosterEntry, createTask, assignTask, completeTask, failTask, getEventMetrics } from "@/lib/tauri";
+import { getAgentRoster, type AgentRosterEntry, createTask, assignTask, completeTask, failTask, getEventMetrics, taskEstimateEffort } from "@/lib/tauri";
 import { getModelDisplay } from "@/lib/models";
 import {
   User,
@@ -112,6 +112,7 @@ export default function SdlcPipelinePanel({
   // ── 任务快速操作 ──────────────────────────────────────────
   const [taskTitle, setTaskTitle] = useState("");
   const [showTaskForm, setShowTaskForm] = useState(false);
+  const [effortEstimate, setEffortEstimate] = useState<{ expected_secs: number; risk_level: string; critical_path_secs: number } | null>(null);
 
   const handleQuickCreateTask = async () => {
     if (!taskTitle.trim()) return;
@@ -128,6 +129,15 @@ export default function SdlcPipelinePanel({
       if (roster.length > 0) setAgents(buildAgents(roster));
     }).catch(() => {});
   }, []);
+
+  // v2: 任务工作量估算（PERT + 风险 + 关键路径）
+  useEffect(() => {
+    if (taskTitle.trim().length >= 3) {
+      taskEstimateEffort(taskTitle).then(setEffortEstimate).catch(() => {});
+    } else {
+      setEffortEstimate(null);
+    }
+  }, [taskTitle]);
 
   const handlePlayPause = () => {
     if (isRunning) onPause?.();
@@ -167,6 +177,11 @@ export default function SdlcPipelinePanel({
               className="text-[9px] bg-black border border-cs-border hover:border-zinc-500 text-zinc-400 hover:text-white px-2 py-0.5 rounded transition-colors">
               + 任务
             </button>
+          )}
+          {effortEstimate && taskTitle.trim().length >= 3 && (
+            <div className="text-[8px] text-emerald-300/80 font-mono max-w-[240px] truncate">
+              PERT {Math.round(effortEstimate.expected_secs)}s · 风险 {effortEstimate.risk_level} · 关键路径 {Math.round(effortEstimate.critical_path_secs)}s
+            </div>
           )}
           {/* Detector switch */}
           <button

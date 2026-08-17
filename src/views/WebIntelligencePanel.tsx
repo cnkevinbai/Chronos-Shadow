@@ -38,6 +38,8 @@ import {
   webIntelListDomains,
   webIntelGetAuditLog,
   webIntelGetStats,
+  webRerankResults,
+  distillEntityRelations,
 } from "@/lib/tauri";
 import type {
   WebSearchResult,
@@ -58,6 +60,7 @@ export default function WebIntelligencePanel() {
   // Search
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<WebSearchResult[]>([]);
+  const [entityRelations, setEntityRelations] = useState<Array<{ source: string; target: string; relation: string }>>([]);
 
   // Fetch
   const [fetchUrl, setFetchUrl] = useState("");
@@ -111,7 +114,12 @@ export default function WebIntelligencePanel() {
     setError(null);
     try {
       const results = await webIntelSearch(query, "bing", 8);
-      setSearchResults(results);
+      // v2: 相关性重排序（查询词命中 + 来源权威）
+      const reranked = await webRerankResults(query, JSON.stringify(results));
+      setSearchResults(reranked.length > 0 ? reranked : results);
+      // v2: 实体关系提取
+      const content = results.map((r) => `${r.title}. ${r.snippet}`).join("\n");
+      distillEntityRelations(content).then(setEntityRelations).catch(() => {});
       refreshStats();
     } catch (e) {
       setError(String(e));
@@ -269,6 +277,11 @@ export default function WebIntelligencePanel() {
             {searchResults.length > 0 && (
               <div className="space-y-2">
                 <div className="text-[10px] font-bold text-cs-text">{searchResults.length} 条结果</div>
+                {entityRelations.length > 0 && (
+                  <div className="text-[8px] text-violet-300/80 font-mono">
+                    实体关系: {entityRelations.slice(0, 3).map((rel) => `${rel.source}→${rel.target}`).join(" · ")}
+                  </div>
+                )}
                 {searchResults.map((r, i) => (
                   <a
                     key={i}

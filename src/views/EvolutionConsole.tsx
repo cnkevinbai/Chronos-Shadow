@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useT } from "@/lib/i18n-context";
-import { getEvolutionStats, evoValidateExperience, evoInterceptContext, getApprovalSuggestions, getAgentQualityScores, evobusHealthReport, evobusSelfAssess, getCacheHitStats } from "@/lib/tauri";
+import { getEvolutionStats, evoValidateExperience, evoInterceptContext, getApprovalSuggestions, getAgentQualityScores, evobusHealthReport, evobusSelfAssess, predictiveDetectChangePoints, getCacheHitStats } from "@/lib/tauri";
 import type { CacheHitStats } from "@/lib/tauri";
 import { Database, TrendingUp, ExternalLink, Shield, Cpu, Activity, Zap } from "lucide-react";
 
@@ -44,6 +44,7 @@ export default function EvolutionConsole() {
   const [evoHealth, setEvoHealth] = useState<{ avg_advancement: string; engines: Array<{ engine: string; advancement_score: string; evolution_count: number; is_degrading: boolean }> } | null>(null);
   const [cacheStats, setCacheStats] = useState<CacheHitStats | null>(null);
   const [selfAssess, setSelfAssess] = useState<{ grade: string; overall_health: number; degrading_engines: string[]; recommendations: string[] } | null>(null);
+  const [changePoints, setChangePoints] = useState<Array<{ index: number; direction: string }>>([]);
   void agentScores; void approvalSuggestions;
 
   useEffect(() => {
@@ -58,6 +59,8 @@ export default function EvolutionConsole() {
     }).catch(() => {});
     getCacheHitStats().then(setCacheStats).catch(() => {});
     evobusSelfAssess().then(setSelfAssess).catch(() => {});
+    // v2: CUSUM 变点检测（示例 token 用量序列）
+    predictiveDetectChangePoints([10, 11, 12, 11, 13, 12, 14, 30, 32, 35, 40, 45], 5.0, 1.0).then(setChangePoints).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -341,6 +344,19 @@ export default function EvolutionConsole() {
                   {selfAssess.recommendations?.slice(0, 2).map((rec, i) => (
                     <div key={i} className="text-[8px] text-zinc-500">• {rec}</div>
                   ))}
+                </div>
+              )}
+
+              {/* v2: CUSUM 变点检测（预测分析） */}
+              {changePoints.length > 0 && (
+                <div className="mt-2 p-2 border border-violet-900/40 bg-violet-950/15 rounded">
+                  <div className="flex items-center justify-between">
+                    <span className="text-violet-400 font-bold text-[10px]">变点检测 v2 (CUSUM)</span>
+                    <span className="text-violet-300 font-mono text-[9px]">{changePoints.length} 个变点</span>
+                  </div>
+                  <div className="text-[8px] text-violet-300/70 font-mono">
+                    {changePoints.map((p) => `@${p.index}${p.direction === 'up' ? '↑' : '↓'}`).join(' · ')}
+                  </div>
                 </div>
               )}
 
