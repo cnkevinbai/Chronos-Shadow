@@ -9,6 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useT } from "@/lib/i18n-context";
 import { useToast } from "@/components/ToastProvider";
 import { getModelDisplay } from "@/lib/models";
+import { APP_VERSION } from "@/lib/version";
 import QuickMacros from "@/components/QuickMacros";
 import {
   chatApiStream,
@@ -214,7 +215,7 @@ export default function ChatPanel({
       {
         ...prev[0],
         content: anyKey
-          ? `🦀 **Chronos-Shadow v0.2.0** 已就绪 ❤️\n\n${t.chat_welcome_connected}\n\n> *每一次交互，都让系统更懂你*\n> *所有数据端侧处理，你的隐私我们守护* 🔒`
+          ? `🦀 **Chronos-Shadow v${APP_VERSION}** 已就绪 ❤️\n\n${t.chat_welcome_connected}\n\n> *每一次交互，都让系统更懂你*\n> *所有数据端侧处理，你的隐私我们守护* 🔒`
           : t.chat_welcome_demo,
       },
       ...prev.slice(1),

@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useLang, useT } from "@/lib/i18n-context";
+import { APP_VERSION } from "@/lib/version";
 import { useToast } from "@/components/ToastProvider";
 import { loadSettings, saveSettings, checkLanHealth, getUserProfile, updateUserProfile, getAchievements } from "@/lib/tauri";
 import { ChronosLogo, KeyIcon, GlobeIcon, ShieldIcon, CoinsIcon } from "@/components/SvgIcons";
@@ -517,7 +518,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
               </div>
               <div>
                 <h2 className="text-sm font-bold text-white tracking-wide">Chronos-Shadow (时空之影)</h2>
-                <p className="text-[10px] text-zinc-500 font-light mt-0.5">Version 2026.1.0-Stable · Powered by Tauri v2 & Rust Core</p>
+                <p className="text-[10px] text-zinc-500 font-light mt-0.5">Version {APP_VERSION} · Powered by Tauri v2 & Rust Core</p>
               </div>
             </div>
 
