@@ -72,6 +72,14 @@ pub fn run() {
             // reasoning depth (low/medium/high)
             agent::reasoning_depth::get_reasoning_depth,
             agent::reasoning_depth::set_reasoning_depth,
+            // engine v2 (7 core engine upgrades)
+            agent::engine_v2::task_estimate_effort,
+            agent::engine_v2::collab_select_model_ucb,
+            agent::engine_v2::predictive_detect_change_points,
+            agent::engine_v2::evobus_self_assess,
+            agent::engine_v2::distill_entity_relations,
+            agent::engine_v2::web_rerank_results,
+            agent::engine_v2::scheduling_analyze_with_context,
             // router
             agent::router::get_route_mode,
             agent::router::set_route_mode,

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useT } from "@/lib/i18n-context";
-import { getEvolutionStats, evoValidateExperience, evoInterceptContext, getApprovalSuggestions, getAgentQualityScores, evobusHealthReport, getCacheHitStats } from "@/lib/tauri";
+import { getEvolutionStats, evoValidateExperience, evoInterceptContext, getApprovalSuggestions, getAgentQualityScores, evobusHealthReport, evobusSelfAssess, getCacheHitStats } from "@/lib/tauri";
 import type { CacheHitStats } from "@/lib/tauri";
 import { Database, TrendingUp, ExternalLink, Shield, Cpu, Activity, Zap } from "lucide-react";
 
@@ -43,6 +43,7 @@ export default function EvolutionConsole() {
   const [approvalSuggestions, setApprovalSuggestions] = useState<{ rule_name: string; reason: string; confidence: number }[]>([]);
   const [evoHealth, setEvoHealth] = useState<{ avg_advancement: string; engines: Array<{ engine: string; advancement_score: string; evolution_count: number; is_degrading: boolean }> } | null>(null);
   const [cacheStats, setCacheStats] = useState<CacheHitStats | null>(null);
+  const [selfAssess, setSelfAssess] = useState<{ grade: string; overall_health: number; degrading_engines: string[]; recommendations: string[] } | null>(null);
   void agentScores; void approvalSuggestions;
 
   useEffect(() => {
@@ -56,6 +57,7 @@ export default function EvolutionConsole() {
       setEvoHealth({ avg_advancement: r.average_advancement, engines: (r.engines || []).slice(0, 9) });
     }).catch(() => {});
     getCacheHitStats().then(setCacheStats).catch(() => {});
+    evobusSelfAssess().then(setSelfAssess).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -321,6 +323,24 @@ export default function EvolutionConsole() {
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* v2: 系统健康自评估（A-F 分级） */}
+              {selfAssess && (
+                <div className="mt-2 p-2 border border-sky-900/40 bg-sky-950/15 rounded">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sky-400 font-bold text-[10px]">系统健康评估 v2</span>
+                    <span className={`font-mono text-[11px] font-bold ${selfAssess.grade === 'A' || selfAssess.grade === 'B' ? 'text-emerald-400' : selfAssess.grade === 'C' ? 'text-amber-400' : 'text-red-400'}`}>
+                      {selfAssess.grade} · {selfAssess.overall_health.toFixed(0)}/100
+                    </span>
+                  </div>
+                  {selfAssess.degrading_engines?.length > 0 && (
+                    <div className="text-[8px] text-red-400/80">退化引擎: {selfAssess.degrading_engines.join('、')}</div>
+                  )}
+                  {selfAssess.recommendations?.slice(0, 2).map((rec, i) => (
+                    <div key={i} className="text-[8px] text-zinc-500">• {rec}</div>
+                  ))}
                 </div>
               )}
 

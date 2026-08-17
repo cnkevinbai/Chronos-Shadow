@@ -325,6 +325,43 @@ export async function setReasoningDepth(depth: string): Promise<string> {
   catch { return depth; }
 }
 
+// ─── Engine v2 (7 core engine upgrades) ─────────────────────────
+
+export async function taskEstimateEffort(task: string): Promise<any> {
+  try { return await invoke<any>("task_estimate_effort", { task }); }
+  catch { return null; }
+}
+
+export async function collabSelectModelUcb(taskType: string, explorationWeight = 2.0): Promise<any> {
+  try { return await invoke<any>("collab_select_model_ucb", { taskType, explorationWeight }); }
+  catch { return null; }
+}
+
+export async function predictiveDetectChangePoints(data: number[], threshold = 5.0, drift = 1.0): Promise<any[]> {
+  try { return await invoke<any[]>("predictive_detect_change_points", { data, threshold, drift }); }
+  catch { return []; }
+}
+
+export async function evobusSelfAssess(): Promise<any> {
+  try { return await invoke<any>("evobus_self_assess"); }
+  catch { return null; }
+}
+
+export async function distillEntityRelations(content: string): Promise<any[]> {
+  try { return await invoke<any[]>("distill_entity_relations", { content }); }
+  catch { return []; }
+}
+
+export async function webRerankResults(query: string, resultsJson: string): Promise<any[]> {
+  try { return await invoke<any[]>("web_rerank_results", { query, resultsJson }); }
+  catch { return []; }
+}
+
+export async function schedulingAnalyzeWithContext(message: string, context: string[]): Promise<any> {
+  try { return await invoke<any>("scheduling_analyze_with_context", { message, context }); }
+  catch { return null; }
+}
+
 // ─── Orchestrator: task lifecycle (was missing) ──────────────────
 
 export async function assignTask(taskId: string, role: string): Promise<string> {
