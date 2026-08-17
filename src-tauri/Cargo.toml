@@ -34,7 +34,7 @@ futures-util = "0.3"
 chrono = "0.4"
 sha2 = "0.10"
 aes-gcm = "0.10"
-keyring = "3"
+keyring = { version = "3", features = ["windows-native"] }
 regex = "1"
 base64 = "0.22"
 regex-lite = "0.1"
