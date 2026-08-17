@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 use crate::agent::billing::estimate_cost_from_model_name;
+use crate::agent::reasoning_depth::ReasoningDepth;
 
 // ─── API 请求/响应类型 ────────────────────────────────────────────
 
@@ -163,6 +164,8 @@ pub struct ApiClient {
     total_tokens: u64,
     /// 累计预估费用
     total_cost: f64,
+    /// 推理深度（控制 max_tokens + temperature）
+    pub reasoning_depth: ReasoningDepth,
 }
 
 impl ApiClient {
@@ -178,6 +181,7 @@ impl ApiClient {
             call_count: 0,
             total_tokens: 0,
             total_cost: 0.0,
+            reasoning_depth: ReasoningDepth::Medium,
         })
     }
 
@@ -198,8 +202,8 @@ impl ApiClient {
                 "role": m.role,
                 "content": m.content,
             })).collect::<Vec<_>>(),
-            "max_tokens": max_tokens.unwrap_or(4096),
-            "temperature": 0.3,
+            "max_tokens": max_tokens.unwrap_or_else(|| self.reasoning_depth.max_tokens()),
+            "temperature": self.reasoning_depth.temperature(),
             "stream": false,
         });
 
@@ -297,8 +301,8 @@ impl ApiClient {
                 "role": m.role,
                 "content": m.content,
             })).collect::<Vec<_>>(),
-            "max_tokens": max_tokens.unwrap_or(4096),
-            "temperature": 0.3,
+            "max_tokens": max_tokens.unwrap_or_else(|| self.reasoning_depth.max_tokens()),
+            "temperature": self.reasoning_depth.temperature(),
             "stream": true,
         });
 

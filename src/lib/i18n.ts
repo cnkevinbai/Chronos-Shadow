@@ -252,6 +252,15 @@ export interface LocaleDict {
   agent_mode_review_desc: string;
   agent_mode_auto_desc: string;
   agent_mode_yolo_desc: string;
+
+  // Reasoning Depth
+  reasoning_depth_label: string;
+  reasoning_depth_low: string;
+  reasoning_depth_medium: string;
+  reasoning_depth_high: string;
+  reasoning_depth_low_desc: string;
+  reasoning_depth_medium_desc: string;
+  reasoning_depth_high_desc: string;
   chat_welcome_connected: string;
   chat_welcome_demo: string;
   chat_error_api: string;
@@ -662,6 +671,15 @@ const zh: LocaleDict = {
   agent_mode_review_desc: "每个动作执行前需人工审批",
   agent_mode_auto_desc: "低风险自动执行，高风险审批",
   agent_mode_yolo_desc: "跳过所有安全校验直接执行（危险）",
+
+  // Reasoning Depth
+  reasoning_depth_label: "推理深度",
+  reasoning_depth_low: "浅",
+  reasoning_depth_medium: "中",
+  reasoning_depth_high: "深",
+  reasoning_depth_low_desc: "快速精简，输出较短",
+  reasoning_depth_medium_desc: "平衡速度与深度（默认）",
+  reasoning_depth_high_desc: "深度思考，高确定性",
   chat_welcome_connected: "⚡ Chronos-Shadow 已连接云端 API。项目沙盒隔离锁 [ACTIVE]。输入自然语言指令启动全自动 SDLC 研发航道。",
   chat_welcome_demo: "⚡ Chronos-Shadow 守护引擎加载成功。⚠️ 未配置 API Key，当前为演示模式。请在「全局配置」中填入 API 密钥以启用真实对话。",
   chat_error_api: "❌ API 调用失败",
@@ -1072,6 +1090,15 @@ const en: LocaleDict = {
   agent_mode_review_desc: "Human approval per action",
   agent_mode_auto_desc: "Auto low-risk, approve high-risk",
   agent_mode_yolo_desc: "Skip all safety checks (dangerous)",
+
+  // Reasoning Depth
+  reasoning_depth_label: "Reasoning Depth",
+  reasoning_depth_low: "Low",
+  reasoning_depth_medium: "Med",
+  reasoning_depth_high: "High",
+  reasoning_depth_low_desc: "Fast and concise",
+  reasoning_depth_medium_desc: "Balanced (default)",
+  reasoning_depth_high_desc: "Deep reasoning, high certainty",
   chat_welcome_connected: "⚡ Chronos-Shadow connected to cloud API. Sandbox isolation [ACTIVE]. Enter natural language to start full-auto SDLC pipeline.",
   chat_welcome_demo: "⚡ Chronos-Shadow engine loaded. ⚠️ No API Key configured — demo mode. Go to Settings to enter API credentials for live AI chat.",
   chat_error_api: "❌ API call failed",

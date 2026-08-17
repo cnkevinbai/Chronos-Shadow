@@ -313,6 +313,18 @@ export async function setAgentMode(mode: string): Promise<string> {
   catch { return mode; }
 }
 
+// ─── Reasoning Depth (low/medium/high) ──────────────────────────
+
+export async function getReasoningDepth(): Promise<string> {
+  try { return await invoke<string>("get_reasoning_depth"); }
+  catch { return "medium"; }
+}
+
+export async function setReasoningDepth(depth: string): Promise<string> {
+  try { return await invoke<string>("set_reasoning_depth", { depth }); }
+  catch { return depth; }
+}
+
 // ─── Orchestrator: task lifecycle (was missing) ──────────────────
 
 export async function assignTask(taskId: string, role: string): Promise<string> {

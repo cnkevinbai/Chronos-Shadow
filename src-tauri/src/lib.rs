@@ -69,6 +69,9 @@ pub fn run() {
             // agent mode (plan/review/auto/yolo)
             agent::agent_mode::get_agent_mode,
             agent::agent_mode::set_agent_mode,
+            // reasoning depth (low/medium/high)
+            agent::reasoning_depth::get_reasoning_depth,
+            agent::reasoning_depth::set_reasoning_depth,
             // router
             agent::router::get_route_mode,
             agent::router::set_route_mode,
