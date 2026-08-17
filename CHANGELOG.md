@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.4.0] — 2026-08-17
+
+### Added — 运行模式 + 推理深度
+- 运行模式选择：plan / review / auto / yolo，映射到「四红线 + 审批门禁」自主级别（Plan 只计划、Review 每步审批、Auto 低风险自动、Yolo 跳过全部校验）
+- 推理深度切换：low / medium / high，映射到真实 `max_tokens` + `temperature`（2048/0.7、4096/0.3、8192/0.1）
+
+### Changed — 引擎能力去桩（升级评估落地）
+- `win_hooks` 事件转发：原子计数 + mpsc 通道 + GetMessageW 消息泵（原 trace 空转）
+- `subagents` scout 真实化：文件遍历 + 正则符号提取 / HTTP 抓取 + HTML→Markdown（原 mock 假数据）
+- `consolidator` 真实 SQLite：rusqlite(bundled) 持久化，替换 JSON 全量读写
+- `buddy_scan` OCR 脚手架 + 诚实 fail-closed 回退（原像素哈希假 OCR）
+- `vision` ONNX 格式校验 `is_valid_onnx`（原尺寸启发式）
+
+### Added — 其他
+- i18n 浏览器语言自动探测 + CommandPalette 全量本地化
+- 前端测试扩充至 29 个（ToastProvider / DiffViewer）
+
 ## [0.3.0] — 2026-08-14
 
 ### Changed — lib.rs 命令迁移重构

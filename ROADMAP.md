@@ -2,7 +2,20 @@
 
 > 免费开源 · 接受捐赠 · 社区驱动
 
-## 📋 v0.4.0 — 计划中 (2026-08-16 草案)
+## ✅ v0.4.0 — 已完成 (2026-08-17)
+
+### 运行模式 + 推理深度
+- [x] **运行模式选择** — plan / review / auto / yolo（映射四红线 + 审批门禁自主级别）
+- [x] **推理深度切换** — low / medium / high（映射 max_tokens + temperature）
+
+### 引擎能力去桩
+- [x] win_hooks 事件转发（Shadow Mode 真实键鼠监听）
+- [x] subagents scout 真实化（文件遍历 + HTTP 抓取）
+- [x] consolidator 真实 SQLite（rusqlite bundled）
+- [x] buddy_scan OCR 脚手架 + 诚实回退
+- [x] vision ONNX 格式校验
+
+## 📋 v0.5.0 — 计划中 (2026-08-16 草案)
 
 > 主题：**生态互联 · 跨端协同** — 从单机工具扩展为可协作、可扩展的 Agent 平台
 
