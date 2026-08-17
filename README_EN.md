@@ -11,16 +11,13 @@
 
 Chronos-Shadow is an industrial-grade open-source desktop agent that deeply integrates LLM capabilities with Windows system-level control. Features 41 Rust backend modules, 12 frontend panels, multi-model hybrid routing, on-device evolution engine cluster, AES-256-GCM session encryption, and a full-chain security approval system.
 
-> ✅ **v0.3.0 Released** — Evolution persistence, dynamic metrics, real MCP servers, security hardening, i18n auto-detection, and a full `lib.rs` command refactor. See [CHANGELOG.md](CHANGELOG.md).
+> ✅ **v0.4.0 Released** — Operating mode (plan/review/auto/yolo), reasoning depth (low/medium/high), engine de-stubbing (win_hooks/subagents/SQLite/OCR), and dynamic frontend versioning. See [CHANGELOG.md](CHANGELOG.md).
 
-### 🚀 What's New in v0.3.0
-- **Evolution persistence**: learned skills / memory pool / embeddings survive restart
-- **Dynamic metrics**: token / complexity / cost / risk estimation from the actual task text
-- **Real MCP servers**: 3 Node.js stdio servers (audit-vault / win32-registry / local-vector-glue) auto-registered at startup
-- **Security hardening**: path traversal ×2, SSRF, plaintext key persistence, terminal whitelist, GCM nonce reuse
-- **i18n**: browser-language auto-detection + fully localized command palette
-- **Frontend testing**: Vitest + React Testing Library (29 tests)
-- **Codebase refactor**: 53 Tauri commands migrated out of `lib.rs` into 30+ agent modules
+### 🚀 What's New in v0.4.0
+- **Operating mode**: plan / review / auto / yolo, mapped to the four-redline + approval-gate autonomy levels
+- **Reasoning depth**: low / medium / high, mapped to real `max_tokens` + `temperature`
+- **Engine de-stubbing**: win_hooks event forwarding · subagents scout real-ification · consolidator real SQLite · buddy_scan OCR scaffold · vision ONNX validation
+- **Dynamic versioning**: single source from `package.json`
 
 ---
 
@@ -86,12 +83,12 @@ Chronos-Shadow is an industrial-grade open-source desktop agent that deeply inte
 | Layer | Technology | Scale |
 |-------|-----------|-------|
 | Desktop | Tauri v2 (Rust) | — |
-| Frontend | React 19 + TS + Tailwind CSS 4 + Vite | 1817 modules, 508 KB JS |
+| Frontend | React 19 + TS + Tailwind CSS 4 + Vite | 1821 modules, 513 KB JS |
 | Backend | Rust | 41 modules, ~936 KB source |
 | Crypto | AES-256-GCM + SHA-256 + keyring | — |
 | AI Routing | reqwest + SSE streaming + Context Caching | — |
 | Storage | Chunked JSON (Chronos Vault) | — |
-| i18n | Chinese + English | 369 keys |
+| i18n | Chinese + English | 385 keys |
 
 ---
 
@@ -116,8 +113,8 @@ npx tauri dev
 ```bash
 build-tauri.bat
 # Output:
-#   src-tauri/target/release/chronos-shadow.exe  (11.7 MB)
-#   src-tauri/target/release/bundle/msi/*.msi    (5.7 MB)
+#   src-tauri/target/release/chronos-shadow.exe  (12.8 MB)
+#   src-tauri/target/release/bundle/msi/*.msi    (7.0 MB)
 ```
 
 ---

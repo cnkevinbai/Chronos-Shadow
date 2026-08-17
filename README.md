@@ -11,16 +11,13 @@
 
 Chronos-Shadow 是一款将大模型潜能与 Windows 系统底层操控完美缝合的工业级开源桌面智能体。内置 41 个 Rust 后端模块、9 个前端可视化面板、多模型混合路由中枢、端侧进化引擎集群、AES-256-GCM 会话加密，以及全链路安全审批体系。
 
-> ✅ **v0.3.0 已发布** — 进化引擎持久化、动态指标采集、MCP 真实脚本集成、安全审计加固、i18n 浏览器自动探测，以及 lib.rs 命令迁移重构。详见 [CHANGELOG.md](CHANGELOG.md)。
+> ✅ **v0.4.0 已发布** — 运行模式选择（plan/review/auto/yolo）、推理深度切换（low/medium/high）、引擎能力去桩（win_hooks/subagents/SQLite/OCR）、前端版本号动态化。详见 [CHANGELOG.md](CHANGELOG.md)。
 
-### 🚀 v0.3.0 新增
-- **进化引擎持久化**：学习成果（固化技能/记忆池/嵌入）重启保留
-- **动态指标采集**：`analyze_task_enhanced` 从任务文本动态估算 token/复杂度/成本/风险/模型推荐
-- **MCP 真实脚本集成**：3 个 Node.js stdio 服务器（audit-vault / win32-registry / local-vector-glue）启动自动注册
-- **安全审计加固**：路径穿越×2、SSRF、密钥明文落盘、终端白名单、GCM nonce 复用等
-- **i18n**：浏览器语言自动探测 + CommandPalette 全量本地化
-- **前端测试**：Vitest + React Testing Library（29 测试）
-- **代码重构**：53 个 Tauri 命令从 lib.rs 迁移到 30+ 个 agent 模块
+### 🚀 v0.4.0 新增
+- **运行模式选择**：plan / review / auto / yolo，映射「四红线 + 审批门禁」自主级别
+- **推理深度切换**：low / medium / high，映射真实 `max_tokens` + `temperature`
+- **引擎能力去桩**：win_hooks 事件转发 · subagents scout 真实化 · consolidator 真实 SQLite · buddy_scan OCR 脚手架 · vision ONNX 校验
+- **前端版本号动态化**：从 `package.json` 单一来源读取
 
 ---
 
@@ -113,13 +110,13 @@ Chronos-Shadow 是一款将大模型潜能与 Windows 系统底层操控完美�
 | 层 | 技术 | 规模 |
 |----|------|------|
 | **桌面框架** | Tauri v2 (Rust) | — |
-| **前端** | React 19 + TypeScript + Tailwind CSS 4 + Vite | 1817 modules, 508 KB JS |
+| **前端** | React 19 + TypeScript + Tailwind CSS 4 + Vite | 1821 modules, 513 KB JS |
 | **后端** | Rust | 41 模块, ~936 KB 源码 |
 | **加密** | AES-256-GCM + SHA-256 + keyring (Windows FFI) | — |
 | **AI 路由** | reqwest + SSE 流式 + Context Caching | — |
 | **存储** | 分块 JSON (Chronos Vault) | — |
 | **测试** | Rust `#[cfg(test)]` + TypeScript strict mode | — |
-| **i18n** | 中英文双语 | 369 个翻译键 |
+| **i18n** | 中英文双语 | 385 个翻译键 |
 
 ---
 
@@ -151,8 +148,8 @@ npm run build
 npx tauri build
 
 # 产物:
-#   src-tauri/target/release/chronos-shadow.exe       (11.7 MB)
-#   src-tauri/target/release/bundle/msi/*.msi         (5.7 MB)
+#   src-tauri/target/release/chronos-shadow.exe       (12.8 MB)
+#   src-tauri/target/release/bundle/msi/*.msi         (7.0 MB)
 ```
 
 ---
