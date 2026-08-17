@@ -1,6 +1,7 @@
 // Chronos-Shadow 全局应用状态 (AppState)
 // 所有 Tauri command 通过 tauri::State<AppState> 访问共享引擎
 
+use crate::agent::agent_mode::AgentMode;
 use crate::agent::api_client::ApiClient;
 use crate::agent::approval_gate::ApprovalGate;
 use crate::agent::billing_engine::ChronosParallelBillingEngine;
@@ -42,6 +43,7 @@ use tokio::sync::Mutex as TokioMutex;
 
 /// 全局应用状态：每个引擎一个 Mutex/TokioMutex
 pub struct AppState {
+    pub agent_mode: Mutex<AgentMode>,
     pub redline: Mutex<RedlineGuard>,
     pub orchestrator: Mutex<Orchestrator>,
     pub api_client: TokioMutex<ApiClient>,
@@ -88,6 +90,7 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         Self {
+            agent_mode: Mutex::new(AgentMode::Auto),
             redline: Mutex::new(RedlineGuard::new(PathBuf::from("."))),
             orchestrator: Mutex::new(Orchestrator::new()),
             api_client: TokioMutex::new(ApiClient::new().expect("Failed to create API client")),

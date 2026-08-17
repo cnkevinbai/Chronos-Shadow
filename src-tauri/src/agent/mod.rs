@@ -16,6 +16,7 @@ pub mod subagents;
 pub mod win_hooks;
 pub mod worktree;
 pub mod agent_evolution;
+pub mod agent_mode;
 
 // ─── WorkBuddy 泛办公协同底座 ──────────────────────────────────────
 pub mod buddy_scan;

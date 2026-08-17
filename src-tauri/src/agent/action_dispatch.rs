@@ -3,6 +3,7 @@
 // MCP 调用、环境检测、PPT 生成等。红线一 + 安全边界双校验。
 
 use crate::state::AppState;
+use crate::agent::agent_mode::AgentMode;
 use crate::agent::redline::AgentAction;
 use crate::agent::web_intelligence::{WebSearchResult, WebFetchResult};
 
@@ -102,6 +103,27 @@ fn approval_target(action: &AgentAction) -> Option<(&'static str, String, String
     }
 }
 
+/// 将动作映射为 (动作类型, 目标ID, 描述) — 覆盖全部动作（用于计划展示 + 审查模式审批）
+fn describe_action(action: &AgentAction) -> (&'static str, String, String) {
+    match action {
+        AgentAction::FileEdit { path, .. } => ("FileEdit", path.clone(), format!("文件编辑: {}", path)),
+        AgentAction::FileRead { path, .. } => ("FileRead", path.clone(), format!("文件读取: {}", path)),
+        AgentAction::Terminal { command, .. } => ("Terminal", command.clone(), format!("终端命令: {}", command)),
+        AgentAction::ExecuteSkill { name, .. } => ("ExecuteSkill", name.clone(), format!("执行技能: {}", name)),
+        AgentAction::McpCall { server_id, tool_name, .. } => ("ApiCall", format!("{}:{}", server_id, tool_name), format!("MCP 调用: {}.{}", server_id, tool_name)),
+        AgentAction::WebSearch { query, .. } => ("WebSearch", query.clone(), format!("Web 搜索: {}", query)),
+        AgentAction::WebFetch { url, .. } => ("WebFetch", url.clone(), format!("网页抓取: {}", url)),
+        AgentAction::CheckEnvironment => ("CheckEnvironment", "env".into(), "环境检测".into()),
+        AgentAction::AutoInstallDeps => ("AutoInstallDeps", "deps".into(), "自动安装依赖".into()),
+        AgentAction::PptxGenerate { title, .. } => ("PptxGenerate", title.clone(), format!("PPT 生成: {}", title)),
+    }
+}
+
+/// 读取当前运行模式
+fn current_mode(state: &AppState) -> AgentMode {
+    state.agent_mode.lock().unwrap().clone()
+}
+
 /// 第四红线审批门禁：已批准则放行，否则提交审批（低风险自动放行，高风险拦截要求人工核准）
 fn gate_approval(
     state: &AppState,
@@ -142,11 +164,6 @@ async fn dispatch_action(
     state: &AppState,
     action: &AgentAction,
 ) -> Result<String, String> {
-    // 第四红线审批门禁：外网动作（搜索/抓取/MCP）执行前先过审批
-    if let Some((atype, target, desc)) = approval_target(action) {
-        gate_approval(state, atype, &target, &desc)?;
-    }
-
     match action {
         AgentAction::WebSearch { query, engine, max_results } => {
             tracing::info!("[DISPATCH] WebSearch: {}", query);
@@ -323,38 +340,13 @@ async fn dispatch_action(
     }
 }
 
-/// Tauri Command: 解析并执行单个 LLM 动作
+/// Tauri Command: 解析并执行单个 LLM 动作（按当前运行模式应用安全门禁）
 #[tauri::command]
 pub async fn execute_agent_action(
     state: tauri::State<'_, AppState>,
     action_json: String,
 ) -> Result<String, String> {
-    // 红线一校验 (drop before await)
-    let action = {
-        let redline = state.redline.lock().unwrap();
-        redline.validate_and_parse(&action_json)
-            .map_err(|e| format!("Redline validation failed: {}", e))?
-    };
-
-    // 安全边界校验 (drop before await)
-    {
-        let mut boundary = state.security_boundary.lock().unwrap();
-        // 仅扫描终端命令：文件/网页内容含 SQL/shell 等关键词属正常代码生成，
-        // 不应误伤（文件路径由 redline 沙盒校验，web 由 SSRF 校验）
-        let scan_text = match &action {
-            AgentAction::Terminal { command, .. } => command.clone(),
-            _ => String::new(),
-        };
-        let violations = boundary.scan_llm_output(&scan_text);
-        if !violations.is_empty() {
-            return Err(format!(
-                "Security boundary blocked: {}",
-                violations.iter().map(|d| d.reason.clone()).collect::<Vec<_>>().join("; ")
-            ));
-        }
-    }
-
-    dispatch_action(&state, &action).await
+    execute_agent_action_inner(&state, &action_json).await
 }
 
 /// 从 LLM 响应中提取代码块并自动保存为文件
@@ -593,20 +585,32 @@ pub async fn extract_and_execute_actions(
     }))
 }
 
-/// 内部函数：无需 State 参数的执行路径
+/// 内部函数：无需 State 参数的执行路径（按当前运行模式应用安全门禁）
 async fn execute_agent_action_inner(
     state: &AppState,
     action_json: &str,
 ) -> Result<String, String> {
-    let action = {
+    let mode = current_mode(state);
+
+    // 解析动作：Yolo 跳过红线校验，直接反序列化
+    let action: AgentAction = if mode == AgentMode::Yolo {
+        serde_json::from_str(action_json).map_err(|e| format!("YOLO 解析失败: {}", e))?
+    } else {
         let redline = state.redline.lock().unwrap();
         redline.validate_and_parse(action_json)
             .map_err(|e| format!("Redline validation failed: {}", e))?
     };
 
-    {
+    // Plan 模式：只返回计划，不执行
+    if mode == AgentMode::Plan {
+        let (_, _, desc) = describe_action(&action);
+        return Ok(format!("📋 [计划模式] 已生成执行计划（未执行）:\n  {}", desc));
+    }
+
+    // 安全边界校验（Yolo 跳过）
+    if mode != AgentMode::Yolo {
         let mut boundary = state.security_boundary.lock().unwrap();
-        // 仅扫描终端命令，避免误伤含 SQL/shell 关键词的文件写入
+        // 仅扫描终端命令：文件/网页内容含 SQL/shell 等关键词属正常代码生成
         let scan_text = match &action {
             AgentAction::Terminal { command, .. } => command.clone(),
             _ => String::new(),
@@ -617,6 +621,16 @@ async fn execute_agent_action_inner(
                 "Security boundary blocked: {}",
                 violations.iter().map(|d| d.reason.clone()).collect::<Vec<_>>().join("; ")
             ));
+        }
+    }
+
+    // 审批门禁（Yolo 跳过；Review=全部动作；Auto=仅外网动作）
+    if mode != AgentMode::Yolo {
+        if mode == AgentMode::Review {
+            let (atype, target, desc) = describe_action(&action);
+            gate_approval(state, atype, &target, &desc)?;
+        } else if let Some((atype, target, desc)) = approval_target(&action) {
+            gate_approval(state, atype, &target, &desc)?;
         }
     }
 

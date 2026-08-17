@@ -301,6 +301,18 @@ export async function getRouteMode(): Promise<string> {
   catch { return '"AutoMatrix"'; }
 }
 
+// ─── Agent Mode (plan/review/auto/yolo) ─────────────────────────
+
+export async function getAgentMode(): Promise<string> {
+  try { return await invoke<string>("get_agent_mode"); }
+  catch { return "auto"; }
+}
+
+export async function setAgentMode(mode: string): Promise<string> {
+  try { return await invoke<string>("set_agent_mode", { mode }); }
+  catch { return mode; }
+}
+
 // ─── Orchestrator: task lifecycle (was missing) ──────────────────
 
 export async function assignTask(taskId: string, role: string): Promise<string> {

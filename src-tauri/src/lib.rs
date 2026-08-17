@@ -66,6 +66,9 @@ pub fn run() {
             agent::orchestrator::prune_orchestrator_tasks,
             agent::orchestrator::flush_dead_letters,
             agent::orchestrator::get_event_metrics,
+            // agent mode (plan/review/auto/yolo)
+            agent::agent_mode::get_agent_mode,
+            agent::agent_mode::set_agent_mode,
             // router
             agent::router::get_route_mode,
             agent::router::set_route_mode,

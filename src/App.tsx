@@ -22,6 +22,7 @@ import ApprovalPanel from "@/views/ApprovalPanel";
 import FooterBar from "@/components/FooterBar";
 import FloatingBubble from "@/components/FloatingBubble";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import ModeSelector from "@/components/ModeSelector";
 import { ToastProvider, useToast } from "@/components/ToastProvider";
 import { ChatIcon, PipelineIcon, GlueIcon, McpIcon, ChronosFolderIcon, RemoteIcon, ChronosLogo } from "@/components/SvgIcons";
 import {
@@ -335,8 +336,10 @@ function AppInner() {
           )}
         </div>
 
-        {/* 右侧：模型配置矩阵 + Console 按钮 */}
+        {/* 右侧：运行模式 + 模型配置矩阵 + Console 按钮 */}
         <div className="flex items-center space-x-3 text-xs">
+          <ModeSelector />
+          <div className="h-4 w-[1px] bg-[#27272a]" />
           <div className="flex border border-cs-border rounded p-0.5 bg-black">
             <button onClick={() => syncRouteMode("auto")} className={`px-2.5 py-1 rounded transition-all duration-150 active:scale-95 text-[11px] ${routeMode === "auto" ? "bg-[#27272a] text-white font-bold" : "text-cs-muted"}`}>
               {t.auto_rule}

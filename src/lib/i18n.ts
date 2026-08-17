@@ -241,6 +241,17 @@ export interface LocaleDict {
   stream_on: string;
   stream_off: string;
   diff_select_hint: string;
+
+  // Agent Mode
+  agent_mode_label: string;
+  agent_mode_plan: string;
+  agent_mode_review: string;
+  agent_mode_auto: string;
+  agent_mode_yolo: string;
+  agent_mode_plan_desc: string;
+  agent_mode_review_desc: string;
+  agent_mode_auto_desc: string;
+  agent_mode_yolo_desc: string;
   chat_welcome_connected: string;
   chat_welcome_demo: string;
   chat_error_api: string;
@@ -640,6 +651,17 @@ const zh: LocaleDict = {
   stream_on: "ON",
   stream_off: "OFF",
   diff_select_hint: "选择两个快照进行比较",
+
+  // Agent Mode
+  agent_mode_label: "运行模式",
+  agent_mode_plan: "计划",
+  agent_mode_review: "审查",
+  agent_mode_auto: "自动",
+  agent_mode_yolo: "YOLO",
+  agent_mode_plan_desc: "只生成计划，不执行动作",
+  agent_mode_review_desc: "每个动作执行前需人工审批",
+  agent_mode_auto_desc: "低风险自动执行，高风险审批",
+  agent_mode_yolo_desc: "跳过所有安全校验直接执行（危险）",
   chat_welcome_connected: "⚡ Chronos-Shadow 已连接云端 API。项目沙盒隔离锁 [ACTIVE]。输入自然语言指令启动全自动 SDLC 研发航道。",
   chat_welcome_demo: "⚡ Chronos-Shadow 守护引擎加载成功。⚠️ 未配置 API Key，当前为演示模式。请在「全局配置」中填入 API 密钥以启用真实对话。",
   chat_error_api: "❌ API 调用失败",
@@ -1039,6 +1061,17 @@ const en: LocaleDict = {
   stream_on: "ON",
   stream_off: "OFF",
   diff_select_hint: "Select two snapshots to compare",
+
+  // Agent Mode
+  agent_mode_label: "Agent Mode",
+  agent_mode_plan: "Plan",
+  agent_mode_review: "Review",
+  agent_mode_auto: "Auto",
+  agent_mode_yolo: "YOLO",
+  agent_mode_plan_desc: "Plan only, no execution",
+  agent_mode_review_desc: "Human approval per action",
+  agent_mode_auto_desc: "Auto low-risk, approve high-risk",
+  agent_mode_yolo_desc: "Skip all safety checks (dangerous)",
   chat_welcome_connected: "⚡ Chronos-Shadow connected to cloud API. Sandbox isolation [ACTIVE]. Enter natural language to start full-auto SDLC pipeline.",
   chat_welcome_demo: "⚡ Chronos-Shadow engine loaded. ⚠️ No API Key configured — demo mode. Go to Settings to enter API credentials for live AI chat.",
   chat_error_api: "❌ API call failed",
