@@ -299,6 +299,33 @@ impl CollaborationEngine {
         Some(candidates[0].model_name.clone())
     }
 
+    /// v2: UCB 探索-利用模型选择（科学化 — 多臂老虎机 UCB1 算法）
+    ///
+    /// 在「质量均值（利用）」与「不确定性（探索）」间平衡：
+    /// 执行次数少的模型获得探索奖励，避免过早收敛到次优模型。
+    /// `exploration_weight` 越大越偏向探索（默认 2.0）。
+    pub fn select_best_model_ucb(&self, task_type: &str, exploration_weight: f64) -> Option<String> {
+        let candidates: Vec<&ModelCapability> = self.model_profiles.values()
+            .filter(|p| p.online)
+            .collect();
+        if candidates.is_empty() { return None; }
+
+        let total: u64 = candidates.iter().map(|p| p.total_executions).sum();
+
+        candidates.into_iter()
+            .max_by(|a, b| {
+                let qa = a.per_task_quality.get(task_type).copied().unwrap_or(a.quality_score);
+                let qb = b.per_task_quality.get(task_type).copied().unwrap_or(b.quality_score);
+                let na = a.total_executions.max(1) as f64;
+                let nb = b.total_executions.max(1) as f64;
+                // UCB1 探索奖励：c * sqrt(ln(N) / n)
+                let ea = exploration_weight * ((total.max(1) as f64).ln() / na).sqrt();
+                let eb = exploration_weight * ((total.max(1) as f64).ln() / nb).sqrt();
+                (qa + ea).partial_cmp(&(qb + eb)).unwrap()
+            })
+            .map(|p| p.model_name.clone())
+    }
+
     /// 获取 Top N 个候选模型 (用于并行/投票)
     pub fn top_models(&self, task_type: &str, n: usize) -> Vec<String> {
         let mut candidates: Vec<&ModelCapability> = self.model_profiles.values()

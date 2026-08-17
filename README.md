@@ -11,7 +11,7 @@
 
 Chronos-Shadow 是一款将大模型潜能与 Windows 系统底层操控完美缝合的工业级开源桌面智能体。内置 41 个 Rust 后端模块、9 个前端可视化面板、多模型混合路由中枢、端侧进化引擎集群、AES-256-GCM 会话加密，以及全链路安全审批体系。
 
-> ✅ **v0.4.0 已发布** — 运行模式选择（plan/review/auto/yolo）、推理深度切换（low/medium/high）、引擎能力去桩（win_hooks/subagents/SQLite/OCR）、前端版本号动态化。详见 [CHANGELOG.md](CHANGELOG.md)。
+> ✅ **v0.5.0 已发布** — 七核心引擎 v2 升级（科学化/系统化/创新化）+ 运行模式 + 推理深度 + 引擎能力去桩。详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ### 🚀 v0.4.0 新增
 - **运行模式选择**：plan / review / auto / yolo，映射「四红线 + 审批门禁」自主级别

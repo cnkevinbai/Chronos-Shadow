@@ -11,7 +11,7 @@
 
 Chronos-Shadow is an industrial-grade open-source desktop agent that deeply integrates LLM capabilities with Windows system-level control. Features 41 Rust backend modules, 12 frontend panels, multi-model hybrid routing, on-device evolution engine cluster, AES-256-GCM session encryption, and a full-chain security approval system.
 
-> ✅ **v0.4.0 Released** — Operating mode (plan/review/auto/yolo), reasoning depth (low/medium/high), engine de-stubbing (win_hooks/subagents/SQLite/OCR), and dynamic frontend versioning. See [CHANGELOG.md](CHANGELOG.md).
+> ✅ **v0.5.0 Released** — Seven-core engine v2 upgrade (scientific/systematic/innovative) + operating mode + reasoning depth + engine de-stubbing. See [CHANGELOG.md](CHANGELOG.md).
 
 ### 🚀 What's New in v0.4.0
 - **Operating mode**: plan / review / auto / yolo, mapped to the four-redline + approval-gate autonomy levels

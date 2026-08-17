@@ -496,6 +496,39 @@ impl AgentSchedulingEngine {
             },
         })
     }
+
+    /// v2: 上下文感知路由（创新化）— 结合对话历史修正路由结果
+    ///
+    /// 在 `analyze_enhanced` 基础上，从上下文（前几轮对话）提取领域信号
+    /// （数据库/前端/安全/DevOps 等），追加 `context_domain` 字段，
+    /// 使路由在意图不明确时能借助上下文收敛到正确领域。
+    pub fn analyze_with_context(&self, user_message: &str, context: &[String]) -> serde_json::Value {
+        let mut result = self.analyze_enhanced(user_message);
+        let context_text = context.join(" ").to_lowercase();
+
+        let domain_signals = [
+            ("database", "sql"), ("sql", "sql"), ("query", "sql"), ("index", "sql"),
+            ("frontend", "ui"), ("react", "ui"), ("css", "ui"), ("component", "ui"),
+            ("security", "security"), ("auth", "security"), ("vulnerability", "security"),
+            ("deploy", "devops"), ("docker", "devops"), ("ci", "devops"), ("k8s", "devops"),
+        ];
+        let mut hits: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
+        for (kw, domain) in &domain_signals {
+            if context_text.contains(kw) {
+                *hits.entry(domain).or_insert(0) += 1;
+            }
+        }
+
+        if let Some((top, count)) = hits.into_iter().max_by_key(|(_, c)| *c) {
+            result["context_domain"] = serde_json::json!(top);
+            result["context_signal_strength"] = serde_json::json!(count);
+            result["context_aware"] = serde_json::json!(true);
+        } else {
+            result["context_aware"] = serde_json::json!(false);
+        }
+
+        result
+    }
 }
 
 impl Default for AgentSchedulingEngine {

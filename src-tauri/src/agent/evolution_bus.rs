@@ -93,6 +93,17 @@ pub struct EngineHealth {
     pub recommendation: Option<String>,
 }
 
+/// 系统健康综合评估（v2：系统化多维健康评分）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemAssessment {
+    pub overall_health: f64,
+    pub grade: String,
+    pub engines_total: usize,
+    pub degrading_engines: Vec<String>,
+    pub top_engines: Vec<String>,
+    pub recommendations: Vec<String>,
+}
+
 // ─── 进化总线 ──────────────────────────────────────────────────────
 
 pub struct EvolutionBus {
@@ -326,6 +337,71 @@ impl EvolutionBus {
             "cycle_secs": self.evolution_cycle_secs,
             "engines": engines,
         })
+    }
+
+    /// v2: 系统化健康自评估 — 综合所有引擎的先进性/稳定性/退化状态
+    pub fn self_assess(&self) -> SystemAssessment {
+        let engines: Vec<&EngineHealth> = self.engine_health.values().collect();
+        let total = engines.len();
+        if total == 0 {
+            return SystemAssessment {
+                overall_health: 0.0,
+                grade: "F".into(),
+                engines_total: 0,
+                degrading_engines: vec![],
+                top_engines: vec![],
+                recommendations: vec![],
+            };
+        }
+
+        let avg_advancement = engines.iter().map(|e| e.advancement_score).sum::<f64>() / total as f64;
+        let avg_stability = engines.iter().map(|e| e.stability).sum::<f64>() / total as f64;
+        let degrading_count = engines.iter().filter(|e| e.is_degrading).count();
+
+        // 综合评分：先进性 70% + 稳定性 30%
+        let overall = avg_advancement * 0.7 + avg_stability * 100.0 * 0.3;
+        let grade = if overall >= 85.0 {
+            "A"
+        } else if overall >= 70.0 {
+            "B"
+        } else if overall >= 55.0 {
+            "C"
+        } else if overall >= 40.0 {
+            "D"
+        } else {
+            "F"
+        };
+
+        let mut degrading: Vec<String> = engines
+            .iter()
+            .filter(|e| e.is_degrading)
+            .map(|e| e.engine.label().to_string())
+            .collect();
+        degrading.sort();
+
+        let mut sorted = engines.clone();
+        sorted.sort_by(|a, b| b.advancement_score.partial_cmp(&a.advancement_score).unwrap());
+        let top_engines: Vec<String> = sorted.iter().take(3).map(|e| e.engine.label().to_string()).collect();
+
+        let mut recommendations = Vec::new();
+        if degrading_count > 0 {
+            recommendations.push(format!("{} 个引擎退化，建议触发自愈或回滚", degrading_count));
+        }
+        if avg_stability < 0.7 {
+            recommendations.push("整体稳定性偏低，建议增大 max_adjustment_per_cycle 保护".into());
+        }
+        if self.auto_evolution_enabled && avg_advancement < 60.0 {
+            recommendations.push("自动进化已启用但先进性偏低，建议审查进化策略".into());
+        }
+
+        SystemAssessment {
+            overall_health: overall,
+            grade: grade.to_string(),
+            engines_total: total,
+            degrading_engines: degrading,
+            top_engines,
+            recommendations,
+        }
     }
 
     // ── 持久化 ────────────────────────────────────────────────

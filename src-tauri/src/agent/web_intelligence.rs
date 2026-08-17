@@ -928,6 +928,56 @@ impl WebIntelligence {
     // ── 便捷公开 API（Tauri Commands 调用） ────────────────────
 
     /// 搜索（公开接口，带缓存加速）
+    /// v2: 相关性重排序（科学化）— 查询词命中密度 + 来源权威加权
+    ///
+    /// 对搜索结果重新打分：查询词在标题（权重 2）和摘要（权重 1）中的命中密度，
+    /// 乘以来源权威权重（官方文档 > 技术社区 > 通用），并叠加原始排名分。
+    pub fn rerank_results(&self, query: &str, results: &[WebSearchResult]) -> Vec<WebSearchResult> {
+        let query_terms: Vec<String> = query
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|t| t.len() >= 2)
+            .map(|t| t.to_lowercase())
+            .collect();
+        if query_terms.is_empty() {
+            return results.to_vec();
+        }
+
+        let source_weight = |src: &str| -> f64 {
+            let s = src.to_lowercase();
+            if s.contains("docs") || s.contains("official") || s.contains("rust-lang") || s.contains("react") {
+                1.2
+            } else if s.contains("github") || s.contains("stackoverflow") {
+                1.0
+            } else {
+                0.8
+            }
+        };
+
+        let mut scored: Vec<(WebSearchResult, f64)> = results
+            .iter()
+            .map(|r| {
+                let title = r.title.to_lowercase();
+                let snippet = r.snippet.to_lowercase();
+                let mut hits = 0.0;
+                for t in &query_terms {
+                    if title.contains(t) {
+                        hits += 2.0;
+                    }
+                    if snippet.contains(t) {
+                        hits += 1.0;
+                    }
+                }
+                let relevance = hits / query_terms.len().max(1) as f64;
+                let authority = source_weight(&r.source);
+                let score = relevance * authority + r.relevance_score * 0.5;
+                (r.clone(), score)
+            })
+            .collect();
+
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        scored.into_iter().map(|(r, _)| r).collect()
+    }
+
     pub async fn search(
         &mut self,
         query: &str,

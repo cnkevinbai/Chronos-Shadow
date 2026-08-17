@@ -747,6 +747,40 @@ impl PredictiveAnalyticsEngine {
             if z > 2.0 { Some(serde_json::json!({"index":i,"z_score":format!("{:.2}",z),"value":v,"severity":if z>3.0{"high"}else{"medium"}})) } else { None }
         }).collect()
     }
+    /// v2: CUSUM 变化点检测（科学化 — 累计和控制图）
+    ///
+    /// 检测时序数据中的趋势突变/变点：累计正负偏差，超过阈值即标记。
+    /// 相比 z-score 单点异常检测，CUSUM 对「持续漂移」更敏感（能捕捉渐变）。
+    /// `threshold` 为累计和阈值，`drift` 为允许的正常漂移（降低误报）。
+    pub fn detect_change_points(&self, data: &[f64], threshold: f64, drift: f64) -> Vec<serde_json::Value> {
+        if data.len() < 4 { return vec![]; }
+        let mean = data.iter().sum::<f64>() / data.len() as f64;
+        let mut cusum_pos = 0.0;
+        let mut cusum_neg = 0.0;
+        let mut points = Vec::new();
+
+        for (i, &v) in data.iter().enumerate() {
+            let dev = v - mean;
+            cusum_pos = (cusum_pos + dev - drift).max(0.0);
+            cusum_neg = (cusum_neg - dev - drift).max(0.0);
+
+            if cusum_pos > threshold {
+                points.push(serde_json::json!({
+                    "index": i, "direction": "up", "value": v,
+                    "cusum": format!("{:.2}", cusum_pos),
+                }));
+                cusum_pos = 0.0; // 重置避免重复触发
+            } else if cusum_neg > threshold {
+                points.push(serde_json::json!({
+                    "index": i, "direction": "down", "value": v,
+                    "cusum": format!("{:.2}", cusum_neg),
+                }));
+                cusum_neg = 0.0;
+            }
+        }
+        points
+    }
+
     pub fn optimize_budget_simple(&self, daily: &[f64], budget: f64) -> BudgetSimple {
         let avg = if daily.is_empty() { 0.0 } else { daily.iter().sum::<f64>() / daily.len() as f64 };
         BudgetSimple {

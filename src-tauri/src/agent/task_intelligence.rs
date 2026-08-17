@@ -145,6 +145,40 @@ pub struct TaskPlan {
     pub created_at: String,
 }
 
+/// 风险等级
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RiskLevel {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+impl RiskLevel {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Low => "低",
+            Self::Medium => "中",
+            Self::High => "高",
+            Self::Critical => "极高",
+        }
+    }
+}
+
+/// 工作量估算（v2：PERT 三点估算 + 风险加权 + 关键路径）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EffortEstimate {
+    pub optimistic_secs: u64,
+    pub pessimistic_secs: u64,
+    pub expected_secs: u64,
+    pub risk_level: RiskLevel,
+    pub risk_score: f64,
+    pub risk_factors: Vec<String>,
+    pub critical_path_secs: u64,
+    pub tokens_estimate: u64,
+    pub cost_estimate: f64,
+}
+
 // ─── 分解模板 ──────────────────────────────────────────────────────
 
 struct DecompositionTemplate {
@@ -455,6 +489,88 @@ impl TaskIntelligenceEngine {
         }
 
         groups
+    }
+
+    /// v2: 科学化工作量估算 — PERT 三点估算 + 系统化风险识别 + 创新化关键路径
+    pub fn estimate_effort(&self, task: &str) -> EffortEstimate {
+        let plan = self.decompose(task);
+        let most_likely = plan.total_estimated_duration_secs.max(60);
+        let optimistic = (most_likely as f64 * 0.6) as u64;
+        let pessimistic = (most_likely as f64 * 1.8) as u64;
+        let expected = (optimistic + 4 * most_likely + pessimistic) / 6;
+
+        // 系统化风险识别（多维度信号）
+        let lower = task.to_lowercase();
+        let mut factors = Vec::new();
+        let mut risk = 0.0;
+        for (kw, w, label) in [
+            ("security", 1.5, "安全敏感"),
+            ("migrate", 1.5, "数据迁移"),
+            ("production", 2.0, "生产环境"),
+            ("delete", 1.5, "破坏性操作"),
+            ("distributed", 1.5, "分布式"),
+            ("auth", 1.0, "认证授权"),
+        ] {
+            if lower.contains(kw) {
+                risk += w;
+                factors.push(label.to_string());
+            }
+        }
+        risk += (plan.complexity as u8 as f64 - 1.0) * 0.5;
+        let risk_level = if risk >= 4.0 {
+            RiskLevel::Critical
+        } else if risk >= 2.5 {
+            RiskLevel::High
+        } else if risk >= 1.0 {
+            RiskLevel::Medium
+        } else {
+            RiskLevel::Low
+        };
+
+        let critical = self.critical_path(&plan.sub_tasks);
+        let tokens = plan.total_estimated_tokens.max(1);
+        let cost = tokens as f64 * 0.000001 * (1.0 + risk * 0.1);
+
+        EffortEstimate {
+            optimistic_secs: optimistic,
+            pessimistic_secs: pessimistic,
+            expected_secs: expected,
+            risk_level,
+            risk_score: risk,
+            risk_factors: factors,
+            critical_path_secs: critical,
+            tokens_estimate: tokens,
+            cost_estimate: cost,
+        }
+    }
+
+    /// 关键路径：从无依赖任务到终点的最长累计时长（创新化）
+    fn critical_path(&self, sub_tasks: &[SubTask]) -> u64 {
+        let mut memo: HashMap<String, u64> = HashMap::new();
+        fn dfs(id: &str, tasks: &[SubTask], memo: &mut HashMap<String, u64>) -> u64 {
+            if let Some(&v) = memo.get(id) {
+                return v;
+            }
+            let t = tasks.iter().find(|s| s.id == id);
+            let own = t.map(|s| s.estimated_duration_secs).unwrap_or(0);
+            let dep_max = t
+                .map(|s| {
+                    s.dependencies
+                        .iter()
+                        .map(|d| dfs(d, tasks, memo))
+                        .max()
+                        .unwrap_or(0)
+                })
+                .unwrap_or(0);
+            let total = own + dep_max;
+            memo.insert(id.to_string(), total);
+            total
+        }
+        sub_tasks
+            .iter()
+            .map(|s| dfs(&s.id, sub_tasks, &mut memo))
+            .max()
+            .unwrap_or(0)
     }
 
     // ── 辅助 ────────────────────────────────────────────────

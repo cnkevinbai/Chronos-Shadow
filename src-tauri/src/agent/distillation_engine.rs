@@ -115,6 +115,15 @@ pub struct ExtractedEntity {
     pub occurrences: u32,
 }
 
+/// 实体关系（v2：创新化 — 从平面实体到关系图）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntityRelation {
+    pub source: String,
+    pub target: String,
+    pub relation: String, // co_occur / depends_on / deprecates
+    pub confidence: f64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EntityType {
     Version,        // 版本号: "1.75.0", "v2.0"
@@ -293,6 +302,50 @@ impl DistillationEngine {
     pub fn with_token_budget(mut self, budget: usize) -> Self {
         self.default_token_budget = budget;
         self
+    }
+
+    /// v2: 实体关系图提取（创新化）— 从句子窗口内实体共现推断关系
+    pub fn extract_entity_relations(&self, content: &str) -> Vec<EntityRelation> {
+        let entities = extract_entities(content, &[]);
+        if entities.len() < 2 { return vec![]; }
+
+        let sentences: Vec<&str> = content
+            .split(|c: char| c == '.' || c == '\n' || c == '，' || c == '。')
+            .collect();
+        let mut relations = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+
+        for sent in sentences {
+            let in_sentence: Vec<&ExtractedEntity> = entities
+                .iter()
+                .filter(|e| sent.contains(&e.name))
+                .collect();
+            for i in 0..in_sentence.len() {
+                for j in (i + 1)..in_sentence.len() {
+                    let (a, b) = (&in_sentence[i], &in_sentence[j]);
+                    if a.name == b.name { continue; }
+                    let key = format!("{}|{}", a.name, b.name);
+                    if seen.contains(&key) { continue; }
+                    seen.insert(key);
+
+                    let relation = if sent.contains("depends on") || sent.contains("依赖") {
+                        "depends_on"
+                    } else if sent.contains("deprecat") || sent.contains("废弃") {
+                        "deprecates"
+                    } else {
+                        "co_occur"
+                    };
+
+                    relations.push(EntityRelation {
+                        source: a.name.clone(),
+                        target: b.name.clone(),
+                        relation: relation.to_string(),
+                        confidence: 0.7,
+                    });
+                }
+            }
+        }
+        relations
     }
 
     // ── 主蒸馏入口 ─────────────────────────────────────────────
