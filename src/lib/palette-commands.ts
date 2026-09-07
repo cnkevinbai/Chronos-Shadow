@@ -1,7 +1,7 @@
 // src/lib/palette-commands.ts — Command Palette 命令表构建（纯函数，独立于 CommandPalette 组件文件）
 import {
   MessageSquare, GitGraph, Link2, Puzzle, Globe, Route, Server,
-  FolderOpen, Shield, FilePlus, Save, Download, Trash2, Keyboard, Zap, Settings,
+  FolderOpen, Shield, FilePlus, Save, Download, Trash2, Keyboard, Zap, Settings, Network,
 } from "lucide-react";
 import type { LocaleDict } from "@/lib/i18n";
 
@@ -21,6 +21,7 @@ export function buildPaletteCommands(opts: {
   return [
     { id:"nav-chat",label:t.cmd_chat,description:t.cmd_chat_desc,icon:MessageSquare,category:"Navigate",keywords:["chat","对话"],action:()=>opts.onNavigate("chat")},
     { id:"nav-pipeline",label:t.cmd_pipeline,description:t.cmd_pipeline_desc,icon:GitGraph,category:"Navigate",keywords:["pipeline","流水线"],action:()=>opts.onNavigate("pipeline")},
+    { id:"nav-orchestrator",label:t.cmd_orchestrator,description:t.cmd_orchestrator_desc,icon:Network,category:"Navigate",keywords:["orchestrator","编排","任务","task"],action:()=>opts.onNavigate("orchestrator")},
     { id:"nav-glue",label:t.cmd_glue,description:t.cmd_glue_desc,icon:Link2,category:"Navigate",keywords:["glue","窗口"],action:()=>opts.onNavigate("glue")},
     { id:"nav-skills",label:t.cmd_skills,description:t.cmd_skills_desc,icon:Puzzle,category:"Navigate",keywords:["skill","mcp"],action:()=>opts.onNavigate("skills")},
     { id:"nav-webintel",label:t.cmd_webintel,description:t.cmd_webintel_desc,icon:Globe,category:"Navigate",keywords:["web","搜索"],action:()=>opts.onNavigate("webintel")},

@@ -17,7 +17,10 @@ export interface LocaleDict {
   dock_remote: string;
   dock_explorer: string;
   dock_approval: string;
+  dock_orchestrator: string;
   stream_stop: string;
+  cmd_orchestrator: string;
+  cmd_orchestrator_desc: string;
   auto_rule: string;
   manual_control: string;
   text_llm: string;
@@ -459,6 +462,7 @@ const zh: LocaleDict = {
   dock_remote: "远程服务器",
   dock_explorer: "项目时光机",
   dock_approval: "审批门禁",
+  dock_orchestrator: "任务编排",
   stream_stop: "停止",
   settings: "全局配置",
   auto_rule: "自动全局规则",
@@ -842,6 +846,8 @@ const zh: LocaleDict = {
   cmd_chat_desc: "AI 对话面板",
   cmd_pipeline: "调度流水线",
   cmd_pipeline_desc: "7-Agent SDLC",
+  cmd_orchestrator: "任务编排",
+  cmd_orchestrator_desc: "拓扑排序 / 并行组 / 质量分",
   cmd_glue: "跨软件粘合",
   cmd_glue_desc: "WorkBuddy 窗口绑定",
   cmd_skills: "技能中枢",
@@ -888,6 +894,7 @@ const en: LocaleDict = {
   dock_remote: "Remote Servers",
   dock_explorer: "Project Time Machine",
   dock_approval: "Approval Gate",
+  dock_orchestrator: "Task Orchestration",
   stream_stop: "Stop",
   settings: "Settings",
   auto_rule: "Auto-Matrix",
@@ -1271,6 +1278,8 @@ const en: LocaleDict = {
   cmd_chat_desc: "AI chat panel",
   cmd_pipeline: "Pipeline",
   cmd_pipeline_desc: "7-Agent SDLC",
+  cmd_orchestrator: "Task Orchestration",
+  cmd_orchestrator_desc: "Topological sort / parallel groups / quality score",
   cmd_glue: "App Glue",
   cmd_glue_desc: "WorkBuddy window binding",
   cmd_skills: "Skill Hub",

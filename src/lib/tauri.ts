@@ -97,8 +97,7 @@ export async function resetFuse(): Promise<string> {
 export async function getPipelineStats(): Promise<OrchestratorStats> {
   try {
     return await invoke<OrchestratorStats>("get_pipeline_stats");
-  } catch {
-    return { ...MOCK_PIPELINE_STATS };
+  } catch {    return { ...MOCK_PIPELINE_STATS };
   }
 }
 
@@ -124,6 +123,73 @@ export async function resumePipeline(): Promise<string> {
   } catch {
     return "Pipeline resumed (mock)";
   }
+}
+
+// ─── Task Orchestration（编排科学性：拓扑/并行组/可执行任务/质量） ──────
+
+export interface ParallelGroupTask {
+  id: string;
+  title: string;
+  priority: number;
+  dependencies: string[];
+  status: string;
+}
+
+export interface ParallelGroup {
+  group: number;
+  tasks: ParallelGroupTask[];
+}
+
+export interface ParallelGroupsResult {
+  total_groups: number;
+  groups: ParallelGroup[];
+}
+
+export interface ExecutableTasksResult {
+  count: number;
+  tasks: { id: string; title: string; priority: number; dependencies: string[] }[];
+}
+
+export interface ScheduleQualityResult {
+  quality_score: string;
+  parallel_groups: number;
+  completion_rate: string;
+}
+
+export interface SchedulingAnalysis {
+  intent: string;
+  confidence: number;
+  recommended_agent: string;
+  recommended_model: string;
+  model_reason: string;
+  matched_skill: string | null;
+  optimization_tip: string | null;
+  suggest_subagent: boolean;
+  secondary_intents: [string, number, number][];
+}
+
+export async function orchTopologicalSort(): Promise<string[]> {
+  return await invoke<string[]>("orch_topological_sort");
+}
+
+export async function orchParallelGroups(): Promise<ParallelGroupsResult> {
+  return await invoke<ParallelGroupsResult>("orch_parallel_groups");
+}
+
+export async function orchExecutableTasks(): Promise<ExecutableTasksResult> {
+  return await invoke<ExecutableTasksResult>("orch_executable_tasks");
+}
+
+export async function orchScheduleQuality(): Promise<ScheduleQualityResult> {
+  return await invoke<ScheduleQualityResult>("orch_schedule_quality");
+}
+
+export async function orchSmartRetry(): Promise<string[]> {
+  return await invoke<string[]>("orch_smart_retry");
+}
+
+export async function analyzeTask(userMessage: string): Promise<SchedulingAnalysis> {
+  return await invoke<SchedulingAnalysis>("analyze_task", { userMessage });
 }
 
 export async function advancePipeline(): Promise<string> {

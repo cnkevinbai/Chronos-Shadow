@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { I18nProvider, useT } from "@/lib/i18n-context";
+import OrchestrationPanel from "@/views/OrchestrationPanel";
 import { getModel, getLLMs, getVLMs, classifyModelKeys } from "@/lib/models";
 import CommandPalette from "@/components/CommandPalette";
 import { buildPaletteCommands } from "@/lib/palette-commands";
@@ -74,7 +75,7 @@ function AppInner() {
   // ── 全局视图路由 ────────────────────────────────────────────────
   const [activeView, setActiveView] = useState<"workbench" | "settings" | "evolution">("workbench");
   // Dock 导航
-  const [dockView, setDockView] = useState<"chat" | "pipeline" | "glue" | "skills" | "webintel" | "autoroute" | "remote" | "explorer" | "approval">("chat");
+  const [dockView, setDockView] = useState<"chat" | "pipeline" | "orchestrator" | "glue" | "skills" | "webintel" | "autoroute" | "remote" | "explorer" | "approval">("chat");
   // Command Palette
   const [showPalette, setShowPalette] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -434,6 +435,12 @@ function AppInner() {
               <DockButton active={dockView === "pipeline"} tip={t.dock_pipeline} onClick={() => setDockView("pipeline")}>
                 <PipelineIcon size={18} className={dockView === "pipeline" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
+              <DockButton active={dockView === "orchestrator"} tip={t.dock_orchestrator} onClick={() => setDockView("orchestrator")}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={dockView === "orchestrator" ? "stroke-cyan-300" : "stroke-zinc-500"} aria-hidden="true">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+              </DockButton>
 
               {/* 分隔线 */}
               <div className="w-6 h-px bg-[#27272a] my-1" />
@@ -489,6 +496,9 @@ function AppInner() {
                     isRunning={isRunning}
                   />
                 </div>
+              )}
+              {dockView === "orchestrator" && (
+                <div className="flex-1 overflow-hidden"><OrchestrationPanel /></div>
               )}
               {dockView === "glue" && (
                 <div className="flex-1 overflow-hidden"><AppGlueBinder /></div>

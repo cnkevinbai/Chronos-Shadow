@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added — 任务编排面板
+- **新面板 `OrchestrationPanel`（dock 第 10 项「任务编排」）**：将此前无 UI 入口的编排引擎能力可视化——`analyze_task` 意图分析器（意图分类 + 置信度 + 推荐 Agent/模型 + 优化建议 + 次要意图）、`orch_parallel_groups` 并行组泳道、`orch_topological_sort` + `orch_executable_tasks` 执行顺序视图、`orch_schedule_quality` 质量分常驻卡片、`orch_smart_retry` 智能重试；Ctrl+K 命令面板同步新增 `nav-orchestrator` 入口；3 个冒烟测试
+
 ### Changed — 工程卫生与可维护性
 - **千行模块拆分**：`distillation_engine.rs`（1656 行）拆为 `distillation_engine/{mod,types,engine,helpers,entities}.rs`；`web_intelligence.rs`（1650 行）拆为 `web_intelligence/{mod,types,core,markdown,commands}.rs`；外部 API 路径不变，行为零改动
 - **oxlint 16 条警告清零**：修复 4 处未使用变量；移除 `if (true)` 死代码分支（Mock 演示模式不可达代码）；React hooks 依赖以稳定 ref 模式修复（含 `persistCurrentSession` 补 `currentProject` 依赖的真实 stale-closure 缺陷）；`ToastContext`/`useToast`/`buildPaletteCommands` 拆分独立文件满足 fast-refresh 单组件导出约束
