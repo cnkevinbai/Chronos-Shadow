@@ -9,6 +9,7 @@ interface FooterBarProps {
   savingRate: number;
   routeMode: "auto" | "manual";
   buddySaved?: number;
+  pendingApprovals?: number;
 }
 
 function getFontScale(): number {
@@ -35,6 +36,7 @@ export default function FooterBar({
   savingRate,
   routeMode,
   buddySaved = 0.0,
+  pendingApprovals = 0,
 }: FooterBarProps) {
   const t = useT();
   const [costLimit, setCostLimit] = useState<number>(5.0);
@@ -186,6 +188,11 @@ export default function FooterBar({
           </button>
         </div>
       </div>
+      {pendingApprovals > 0 && (
+      <span className="text-[10px] text-red-400 border border-red-500/30 bg-red-950/20 px-1.5 py-0.5 rounded" title={t.ap_n_pending}>
+        {t.dock_approval} · {pendingApprovals}
+      </span>
+      )}
     </footer>
   );
 }

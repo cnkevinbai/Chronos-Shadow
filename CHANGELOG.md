@@ -23,6 +23,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **设置恢复默认**：一键恢复全部设置为出厂默认值（前端默认值常量化 + 确认弹窗 + 自动保存 + Toast 反馈）
 - **安全侧栏可折叠**：280px 安全风控面板支持一键折叠/展开（ShieldHalf/ShieldCheck 图标，aria-label），**<1200px 窗口自动折叠**——缓解三层侧栏水平空间碎片化
 
+### Added — P2 可用性增强
+- **审批请求全局角标**：App 层 10s 轮询 `list_pending_approvals`，dock 审批按钮红点角标 + Footer 常驻「审批门禁 · N」提示——待审批不再需要主动进面板才能发现
+- **拖拽上传**：Tauri 原生 `onDragDropEvent` 监听，文件拖入窗口自动进入多模态挂载缓冲区（按扩展名分流 doc/image 类型）
+
 ### Refactor — ChatPanel 组件拆分（第三批，完成）
 - 输入区拆分为 `src/views/chat/Composer.tsx`（210 行）：斜杠宏/@特种兵弹窗、多模态挂载看板、发送/停止按钮；附件挂载逻辑（dialogOpen 依赖）提取为父组件 `handleAttachDoc/handleAttachImage` 回调；`Attachment` 类型上移至 `@/lib/types` 共享；**ChatPanel 2029 → 1575 行（累计 -22%）**，行为零改动
 

@@ -32,6 +32,7 @@ import { useToast } from "@/lib/use-toast";
 import { ChatIcon, PipelineIcon, GlueIcon, McpIcon, ChronosFolderIcon, RemoteIcon, ChronosLogo } from "@/components/SvgIcons";
 import {
   getSessionCost,
+  listPendingApprovals,
   getSavedCost,
   getSavingRate,
   getBuddySaved,
@@ -109,6 +110,7 @@ function AppInner() {
 
   // ── 实时 IPC 数据 ───────────────────────────────────────────────
   // Initial values before first IPC poll (replaced within 2s)
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const [sessionCost, setSessionCost] = useState(0.0);
   const [savedCost, setSavedCost] = useState(0.0);
   const [savingRate, setSavingRate] = useState(0);
@@ -198,11 +200,13 @@ function AppInner() {
   useEffect(() => {
     refreshCosts();
     refreshStatus();
+    listPendingApprovals().then((l) => setPendingApprovalCount(l.length)).catch(() => {});
     const t1 = setInterval(refreshCosts, 2000);
     const t2 = setInterval(refreshStatus, 3000);
+    const t3 = setInterval(() => { listPendingApprovals().then((l) => setPendingApprovalCount(l.length)).catch(() => {}); }, 10000);
     let unlisten: (() => void) | undefined;
     onPipelineEvent(() => refreshStatus()).then((fn) => { unlisten = fn; });
-    return () => { clearInterval(t1); clearInterval(t2); unlisten?.(); };
+    return () => { clearInterval(t1); clearInterval(t2); clearInterval(t3); unlisten?.(); };
   }, [refreshCosts, refreshStatus]);
 
   // ── 模型路由同步 ────────────────────────────────────────────────
@@ -482,7 +486,7 @@ function AppInner() {
               <DockButton active={dockView === "explorer"} tip={t.dock_explorer} onClick={() => setDockView("explorer")}>
                 <ChronosFolderIcon size={18} className={dockView === "explorer" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
-              <DockButton active={dockView === "approval"} tip={t.dock_approval} onClick={() => setDockView("approval")}>
+              <DockButton active={dockView === "approval"} tip={t.dock_approval} badge={pendingApprovalCount} onClick={() => setDockView("approval")}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={dockView === "approval" ? "stroke-red-400" : "stroke-zinc-500"}>
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                   <path d="M9 12l2 2 4-4"/>
@@ -574,7 +578,7 @@ function AppInner() {
       </div>
 
       {/* 3. FooterBar — 常驻成本对账 */}
-      <FooterBar sessionCost={sessionCost} savedCost={savedCost} savingRate={savingRate} routeMode={routeMode} buddySaved={buddySaved} />
+      <FooterBar sessionCost={sessionCost} savedCost={savedCost} savingRate={savingRate} routeMode={routeMode} buddySaved={buddySaved} pendingApprovals={pendingApprovalCount} />
         </>
       )}
 
@@ -618,11 +622,13 @@ function DockButton({
   active,
   tip,
   onClick,
+  badge = 0,
   children,
 }: {
   active: boolean;
   tip: string;
   onClick: () => void;
+  badge?: number;
   children: React.ReactNode;
 }) {
   return (
@@ -631,6 +637,7 @@ function DockButton({
       title={tip}
       aria-label={tip}
       aria-current={active ? "page" : undefined}
+      aria-describedby={badge > 0 ? "dock-badge" : undefined}
       className={`w-9 h-9 flex items-center justify-center rounded transition-all duration-150 active:scale-90 ${
         active
           ? "bg-[#27272a] text-white border border-zinc-700 shadow-sm"

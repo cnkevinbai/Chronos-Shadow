@@ -12,6 +12,7 @@ import ArtifactPanel from "@/views/chat/ArtifactPanel";
 import Composer from "@/views/chat/Composer";
 import SessionSidebar from "@/views/chat/SessionSidebar";
 import { useToast } from "@/lib/use-toast";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getModelDisplay } from "@/lib/models";
 import { APP_VERSION } from "@/lib/version";
 import {
@@ -1009,6 +1010,25 @@ export default function ChatPanel({
       setStagedAttachments((prev) => [...prev, { type: "image", name: "ERP_Error_Snapshot.png", sizeOrPath: "1080P" }]);
     }
   };
+
+  // ── 拖拽上传：Tauri 原生 drag-drop → 多模态挂载缓冲区 ────────
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    getCurrentWebview().onDragDropEvent((event) => {
+      if (event.payload.type !== "drop") return;
+      const paths = event.payload.paths ?? [];
+      const docs: Attachment[] = [];
+      const imgs: Attachment[] = [];
+      for (const p of paths) {
+        const name = p.split(/[\\/]/).pop() ?? p;
+        if (/\.(png|jpe?g|gif|webp)$/i.test(p)) imgs.push({ type: "image", name, sizeOrPath: p });
+        else docs.push({ type: "doc", name, sizeOrPath: p });
+      }
+      setStagedAttachments((prev) => [...prev, ...docs, ...imgs]);
+      shortcutsRef.current.toast.showToast("success", "ATTACHED", `${docs.length + imgs.length} file(s) staged from drag & drop.`);
+    }).then((fn) => { unlisten = fn; }).catch(() => {});
+    return () => unlisten?.();
+  }, []);
 
   // ── 重试上次消息 ──────────────────────────────────────────
   // 请求取消当前流式对话 — 后端流循环检查取消标志并提前返回，
