@@ -380,3 +380,9 @@ export interface Achievement {
   unlocked_at?: string | null;
   progress: number;
 }
+
+export interface Attachment {
+  type: "doc" | "image";
+  name: string;
+  sizeOrPath: string;
+}
