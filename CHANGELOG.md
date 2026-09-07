@@ -17,6 +17,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 前端首个 views 层测试：`SettingsPanel.test.tsx` 5 用例（Tab 渲染 / 设置加载 / key 状态回调 / 保存链路 / 凭据入库回调），全仓 34/34 通过
 - CI 新增 `v*` tag 触发发布流水线；补打 `v0.3.0` / `v0.4.0` / `v0.5.0` 标签
 
+### Refactor — ChatPanel 组件拆分（第二批）
+- 会话历史侧栏拆分为 `src/views/chat/SessionSidebar.tsx`：内联重命名状态（editingSessionId/editTitle）、会话搜索（sessionFilter/filteredManifests）、重命名 handlers 全部内聚到子组件；JSON 导入因 dialogOpen 模块级依赖经 `onImport` 回调保留在父组件；ChatPanel 1981 → 1742 行
+
 ### Refactor — ChatPanel 组件拆分（第一批）
 - 成品文件面板 + 文件编辑模态拆分为 `src/views/chat/ArtifactPanel.tsx`（独立组件 + 自含 extColor 辅助函数 + 显式 props 契约），ChatPanel 2029 → 1981 行；行为零改动
 
