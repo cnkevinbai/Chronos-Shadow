@@ -4,6 +4,7 @@
 // 配置持久化 + Tauri IPC 实时广播到 Rust 后端
 
 import { useState, useEffect, useRef } from "react";
+import { Palette, Loader2, Stethoscope, X as XIcon, Check as CheckIcon2, Trophy } from "lucide-react";
 import { useLang, useT } from "@/lib/i18n-context";
 import { APP_VERSION } from "@/lib/version";
 import { useToast } from "@/lib/use-toast";
@@ -138,7 +139,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
     { id: "lan", icon: <GlobeIcon size={14} className="stroke-current" />, label: t.settings_lan_gateway },
     { id: "security", icon: <ShieldIcon size={14} className="stroke-current" />, label: t.settings_security },
     { id: "lang", icon: <GlobeIcon size={14} className="stroke-current" />, label: t.settings_language },
-    { id: "personalization", icon: <span className="text-[14px]">🎨</span>, label: "个性化" },
+    { id: "personalization", icon: <Palette size={12} aria-hidden="true" />, label: "个性化" },
     { id: "about", icon: <ChronosLogo size={14} className="stroke-current" />, label: "关于 & 开源隐私" },
   ];
 
@@ -278,7 +279,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                   disabled={ollamaStatus === "checking"}
                   className="text-[10px] bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 px-3 py-1.5 rounded transition-colors disabled:opacity-40 shrink-0"
                 >
-                  {ollamaStatus === "checking" ? "⏳" : "🩺 检测"}
+                  {ollamaStatus === "checking" ? <Loader2 size={10} className="inline animate-spin" aria-hidden="true" /> : <><Stethoscope size={10} className="inline mr-0.5 -mt-0.5" aria-hidden="true" />检测</>}
                 </button>
               </div>
             </div>
@@ -328,7 +329,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                 )}
                 {typeof ollamaStatus === "object" && "err" in ollamaStatus && (
                   <div>
-                    <span className="text-red-400">❌ {ollamaStatus.err}</span>
+                    <span className="text-red-400 flex items-center gap-0.5"><XIcon size={9} aria-hidden="true" />{ollamaStatus.err}</span>
                     <div className="text-zinc-600 mt-1">
                       请确认 Ollama 已安装并运行：<code className="text-zinc-500">ollama serve</code>
                     </div>
@@ -378,7 +379,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
         )}
 
         {activeTab === "lang" && (
-          <SettingsSection title={lang === "zh" ? "🌐 界面语言" : "🌐 Language"} desc={lang === "zh" ? "切换 Chronos-Shadow 全局界面显示语言。" : "Switch Chronos-Shadow global UI language."}>
+          <SettingsSection title={lang === "zh" ? "界面语言" : "Language"} desc={lang === "zh" ? "切换 Chronos-Shadow 全局界面显示语言。" : "Switch Chronos-Shadow global UI language."}>
             <div className="space-y-2">
               {[
                 { code: "zh" as const, label: "简体中文", sub: "Chinese (Simplified)" },
@@ -395,7 +396,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                     <div className="font-bold">{label}</div>
                     <div className="text-[10px] text-zinc-500">{sub}</div>
                   </div>
-                  {lang === code && <span className="text-emerald-400 text-lg">✓</span>}
+                  {lang === code && <CheckIcon2 size={12} className="text-emerald-400" aria-hidden="true" />}
                 </button>
               ))}
             </div>
@@ -403,7 +404,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
         )}
 
         {activeTab === "personalization" && (
-          <SettingsSection title="🎨 个性化" desc="让 Chronos-Shadow 记住你，成为有温度的伙伴。">
+          <SettingsSection title="个性化" desc="让 Chronos-Shadow 记住你，成为有温度的伙伴。">
             {/* 头像 + 名字 */}
             <div className="flex items-center space-x-3">
               <div className="text-4xl w-14 h-14 flex items-center justify-center bg-black border border-cs-border rounded-xl shrink-0">
@@ -492,7 +493,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
 
             {/* 成就墙 */}
             <div className="pt-2 border-t border-cs-border/50">
-              <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">🏆 成就</div>
+              <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2"><Trophy size={10} className="inline mr-0.5" aria-hidden="true" />成就</div>
               {achievements.length === 0 ? (
                 <div className="text-[11px] text-zinc-600">使用 Chronos-Shadow 后，成就将在此点亮。</div>
               ) : (

@@ -10,10 +10,27 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Search, Activity,
-  ArrowRight, Layers,
+  ArrowRight, Layers, Server, ShieldCheck, FileSearch, Database, Webhook, Gauge,
+  Rocket, ClipboardList, Eye, Layout, FlaskConical, Boxes, Bug, Repeat, Paintbrush,
+  Palette, Sparkles, Compass, Library, BookOpen, GraduationCap, Scale, Lock,
+  ClipboardCheck, Smartphone, Hammer, Dna,
 } from "lucide-react";
 import { collabGetModelRanking, collabSelectModelUcb, schedulingAnalyzeWithContext } from "@/lib/tauri";
 import { useT } from "@/lib/i18n-context";
+
+// Agent → SVG 图标映射（替代 emoji 数据字段，保证视觉与跨平台渲染一致）
+const AGENT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  "backend-engineer": Server, "security-review": ShieldCheck, "review": FileSearch,
+  "sql-optimizer": Database, "api-designer": Webhook, "perf": Gauge,
+  "devops-engineer": Rocket, "product-manager": ClipboardList, "ui-review": Eye,
+  "frontend-architect": Layout, "test-gen": FlaskConical, "component-builder": Boxes,
+  "debug": Bug, "refactor": Repeat, "css-architect": Paintbrush, "ui-designer": Palette,
+  "ui-ux-pro-max": Sparkles, "explore": Compass, "knowledge-base": Library,
+  "research": BookOpen, "software-advisor": GraduationCap, "compliance-specialist": Scale,
+  "security-engineer": Lock, "qa-engineer": ClipboardCheck, "mobile-ui-designer": Smartphone,
+  "harmonyos-build-master": Hammer, "agent-evolution": Dna,
+};
+
 
 // ─── 路由规则定义 ─────────────────────────────────────────────────
 
@@ -31,7 +48,7 @@ interface AgentModelMapping {
   model: string;
   tier: "pro" | "flash";
   type: string;
-  icon: string;
+  
 }
 
 interface ModelInfo {
@@ -74,33 +91,33 @@ const routeRules: RouteRule[] = [
 ];
 
 const agentMappings: AgentModelMapping[] = [
-  { agent: "backend-engineer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "🏗️" },
-  { agent: "security-review", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "🛡️" },
-  { agent: "review", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "🔍" },
-  { agent: "api-designer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "🔌" },
-  { agent: "devops-engineer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "🚀" },
-  { agent: "product-manager", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "📋" },
-  { agent: "frontend-architect", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "🎨" },
-  { agent: "ui-review", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "🖼️" },
-  { agent: "sql-optimizer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "🗄️" },
-  { agent: "perf", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "⚡" },
-  { agent: "compliance-specialist", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "⚖️" },
-  { agent: "security-engineer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "🔐" },
-  { agent: "qa-engineer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "✅" },
-  { agent: "research", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "📚" },
-  { agent: "agent-evolution", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "🧬" },
-  { agent: "software-advisor", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "💡" },
-  { agent: "mobile-ui-designer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "📱" },
-  { agent: "harmonyos-build-master", model: "deepseek-v4-pro", tier: "pro", type: "深度推理", icon: "🔧" },
-  { agent: "test-gen", model: "deepseek-v4-flash", tier: "flash", type: "代码生成", icon: "🧪" },
-  { agent: "component-builder", model: "deepseek-v4-flash", tier: "flash", type: "代码生成", icon: "🧩" },
-  { agent: "debug", model: "deepseek-v4-flash", tier: "flash", type: "代码生成", icon: "🐛" },
-  { agent: "refactor", model: "deepseek-v4-flash", tier: "flash", type: "代码生成", icon: "♻️" },
-  { agent: "css-architect", model: "deepseek-v4-flash", tier: "flash", type: "代码生成", icon: "🎯" },
-  { agent: "ui-designer", model: "deepseek-v4-flash", tier: "flash", type: "代码生成", icon: "✨" },
-  { agent: "ui-ux-pro-max", model: "deepseek-v4-flash", tier: "flash", type: "代码生成", icon: "🌟" },
-  { agent: "explore", model: "deepseek-v4-flash", tier: "flash", type: "探索", icon: "🔎" },
-  { agent: "knowledge-base", model: "deepseek-v4-flash", tier: "flash", type: "探索", icon: "📝" },
+  { agent: "backend-engineer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "security-review", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "review", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "api-designer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "devops-engineer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "product-manager", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "frontend-architect", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "ui-review", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "sql-optimizer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "perf", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "compliance-specialist", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "security-engineer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "qa-engineer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "research", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "agent-evolution", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "software-advisor", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "mobile-ui-designer", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "harmonyos-build-master", model: "deepseek-v4-pro", tier: "pro", type: "深度推理" },
+  { agent: "test-gen", model: "deepseek-v4-flash", tier: "flash", type: "代码生成" },
+  { agent: "component-builder", model: "deepseek-v4-flash", tier: "flash", type: "代码生成" },
+  { agent: "debug", model: "deepseek-v4-flash", tier: "flash", type: "代码生成" },
+  { agent: "refactor", model: "deepseek-v4-flash", tier: "flash", type: "代码生成" },
+  { agent: "css-architect", model: "deepseek-v4-flash", tier: "flash", type: "代码生成" },
+  { agent: "ui-designer", model: "deepseek-v4-flash", tier: "flash", type: "代码生成" },
+  { agent: "ui-ux-pro-max", model: "deepseek-v4-flash", tier: "flash", type: "代码生成" },
+  { agent: "explore", model: "deepseek-v4-flash", tier: "flash", type: "探索" },
+  { agent: "knowledge-base", model: "deepseek-v4-flash", tier: "flash", type: "探索" },
 ];
 
 // ─── Panel Component ───────────────────────────────────────────────
@@ -363,7 +380,9 @@ export default function AutoRoutingPanel() {
                   className="grid grid-cols-[1fr_auto_1fr] gap-1 items-center px-1 py-0.5 hover:bg-cs-accent/5 rounded transition-colors"
                 >
                   <div className="flex items-center space-x-1.5">
-                    <span>{m.icon}</span>
+                    <span className="text-cs-muted shrink-0">
+                      {(() => { const I = AGENT_ICONS[m.agent] ?? Sparkles; return <I className="w-3 h-3" aria-hidden="true" />; })()}
+                    </span>
                     <span className="text-cs-text truncate">{m.agent}</span>
                   </div>
                   <ArrowRight className="w-3 h-3 text-cs-muted" />

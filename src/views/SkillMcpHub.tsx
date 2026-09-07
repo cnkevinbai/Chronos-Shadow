@@ -153,7 +153,7 @@ export default function SkillMcpHub() {
               : "text-cs-muted hover:text-cs-dim"
           }`}
         >
-          🌌 OmniPPT
+          OmniPPT
         </button>
       </div>
 
@@ -208,7 +208,7 @@ export default function SkillMcpHub() {
           <div className="h-full flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-cs-border bg-cs-header shrink-0">
-              <span className="text-[10px] font-bold text-purple-300">🌌 OmniPPT-Matrix 演进中心</span>
+              <span className="text-[10px] font-bold text-purple-300">OmniPPT-Matrix 演进中心</span>
               <span className="text-[8px] text-purple-400 animate-pulse">EXECUTING</span>
             </div>
             {/* Theme selector */}
@@ -268,7 +268,7 @@ export default function SkillMcpHub() {
             </div>
             {/* Bottom: ONNX status + export */}
             <div className="flex items-center justify-between px-3 py-1.5 border-t border-cs-border bg-cs-surface shrink-0">
-              <span className="text-[8px] text-emerald-400">🛡️ ONNX 走查: [{onnxStatus}]</span>
+              <span className="text-[8px] text-emerald-400">ONNX 走查: [{onnxStatus}]</span>
               <div className="flex items-center space-x-1">
                 {(["PDF", "PPTX", "HTML"] as const).map(fmt => (
                   <button key={fmt} onClick={async () => {
