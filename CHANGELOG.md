@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Changed — 工程卫生与可维护性
+- **千行模块拆分**：`distillation_engine.rs`（1656 行）拆为 `distillation_engine/{mod,types,engine,helpers,entities}.rs`；`web_intelligence.rs`（1650 行）拆为 `web_intelligence/{mod,types,core,markdown,commands}.rs`；外部 API 路径不变，行为零改动
+- **oxlint 16 条警告清零**：修复 4 处未使用变量；移除 `if (true)` 死代码分支（Mock 演示模式不可达代码）；React hooks 依赖以稳定 ref 模式修复（含 `persistCurrentSession` 补 `currentProject` 依赖的真实 stale-closure 缺陷）；`ToastContext`/`useToast`/`buildPaletteCommands` 拆分独立文件满足 fast-refresh 单组件导出约束
+
+### Added — 测试与 CI
+- 前端首个 views 层测试：`SettingsPanel.test.tsx` 5 用例（Tab 渲染 / 设置加载 / key 状态回调 / 保存链路 / 凭据入库回调），全仓 34/34 通过
+- CI 新增 `v*` tag 触发发布流水线；补打 `v0.3.0` / `v0.4.0` / `v0.5.0` 标签
+
 ## [0.5.0] — 2026-08-17
 
 ### Changed — 七核心引擎 v2 升级（科学化/系统化/创新化）
