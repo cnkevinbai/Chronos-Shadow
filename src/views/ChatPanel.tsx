@@ -6,6 +6,7 @@
 // 若未配置 API Key 则降级为本地 mock 演示
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { MessageSquare, BarChart3, Coins, Trash2, Upload, Save, Search, Package, Lightbulb, RefreshCw, Pencil } from "lucide-react";
 import { useT } from "@/lib/i18n-context";
 import { useToast } from "@/lib/use-toast";
 import { getModelDisplay } from "@/lib/models";
@@ -1173,7 +1174,7 @@ export default function ChatPanel({
             <input
               value={sessionFilter}
               onChange={(e) => setSessionFilter(e.target.value)}
-              placeholder="🔍 搜索会话…"
+              placeholder="搜索会话…"
               className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-300 placeholder-zinc-600 outline-none focus:border-zinc-500 transition-colors"
             />
           </div>
@@ -1308,17 +1309,17 @@ export default function ChatPanel({
         {manifests.length > 0 && (
           <div className="p-2 border-t border-cs-border text-[9px] text-zinc-600 space-y-0.5 shrink-0">
             <div className="flex justify-between">
-              <span>💬 会话</span>
+              <span className="flex items-center gap-1"><MessageSquare size={9} aria-hidden="true" />会话</span>
               <span className="text-zinc-500">{manifests.length}</span>
             </div>
             <div className="flex justify-between">
-              <span>📊 总消息</span>
+              <span className="flex items-center gap-1"><BarChart3 size={9} aria-hidden="true" />总消息</span>
               <span className="text-zinc-500">
                 {manifests.reduce((a, m) => a + m.total_messages_count, 0)}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>💰 累计节省</span>
+              <span className="flex items-center gap-1"><Coins size={9} aria-hidden="true" />累计节省</span>
               <span className="text-emerald-500 font-medium">
                 ¥
                 {manifests
@@ -1328,9 +1329,10 @@ export default function ChatPanel({
             </div>
             <button
               onClick={handleClearAll}
-              className="w-full mt-1 text-[8px] text-zinc-700 hover:text-red-400 transition-colors text-center"
+              className="w-full mt-1 flex items-center justify-center gap-1 text-[8px] text-zinc-700 hover:text-red-400 transition-colors text-center"
             >
-              🗑️ 清空全部会话
+              <Trash2 size={9} aria-hidden="true" />
+              清空全部会话
             </button>
           </div>
         )}
@@ -1429,14 +1431,16 @@ export default function ChatPanel({
               className="text-[10px] bg-zinc-800/50 hover:bg-zinc-700 border border-zinc-700/50 text-zinc-400 hover:text-zinc-200 px-2 py-0.5 rounded transition-all"
               title="导出为 JSON 文件"
             >
-              📤 导出
+              <Upload size={10} className="inline mr-0.5 -mt-0.5" aria-hidden="true" />
+              导出
             </button>
             <button
               onClick={handlePersistSession}
               disabled={isSaving}
               className="text-[10px] bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 px-2 py-0.5 rounded font-bold transition-all disabled:opacity-40"
             >
-              {isSaving ? "正在执行物理分块..." : "💾 固化当前会话分块"}
+              <Save size={10} className="inline mr-0.5 -mt-0.5" aria-hidden="true" />
+              {isSaving ? "正在执行物理分块..." : "固化当前会话分块"}
             </button>
           </div>
         </div>
@@ -1444,7 +1448,7 @@ export default function ChatPanel({
         {/* 消息搜索栏 (Ctrl+F) */}
         {searchOpen && (
           <div className="flex items-center space-x-2 px-4 py-1.5 border-b border-cs-border bg-cs-header shrink-0 animate-fadeIn">
-            <span className="text-[10px] text-zinc-500">🔍</span>
+            <span className="text-zinc-500" aria-hidden="true"><Search size={10} /></span>
             <input
               data-search-input
               value={searchQuery}
@@ -1592,7 +1596,8 @@ export default function ChatPanel({
                 {msg.thinking && (
                   <details className="mb-2.5 border-l-2 border-zinc-700 pl-2 text-zinc-500 bg-black/30 p-1.5 rounded transition-all group">
                     <summary className="cursor-pointer text-[10px] text-zinc-400 select-none outline-none font-bold hover:text-zinc-300">
-                      💡 {t.view_thinking}
+                      <Lightbulb size={10} className="inline mr-0.5 -mt-0.5" aria-hidden="true" />
+                      {t.view_thinking}
                     </summary>
                     <p className="mt-1.5 text-[11px] font-light leading-normal text-zinc-500 italic whitespace-pre-line animate-fadeIn">
                       {msg.thinking}
@@ -1605,7 +1610,8 @@ export default function ChatPanel({
                     onClick={handleRetry}
                     className="mt-2 flex items-center space-x-1 text-[9px] bg-amber-800/30 hover:bg-amber-700/40 border border-amber-700/40 text-amber-300 px-2 py-0.5 rounded transition-colors"
                   >
-                    🔄 重试 ({2 - retryCount} 次)
+                    <RefreshCw size={9} className="inline mr-0.5 -mt-0.5" aria-hidden="true" />
+                    重试 ({2 - retryCount} 次)
                   </button>
                 )}
               </div>
@@ -1850,7 +1856,7 @@ export default function ChatPanel({
                 className="text-zinc-500 hover:text-emerald-400 text-sm mr-2 transition-colors"
                 title="一键宏指令"
               >
-                💡
+                <Lightbulb size={12} aria-hidden="true" />
               </button>
               <span className="text-zinc-600 text-sm font-bold mr-2 select-none">
                 $
@@ -1895,8 +1901,8 @@ export default function ChatPanel({
           {/* 成品文件面板 */}
           {artifacts.length > 0 && (
             <div className="border-t border-cs-border bg-cs-surface px-3 py-1.5 shrink-0 max-h-32 overflow-y-auto">
-              <div className="flex items-center justify-between text-[8px] text-zinc-500 mb-1">
-                <span className="font-bold text-zinc-400">📦 本会话成品 ({artifacts.length})</span>
+            <div className="flex items-center justify-between text-[8px] text-zinc-500 mb-1">
+              <span className="font-bold text-zinc-400 flex items-center gap-1"><Package size={10} aria-hidden="true" />本会话成品 ({artifacts.length})</span>
                 <button onClick={() => setArtifacts([])} className="text-zinc-600 hover:text-zinc-400">清空</button>
               </div>
               <div className="space-y-0.5">
@@ -1913,7 +1919,7 @@ export default function ChatPanel({
                         onClick={() => { setEditingFile(a.path); setFileContent(""); }}
                         className="text-[7px] text-cyan-400 hover:text-cyan-300 px-1 rounded border border-cyan-800/30 hover:border-cyan-500/40"
                         title="编辑文件"
-                      >✏️</button>
+                      ><Pencil size={9} aria-hidden="true" /></button>
                       <span className="text-zinc-600">v{a.versions}</span>
                     </div>
                   </div>
@@ -1927,7 +1933,7 @@ export default function ChatPanel({
             <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={e => { if(e.target===e.currentTarget) setEditingFile(null); }}>
               <div className="w-[600px] bg-cs-header border border-cs-border rounded-xl shadow-2xl overflow-hidden animate-fadeIn">
                 <div className="flex items-center justify-between px-4 py-2 border-b border-cs-border">
-                  <span className="text-[11px] font-bold text-zinc-300">✏️ 编辑: {editingFile.split(/[\\/]/).pop()}</span>
+                  <span className="text-[11px] font-bold text-zinc-300 flex items-center gap-1"><Pencil size={11} aria-hidden="true" />编辑: {editingFile.split(/[\\/]/).pop()}</span>
                   <button onClick={() => setEditingFile(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
                 </div>
                 <textarea
