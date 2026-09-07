@@ -17,6 +17,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 前端首个 views 层测试：`SettingsPanel.test.tsx` 5 用例（Tab 渲染 / 设置加载 / key 状态回调 / 保存链路 / 凭据入库回调），全仓 34/34 通过
 - CI 新增 `v*` tag 触发发布流水线；补打 `v0.3.0` / `v0.4.0` / `v0.5.0` 标签
 
+### Refactor — ChatPanel 组件拆分（第一批）
+- 成品文件面板 + 文件编辑模态拆分为 `src/views/chat/ArtifactPanel.tsx`（独立组件 + 自含 extColor 辅助函数 + 显式 props 契约），ChatPanel 2029 → 1981 行；行为零改动
+
 ### Changed — 易用性与可访问性
 - **ApprovalPanel / ProjectExplorer 全面 i18n 化**：新增 62 个 `ap_*`/`pe_*` 字典键（zh/en），Tab/表单/按钮/空态/健康面板/Worktree 状态全部走字典；JSX 硬编码中文 135 → ~75（本三批累计 162 → ~75）
 - **RemoteHub 全面 i18n 化**：37 个 `rh_*` 字典键（zh/en），面板全部 placeholder/按钮/状态/空态引导文案不再硬编码中文；修复回滚输入框 `querySelector` 对中文 placeholder 的耦合（改用 `data-rewind-input` 属性锚点）；本批后 JSX 硬编码中文 162 → ~135

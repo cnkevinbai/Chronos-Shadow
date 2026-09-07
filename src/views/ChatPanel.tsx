@@ -6,8 +6,9 @@
 // 若未配置 API Key 则降级为本地 mock 演示
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { MessageSquare, BarChart3, Coins, Trash2, Upload, Save, Search, Package, Lightbulb, RefreshCw, Pencil, Link2, Zap, FolderOpen, FileText, Image as LucideImage, Copy } from "lucide-react";
+import { MessageSquare, BarChart3, Coins, Trash2, Upload, Save, Search, Lightbulb, RefreshCw, Link2, Zap, FolderOpen, FileText, Image as LucideImage, Copy } from "lucide-react";
 import { useT } from "@/lib/i18n-context";
+import ArtifactPanel from "@/views/chat/ArtifactPanel";
 import { useToast } from "@/lib/use-toast";
 import { getModelDisplay } from "@/lib/models";
 import { APP_VERSION } from "@/lib/version";
@@ -27,7 +28,6 @@ import {
   extractAndExecuteActions,
   cvfsListProjectFiles,
   cvfsGetProjects,
-  cvfsReadFile,
   cancelChatStream,
 } from "@/lib/tauri";
 
@@ -92,19 +92,6 @@ function modelDisplayName(model: string): string {
 }
 
 // 动态文件扩展名颜色 — 支持任意类型, 哈希映射保证稳定
-function extColor(ext: string): string {
-  const palette = [
-    'text-cyan-400', 'text-emerald-400', 'text-amber-400', 'text-purple-400',
-    'text-rose-400', 'text-blue-400', 'text-lime-400', 'text-orange-400',
-    'text-teal-400', 'text-pink-400', 'text-indigo-400', 'text-yellow-400',
-  ];
-  let hash = 0;
-  for (let i = 0; i < ext.length; i++) {
-    hash = (hash * 31 + ext.charCodeAt(i)) >>> 0;
-  }
-  return palette[hash % palette.length];
-}
-
 function deriveTitle(messages: Message[]): string {
   const firstUser = messages.find((m) => m.sender === "User");
   if (firstUser) {
@@ -1898,61 +1885,26 @@ export default function ChatPanel({
             )}
           </form>
 
-          {/* 成品文件面板 */}
-          {artifacts.length > 0 && (
-            <div className="border-t border-cs-border bg-cs-surface px-3 py-1.5 shrink-0 max-h-32 overflow-y-auto">
-            <div className="flex items-center justify-between text-[8px] text-zinc-500 mb-1">
-              <span className="font-bold text-zinc-400 flex items-center gap-1"><Package size={10} aria-hidden="true" />本会话成品 ({artifacts.length})</span>
-                <button onClick={() => setArtifacts([])} className="text-zinc-600 hover:text-zinc-400">清空</button>
-              </div>
-              <div className="space-y-0.5">
-                {artifacts.map((a, i) => (
-                  <div key={i} className="flex items-center justify-between text-[8px] bg-cs-header border border-cs-border rounded px-2 py-1">
-                    <span className="text-zinc-300 truncate max-w-[200px] font-mono" title={a.path}>
-                      {a.path.split(/[\\/]/).pop()}
-                    </span>
-                    <span className={`px-1 rounded text-[7px] ${extColor(a.type)}`}>
-                      .{a.type}
-                    </span>
-                    <div className="flex items-center space-x-1">
-                      <button
-                        onClick={() => { setEditingFile(a.path); setFileContent(""); }}
-                        className="text-[7px] text-cyan-400 hover:text-cyan-300 px-1 rounded border border-cyan-800/30 hover:border-cyan-500/40"
-                        title="编辑文件"
-                      ><Pencil size={9} aria-hidden="true" /></button>
-                      <span className="text-zinc-600">v{a.versions}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* 成品文件面板 + 编辑模态（拆分至 chat/ArtifactPanel） */}
+          <ArtifactPanel
+            artifacts={artifacts}
+            onClear={() => setArtifacts([])}
+            onEditRequest={(path) => { setEditingFile(path); setFileContent(""); }}
+            editingFile={editingFile}
+            setEditingFile={setEditingFile}
+            fileContent={fileContent}
+            setFileContent={setFileContent}
+            onEditWithAI={(path, content) => {
+              setInput(`请修改以下文件内容，并返回完整修改后的文件:
 
-          {/* 文件编辑模态框 */}
-          {editingFile && (
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={e => { if(e.target===e.currentTarget) setEditingFile(null); }}>
-              <div className="w-[600px] bg-cs-header border border-cs-border rounded-xl shadow-2xl overflow-hidden animate-fadeIn">
-                <div className="flex items-center justify-between px-4 py-2 border-b border-cs-border">
-                  <span className="text-[11px] font-bold text-zinc-300 flex items-center gap-1"><Pencil size={11} aria-hidden="true" />编辑: {editingFile.split(/[\\/]/).pop()}</span>
-                  <button onClick={() => setEditingFile(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
-                </div>
-                <textarea
-                  value={fileContent}
-                  onChange={e => setFileContent(e.target.value)}
-                  className="w-full h-64 bg-cs-bg text-zinc-200 text-[11px] font-mono p-3 outline-none resize-none"
-                  placeholder="点击下方「加载文件」读取当前内容…"
-                />
-                <div className="flex items-center justify-end space-x-2 px-4 py-2 border-t border-cs-border">
-                  <button onClick={() => { cvfsReadFile(currentProject, editingFile).then(content => setFileContent(content)).catch(() => {}); }}
-                    className="text-[9px] text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded border border-cs-border">📂 加载文件</button>
-                  <button onClick={() => setEditingFile(null)}
-                    className="text-[9px] text-zinc-500 hover:text-zinc-300 px-2 py-1">取消</button>
-                  <button onClick={() => { if (fileContent.trim()) { setInput(`请修改以下文件内容，并返回完整修改后的文件:\n\n文件: ${editingFile}\n\n${fileContent}`); setEditingFile(null); inputRef.current?.focus(); } }}
-                    className="text-[9px] bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 px-2 py-1 rounded font-bold">💬 让AI修改</button>
-                </div>
-              </div>
-            </div>
-          )}
+文件: ${path}
+
+${content}`);
+              setEditingFile(null);
+              inputRef.current?.focus();
+            }}
+            currentProject={currentProject}
+          />
 
           {/* 状态栏：会话统计 + 审批指示 */}
           <div className="flex items-center justify-between px-4 py-1 border-t border-[#1a1a1e] bg-cs-surface text-[9px] text-zinc-600 select-none">
