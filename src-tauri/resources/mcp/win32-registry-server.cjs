@@ -6,7 +6,7 @@
 'use strict';
 
 const readline = require('readline');
-const { execSync, execFileSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 const SERVER_INFO = { name: 'mcp-server-win32-registry', version: '1.0.0' };
 

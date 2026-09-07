@@ -75,7 +75,7 @@ export default function FooterBar({
         gain.gain.setValueAtTime(0.08, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
         osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15);
-      } catch (_) { /* Audio not available */ }
+      } catch { /* Audio not available */ }
       const t = setTimeout(() => setCoinBounce(false), 600);
       prevSaved.current = savedCost;
       return () => clearTimeout(t);

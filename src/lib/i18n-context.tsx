@@ -41,10 +41,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// oxlint-disable-next-line react/only-export-components -- Provider + hook 同文件的惯例模式，HMR 粒度可接受
 export function useT(): LocaleDict {
   return useContext(I18nContext).t;
 }
 
+// oxlint-disable-next-line react/only-export-components -- 同上
 export function useLang() {
   const ctx = useContext(I18nContext);
   return { lang: ctx.lang, setLang: ctx.setLang };

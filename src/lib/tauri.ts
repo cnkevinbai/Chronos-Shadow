@@ -1762,5 +1762,5 @@ export async function pptxGenerate(req: {
 
 export async function pptxAnalyzeReference(url: string): Promise<{ url: string; title?: string; primary_color?: string; recommended_template: string; content_summary: string; key_points: string[] }> {
   try { return await invoke("pptx_analyze_reference", { url }); }
-  catch (e) { return { url, content_summary: "", key_points: [], recommended_template: "Corporate" }; }
+  catch { return { url, content_summary: "", key_points: [], recommended_template: "Corporate" }; }
 }

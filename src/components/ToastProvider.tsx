@@ -7,23 +7,16 @@
 // - warning: 红线拦截 / 手动覆盖
 // - error:   熔断 / 编译失败
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback, type ReactNode } from "react";
 import { CoinsIcon, ShieldIcon, AlertOctagonIcon, TerminalIcon } from "./SvgIcons";
+import { ToastContext, type ToastType } from "@/lib/toast-context";
 
-export type ToastType = "info" | "success" | "warning" | "error";
-
-interface Toast {
+export interface Toast {
   id: string;
   type: ToastType;
   title: string;
   message: string;
 }
-
-interface ToastContextType {
-  showToast: (type: ToastType, title: string, message: string) => void;
-}
-
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -85,8 +78,3 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useToast(): ToastContextType {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error("useToast must be used within <ToastProvider>");
-  return ctx;
-}

@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLang, useT } from "@/lib/i18n-context";
 import { APP_VERSION } from "@/lib/version";
-import { useToast } from "@/components/ToastProvider";
+import { useToast } from "@/lib/use-toast";
 import { loadSettings, saveSettings, checkLanHealth, getUserProfile, updateUserProfile, getAchievements } from "@/lib/tauri";
 import { ChronosLogo, KeyIcon, GlobeIcon, ShieldIcon, CoinsIcon } from "@/components/SvgIcons";
 import { MODELS } from "@/lib/models";
@@ -60,6 +60,10 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
   const t = useT();
   const toast = useToast();
 
+  // 保持最新引用：避免把 onKeyChange 加入依赖导致父组件每次渲染都重新 loadSettings
+  const onKeyChangeRef = useRef(onKeyChange);
+  onKeyChangeRef.current = onKeyChange;
+
   // Cleanup saving timer on unmount
   useEffect(() => {
     return () => { if (savingTimer.current) clearTimeout(savingTimer.current); };
@@ -79,9 +83,9 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
       setBlockGpl(s.block_gpl);
       setPrivacyBlur(s.privacy_blur);
       // Restore key presence flags from vault
-      if (s.has_key_deepseek) onKeyChange("deepseek", true);
-      if (s.has_key_kimi) onKeyChange("kimi", true);
-      if (s.has_key_glm) onKeyChange("glm", true);
+      if (s.has_key_deepseek) onKeyChangeRef.current("deepseek", true);
+      if (s.has_key_kimi) onKeyChangeRef.current("kimi", true);
+      if (s.has_key_glm) onKeyChangeRef.current("glm", true);
     }).catch(() => {});
   }, []);
 

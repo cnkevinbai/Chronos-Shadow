@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useT } from "@/lib/i18n-context";
-import { useToast } from "@/components/ToastProvider";
+import { useToast } from "@/lib/use-toast";
 import { getModelDisplay } from "@/lib/models";
 import { APP_VERSION } from "@/lib/version";
 import QuickMacros from "@/components/QuickMacros";
@@ -280,25 +280,25 @@ export default function ChatPanel({
       // Ctrl+N → 新建会话
       if ((e.ctrlKey || e.metaKey) && e.key === "n") {
         e.preventDefault();
-        handleNewSession();
+        shortcutsRef.current.handleNewSession();
         return;
       }
       // Ctrl+S → 固化保存 (uses ref to avoid stale closure)
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "s") {
         e.preventDefault();
-        persistCurrentSession(messagesRef.current);
+        shortcutsRef.current.persistCurrentSession(messagesRef.current);
         setIsSaving(true);
         setTimeout(() => {
           setIsSaving(false);
-          toast.showToast("success", "CHUNK COMMIT SUCCESS", "💾 时空分块与缓存特征点已安全写入物理磁盘档案库。");
-          refreshManifests();
+          shortcutsRef.current.toast.showToast("success", "CHUNK COMMIT SUCCESS", "💾 时空分块与缓存特征点已安全写入物理磁盘档案库。");
+          shortcutsRef.current.refreshManifests();
         }, 300);
         return;
       }
       // Ctrl+Shift+E → 导出
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "e") {
         e.preventDefault();
-        handleExportSession();
+        shortcutsRef.current.handleExportSession();
         return;
       }
       // Ctrl+F / Cmd+F → 消息搜索
@@ -572,7 +572,7 @@ export default function ChatPanel({
       };
       saveChatSessionChunk(payload).catch(() => {});
     },
-    [activeSessionId],
+    [activeSessionId, currentProject],
   );
 
   // ── 切换历史航道：从物理磁盘反序列化分块消息体 ──────────────
@@ -741,248 +741,230 @@ export default function ChatPanel({
 
     // ── 真实 API 调用 — key resolved server-side from vault ──
     // Always attempt API call; Rust backend resolves key from Windows Credential Manager
-    if (true) {
+    try {
+      const chatMessages = messages
+        .filter(
+          (m) =>
+            m.sender === "User" ||
+            m.sender === "Coder" ||
+            m.sender === "PM",
+        )
+        .map((m) => ({
+          role: m.sender === "User" ? "user" : "assistant",
+          content: m.content,
+        }));
+      chatMessages.push({ role: "user", content: userText });
+
+      const endpoint = await getModelEndpoint(selectedModel);
+
+      setFlowStage("thinking");
+      // ── 流式调用：先插入占位消息，逐 chunk 更新 ──────────
+      const streamMsgId = `stream-${Date.now()}`;
+      const streamPlaceholder: Message = {
+        id: streamMsgId,
+        sender: "Coder",
+        model: `${modelDisplayName(selectedModel)} (Stream)`,
+        content: "",
+        costTokens: 0,
+        isCached: false,
+        timestamp: new Date().toLocaleTimeString(),
+      };
+      const initialMsgs = [...updatedAfterUser, streamPlaceholder];
+      setMessages(initialMsgs);
+      let streamedContent = "";
+
+      // 监听流式 chunk 事件
+      const unlisten = await onChatStreamChunk((chunk) => {
+        if (flowStage !== "streaming") setFlowStage("streaming");
+        streamedContent += chunk;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === streamMsgId
+              ? { ...m, content: streamedContent }
+              : m,
+          ),
+        );
+      });
+
+      // 发起流式请求 — finally 确保监听器一定被清理
+      let response;
       try {
-        const chatMessages = messages
-          .filter(
-            (m) =>
-              m.sender === "User" ||
-              m.sender === "Coder" ||
-              m.sender === "PM",
-          )
-          .map((m) => ({
-            role: m.sender === "User" ? "user" : "assistant",
-            content: m.content,
-          }));
-        chatMessages.push({ role: "user", content: userText });
+        response = await chatApiStream(
+          endpoint,
+          apiKey,
+          selectedModel,
+          chatMessages,
+          4096,
+        );
+      } finally {
+        unlisten();
+      }
 
-        const endpoint = await getModelEndpoint(selectedModel);
-
-        setFlowStage("thinking");
-        // ── 流式调用：先插入占位消息，逐 chunk 更新 ──────────
-        const streamMsgId = `stream-${Date.now()}`;
-        const streamPlaceholder: Message = {
-          id: streamMsgId,
-          sender: "Coder",
-          model: `${modelDisplayName(selectedModel)} (Stream)`,
-          content: "",
-          costTokens: 0,
-          isCached: false,
-          timestamp: new Date().toLocaleTimeString(),
-        };
-        const initialMsgs = [...updatedAfterUser, streamPlaceholder];
-        setMessages(initialMsgs);
-        let streamedContent = "";
-
-        // 监听流式 chunk 事件
-        const unlisten = await onChatStreamChunk((chunk) => {
-          if (flowStage !== "streaming") setFlowStage("streaming");
-          streamedContent += chunk;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === streamMsgId
-                ? { ...m, content: streamedContent }
-                : m,
-            ),
-          );
-        });
-
-        // 发起流式请求 — finally 确保监听器一定被清理
-        let response;
-        try {
-          response = await chatApiStream(
-            endpoint,
-            apiKey,
-            selectedModel,
-            chatMessages,
-            4096,
-          );
-        } finally {
-          unlisten();
-        }
-
-        if (response.success) {
-          // Replace stream placeholder with final message
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === streamMsgId
-                ? {
-                    ...m,
-                    content: response.content || streamedContent,
-                    costTokens: response.tokens_used,
-                    isCached: response.cached,
-                    model: `${modelDisplayName(selectedModel)} (API)`,
-                  }
-                : m,
-            ),
-          );
-
-          // ── 行动调度引擎：检测 LLM 响应中的动作指令 ──
-          const finalContent = response.content || streamedContent;
-          let allMessages = [...updatedAfterUser, {
-            ...streamPlaceholder,
-            content: finalContent,
-            costTokens: response.tokens_used,
-            isCached: response.cached,
-            model: `${modelDisplayName(selectedModel)} (API)`,
-          }];
-
-          // 扫描并执行动作 + 自动保存代码块 (始终执行, 不再依赖 "action" 关键词)
-          {
-            try {
-              const execResult = await extractAndExecuteActions(finalContent);
-              if (execResult.has_actions) {
-                // Build action summary message
-                const filesCreated = (execResult as any).files_created as string[] | undefined;
-                const filesSummary = (execResult as any).files_summary as string | undefined;
-                const actionResults = execResult.action_results || [];
-                const actionCount = actionResults.filter((a: any) => a.success).length;
-                const failCount = actionResults.filter((a: any) => !a.success).length;
-
-                let summaryText = '';
-                if (filesCreated && filesCreated.length > 0) {
-                  // 登记成品文件
-                  const newArtifacts = filesCreated.map(f => ({
-                    path: f, type: f.split('.').pop() || 'file',
-                    createdAt: new Date().toLocaleTimeString(), versions: 1,
-                  }));
-                  setArtifacts(prev => [...prev, ...newArtifacts]);
-                  summaryText = `📁 **文件已生成** (${filesCreated.length} files)\n\n${filesSummary || filesCreated.map((f: string) => `✅ ${f}`).join('\n')}`;
-                } else if (execResult.combined_context) {
-                  // 显示动作执行结果 (搜索/抓取/环境检测等)
-                  summaryText = execResult.combined_context.slice(0, 2000);
-                } else if (failCount > 0) {
-                  // 动作失败: 显示错误信息
-                  const errors = actionResults.filter((a: any) => !a.success)
-                    .map((a: any, i: number) => `❌ ${i + 1}. ${(a.error || '未知错误')}`)
-                    .join('\n');
-                  summaryText = `⚠️ **动作执行失败** (${failCount} 个)\n\n${errors}`;
-                } else {
-                  summaryText = `⚡ **已执行 ${actionCount} 个操作**`;
+      if (response.success) {
+        // Replace stream placeholder with final message
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === streamMsgId
+              ? {
+                  ...m,
+                  content: response.content || streamedContent,
+                  costTokens: response.tokens_used,
+                  isCached: response.cached,
+                  model: `${modelDisplayName(selectedModel)} (API)`,
                 }
+              : m,
+          ),
+        );
 
-                const sysMsg: Message = {
-                  id: `sys-${Date.now()}`,
-                  sender: "System",
-                  model: "Action Engine",
-                  content: summaryText,
-                  timestamp: new Date().toLocaleTimeString(),
-                };
-                allMessages = [...allMessages, sysMsg];
+        // ── 行动调度引擎：检测 LLM 响应中的动作指令 ──
+        const finalContent = response.content || streamedContent;
+        let allMessages = [...updatedAfterUser, {
+          ...streamPlaceholder,
+          content: finalContent,
+          costTokens: response.tokens_used,
+          isCached: response.cached,
+          model: `${modelDisplayName(selectedModel)} (API)`,
+        }];
 
-                // Auto-continue: feed results back to LLM for a synthesized answer
-                setMessages(allMessages);
-                setIsThinking(true);
-                setFlowStage("researching");
+        // 扫描并执行动作 + 自动保存代码块 (始终执行, 不再依赖 "action" 关键词)
+        {
+          try {
+            const execResult = await extractAndExecuteActions(finalContent);
+            if (execResult.has_actions) {
+              // Build action summary message
+              const filesCreated = (execResult as any).files_created as string[] | undefined;
+              const filesSummary = (execResult as any).files_summary as string | undefined;
+              const actionResults = execResult.action_results || [];
+              const actionCount = actionResults.filter((a: any) => a.success).length;
+              const failCount = actionResults.filter((a: any) => !a.success).length;
 
-                const followUpMessages = [
-                  ...chatMessages,
-                  { role: "assistant", content: finalContent },
-                  { role: "user", content: `Based on the following research results, please synthesize a comprehensive answer. Cite sources.\n\n${execResult.combined_context}` },
-                ];
+              let summaryText = '';
+              if (filesCreated && filesCreated.length > 0) {
+                // 登记成品文件
+                const newArtifacts = filesCreated.map(f => ({
+                  path: f, type: f.split('.').pop() || 'file',
+                  createdAt: new Date().toLocaleTimeString(), versions: 1,
+                }));
+                setArtifacts(prev => [...prev, ...newArtifacts]);
+                summaryText = `📁 **文件已生成** (${filesCreated.length} files)\n\n${filesSummary || filesCreated.map((f: string) => `✅ ${f}`).join('\n')}`;
+              } else if (execResult.combined_context) {
+                // 显示动作执行结果 (搜索/抓取/环境检测等)
+                summaryText = execResult.combined_context.slice(0, 2000);
+              } else if (failCount > 0) {
+                // 动作失败: 显示错误信息
+                const errors = actionResults.filter((a: any) => !a.success)
+                  .map((a: any, i: number) => `❌ ${i + 1}. ${(a.error || '未知错误')}`)
+                  .join('\n');
+                summaryText = `⚠️ **动作执行失败** (${failCount} 个)\n\n${errors}`;
+              } else {
+                summaryText = `⚡ **已执行 ${actionCount} 个操作**`;
+              }
 
-                // Stream listener for follow-up
-                let followUpContent = "";
-                const fuUnlisten = await onChatStreamChunk((chunk) => {
-                  followUpContent += chunk;
-                  setMessages((prev) => {
-                    const last = prev[prev.length - 1];
-                    if (last?.id.startsWith("followup-")) {
-                      setFlowStage("streaming");
-                      return prev.map((m) => m.id === last.id ? { ...m, content: followUpContent } : m);
-                    }
-                    return prev;
-                  });
+              const sysMsg: Message = {
+                id: `sys-${Date.now()}`,
+                sender: "System",
+                model: "Action Engine",
+                content: summaryText,
+                timestamp: new Date().toLocaleTimeString(),
+              };
+              allMessages = [...allMessages, sysMsg];
+
+              // Auto-continue: feed results back to LLM for a synthesized answer
+              setMessages(allMessages);
+              setIsThinking(true);
+              setFlowStage("researching");
+
+              const followUpMessages = [
+                ...chatMessages,
+                { role: "assistant", content: finalContent },
+                { role: "user", content: `Based on the following research results, please synthesize a comprehensive answer. Cite sources.\n\n${execResult.combined_context}` },
+              ];
+
+              // Stream listener for follow-up
+              let followUpContent = "";
+              const fuUnlisten = await onChatStreamChunk((chunk) => {
+                followUpContent += chunk;
+                setMessages((prev) => {
+                  const last = prev[prev.length - 1];
+                  if (last?.id.startsWith("followup-")) {
+                    setFlowStage("streaming");
+                    return prev.map((m) => m.id === last.id ? { ...m, content: followUpContent } : m);
+                  }
+                  return prev;
                 });
+              });
 
-                const followUpPlaceholderId = `followup-${Date.now()}`;
-                setMessages((prev) => [...prev, {
+              const followUpPlaceholderId = `followup-${Date.now()}`;
+              setMessages((prev) => [...prev, {
+                id: followUpPlaceholderId, sender: "Coder" as const,
+                model: `${modelDisplayName(selectedModel)} (Research)`,
+                content: "", costTokens: 0, isCached: false,
+                timestamp: new Date().toLocaleTimeString(),
+              }]);
+
+              let followUp;
+              try { followUp = await chatApiStream(endpoint, apiKey, selectedModel, followUpMessages, 4096); }
+              finally { fuUnlisten(); }
+
+              if (followUp.success) {
+                const fuFinal = followUp.content || followUpContent;
+                // 🔬 follow-up 结果也可能包含新动作 (如 web_search) — 递归执行
+                let fuProcessed = fuFinal;
+                try {
+                  const fuExec = await extractAndExecuteActions(fuFinal);
+                  if (fuExec.has_actions && fuExec.combined_context) {
+                    fuProcessed = fuExec.combined_context.slice(0, 2000);
+                    const fuFiles = (fuExec as any).files_created as string[] | undefined;
+                    if (fuFiles && fuFiles.length > 0) {
+                      const newArtifacts = fuFiles.map(f => ({
+                        path: f, type: f.split('.').pop() || 'file',
+                        createdAt: new Date().toLocaleTimeString(), versions: 1,
+                      }));
+                      setArtifacts(prev => [...prev, ...newArtifacts]);
+                    }
+                  }
+                } catch { /* follow-up action failed, keep raw */ }
+                setMessages((prev) => prev.map((m) =>
+                  m.id === followUpPlaceholderId ? { ...m, content: fuProcessed, costTokens: followUp.tokens_used, isCached: followUp.cached } : m
+                ));
+                allMessages.push({
                   id: followUpPlaceholderId, sender: "Coder" as const,
                   model: `${modelDisplayName(selectedModel)} (Research)`,
-                  content: "", costTokens: 0, isCached: false,
+                  content: fuProcessed, costTokens: followUp.tokens_used, isCached: followUp.cached,
                   timestamp: new Date().toLocaleTimeString(),
-                }]);
-
-                let followUp;
-                try { followUp = await chatApiStream(endpoint, apiKey, selectedModel, followUpMessages, 4096); }
-                finally { fuUnlisten(); }
-
-                if (followUp.success) {
-                  const fuFinal = followUp.content || followUpContent;
-                  // 🔬 follow-up 结果也可能包含新动作 (如 web_search) — 递归执行
-                  let fuProcessed = fuFinal;
-                  try {
-                    const fuExec = await extractAndExecuteActions(fuFinal);
-                    if (fuExec.has_actions && fuExec.combined_context) {
-                      fuProcessed = fuExec.combined_context.slice(0, 2000);
-                      const fuFiles = (fuExec as any).files_created as string[] | undefined;
-                      if (fuFiles && fuFiles.length > 0) {
-                        const newArtifacts = fuFiles.map(f => ({
-                          path: f, type: f.split('.').pop() || 'file',
-                          createdAt: new Date().toLocaleTimeString(), versions: 1,
-                        }));
-                        setArtifacts(prev => [...prev, ...newArtifacts]);
-                      }
-                    }
-                  } catch (e) { /* follow-up action failed, keep raw */ }
-                  setMessages((prev) => prev.map((m) =>
-                    m.id === followUpPlaceholderId ? { ...m, content: fuProcessed, costTokens: followUp.tokens_used, isCached: followUp.cached } : m
-                  ));
-                  allMessages.push({
-                    id: followUpPlaceholderId, sender: "Coder" as const,
-                    model: `${modelDisplayName(selectedModel)} (Research)`,
-                    content: fuProcessed, costTokens: followUp.tokens_used, isCached: followUp.cached,
-                    timestamp: new Date().toLocaleTimeString(),
-                  });
-                  toast.showToast("success", "RESEARCH COMPLETE", "已自动搜索并整合信息到回复中。");
-                } else {
-                  setMessages((prev) => prev.filter((m) => m.id !== followUpPlaceholderId));
-                }
+                });
+                toast.showToast("success", "RESEARCH COMPLETE", "已自动搜索并整合信息到回复中。");
+              } else {
+                setMessages((prev) => prev.filter((m) => m.id !== followUpPlaceholderId));
               }
-            } catch (e) {
-              // Action execution failed silently — response is still valid
-              console.warn("[ChatPanel] Action dispatch failed:", e);
             }
+          } catch (e) {
+            // Action execution failed silently — response is still valid
+            console.warn("[ChatPanel] Action dispatch failed:", e);
           }
+        }
 
-          setMessages(allMessages);
+        setMessages(allMessages);
 
-          // 自动分块持久化
-          persistCurrentSession(allMessages);
-          refreshManifests();
-          if (response.cached) {
-            toast.showToast(
-              "success",
-              "CACHE HIT",
-              `DeepSeek 一折缓存命中，节省 ${response.tokens_used ?? 0} tokens。`,
-            );
-          }
-        } else {
-          setMessages((prev) =>
-            prev.filter((m) => m.id !== streamMsgId),
-          );
-          const errMsg: Message = {
-            id: `err-${Date.now()}`,
-            sender: "System",
-            model: "Error",
-            content: `${t.chat_error_api}: ${response.error ?? "unknown"}\n请检查 API Key 和网络连接。`,
-            timestamp: new Date().toLocaleTimeString(),
-          };
-          const finalMsgs = [...updatedAfterUser, errMsg];
-          setMessages(finalMsgs);
-          persistCurrentSession(finalMsgs);
+        // 自动分块持久化
+        persistCurrentSession(allMessages);
+        refreshManifests();
+        if (response.cached) {
           toast.showToast(
-            "error",
-            "API ERROR",
-            response.error ?? "未知错误 — 请检查 API Key 和端点地址。",
+            "success",
+            "CACHE HIT",
+            `DeepSeek 一折缓存命中，节省 ${response.tokens_used ?? 0} tokens。`,
           );
         }
-      } catch (err) {
+      } else {
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== streamMsgId),
+        );
         const errMsg: Message = {
           id: `err-${Date.now()}`,
           sender: "System",
           model: "Error",
-          content: `${t.chat_error_network}: ${err instanceof Error ? err.message : String(err)}`,
+          content: `${t.chat_error_api}: ${response.error ?? "unknown"}\n请检查 API Key 和网络连接。`,
           timestamp: new Date().toLocaleTimeString(),
         };
         const finalMsgs = [...updatedAfterUser, errMsg];
@@ -990,25 +972,26 @@ export default function ChatPanel({
         persistCurrentSession(finalMsgs);
         toast.showToast(
           "error",
-          "NETWORK ERROR",
-          "网络请求失败，请检查连接或切换至 LAN 离线模式。",
+          "API ERROR",
+          response.error ?? "未知错误 — 请检查 API Key 和端点地址。",
         );
       }
-    } else {
-      // ── Mock 演示模式 ──────────────────────────────────────────
-      await new Promise((r) => setTimeout(r, 1500));
-      const mock: Message = {
-        id: `mock-${Date.now()}`,
-        sender: "Coder",
-        model: `Mock ${t.demo_badge}`,
-        content: `${t.chat_mock_reply} "${userText.slice(0, 80)}${userText.length > 80 ? "..." : ""}"\n\n请在「⚙️ 全局配置 → API 密钥凭据」中填入 API Key 以启用真实 AI 对话。`,
-        costTokens: 0,
-        isCached: false,
+    } catch (err) {
+      const errMsg: Message = {
+        id: `err-${Date.now()}`,
+        sender: "System",
+        model: "Error",
+        content: `${t.chat_error_network}: ${err instanceof Error ? err.message : String(err)}`,
         timestamp: new Date().toLocaleTimeString(),
       };
-      const finalMsgs = [...updatedAfterUser, mock];
+      const finalMsgs = [...updatedAfterUser, errMsg];
       setMessages(finalMsgs);
       persistCurrentSession(finalMsgs);
+      toast.showToast(
+        "error",
+        "NETWORK ERROR",
+        "网络请求失败，请检查连接或切换至 LAN 离线模式。",
+      );
     }
 
     setIsThinking(false);
@@ -1065,15 +1048,26 @@ export default function ChatPanel({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [messages, persistCurrentSession]);
 
+  // ── 快捷键/命令 handler 的稳定引用（避免每渲染重绑监听器 + 防 stale closure）──
+  const shortcutsRef = useRef({
+    handleNewSession, persistCurrentSession, toast, refreshManifests,
+    handleExportSession, handlePersistSession, handleClearAll,
+  });
+  shortcutsRef.current = {
+    handleNewSession, persistCurrentSession, toast, refreshManifests,
+    handleExportSession, handlePersistSession, handleClearAll,
+  };
+
   // ── 全局命令面板事件 (App.tsx Ctrl+K → CommandPalette) ─────
   useEffect(() => {
     const handleCommand = (e: Event) => {
       const cmd = (e as CustomEvent<string>).detail;
+      const h = shortcutsRef.current;
       switch (cmd) {
-        case "new-session": handleNewSession(); break;
-        case "save-session": handlePersistSession(); break;
-        case "export-session": handleExportSession(); break;
-        case "clear-all": handleClearAll(); break;
+        case "new-session": h.handleNewSession(); break;
+        case "save-session": h.handlePersistSession(); break;
+        case "export-session": h.handleExportSession(); break;
+        case "clear-all": h.handleClearAll(); break;
         case "toggle-sidebar": setSidebarCollapsed(v => !v); break;
         case "focus-input": inputRef.current?.focus(); break;
         default: break;
@@ -1081,7 +1075,7 @@ export default function ChatPanel({
     };
     window.addEventListener("chronos:command", handleCommand);
     return () => window.removeEventListener("chronos:command", handleCommand);
-  }, [handleNewSession, handlePersistSession, handleExportSession, handleClearAll]);
+  }, []);
 
   const getSenderStyle = (sender: string) => {
     switch (sender) {

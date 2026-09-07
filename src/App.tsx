@@ -4,7 +4,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { I18nProvider, useT } from "@/lib/i18n-context";
 import { getModel, getLLMs, getVLMs, classifyModelKeys } from "@/lib/models";
-import CommandPalette, { buildPaletteCommands } from "@/components/CommandPalette";
+import CommandPalette from "@/components/CommandPalette";
+import { buildPaletteCommands } from "@/lib/palette-commands";
 import Modal from "@/components/Modal";
 import SdlcPipelinePanel from "@/views/SdlcPipelinePanel";
 import ProjectExplorer from "@/views/ProjectExplorer";
@@ -24,7 +25,8 @@ import FloatingBubble from "@/components/FloatingBubble";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ModeSelector from "@/components/ModeSelector";
 import ReasoningDepthSelector from "@/components/ReasoningDepthSelector";
-import { ToastProvider, useToast } from "@/components/ToastProvider";
+import { ToastProvider } from "@/components/ToastProvider";
+import { useToast } from "@/lib/use-toast";
 import { ChatIcon, PipelineIcon, GlueIcon, McpIcon, ChronosFolderIcon, RemoteIcon, ChronosLogo } from "@/components/SvgIcons";
 import {
   getSessionCost,

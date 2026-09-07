@@ -454,7 +454,7 @@ mod tests {
     fn test_non_deepseek_no_cache() {
         let mut engine = ContextCacheEngine::new();
         let msgs = vec![make_msg("user", "test")];
-        let (tokens, mask) = engine.detect_cacheable_prefix("sess-1", &msgs, "kimi-k3");
+        let (tokens, _mask) = engine.detect_cacheable_prefix("sess-1", &msgs, "kimi-k3");
         assert_eq!(tokens, 0);
     }
 }
