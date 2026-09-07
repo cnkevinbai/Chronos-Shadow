@@ -27,6 +27,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **审批请求全局角标**：App 层 10s 轮询 `list_pending_approvals`，dock 审批按钮红点角标 + Footer 常驻「审批门禁 · N」提示——待审批不再需要主动进面板才能发现
 - **拖拽上传**：Tauri 原生 `onDragDropEvent` 监听，文件拖入窗口自动进入多模态挂载缓冲区（按扩展名分流 doc/image 类型）
 
+### Changed — 长尾收尾：运行时提示消息双语化
+- **RemoteHub / ProjectExplorer 的 alert/confirm/prompt 全部双语化**（23 处）：错误提示、危险操作确认、审批拦截提示均按界面语言输出——英文用户不再收到纯中文系统弹窗
+
 ### Refactor — ChatPanel 组件拆分（第四批，最终完成）
 - 消息流渲染拆分为 `src/views/chat/MessageList.tsx`（216 行）：消息卡片（Cache-Aligned 徽章/附件胶囊/thinking 折叠/复制/重试）+ Markdown 渲染辅助（renderMdNode/MarkdownContent）整体迁移；滚动定位 refs（msgContainerRef/chatEndRef/isNearBottomRef）经 props 共享；**ChatPanel 2029 → 1398 行（累计 -31%）**，四子组件合计 834 行
 

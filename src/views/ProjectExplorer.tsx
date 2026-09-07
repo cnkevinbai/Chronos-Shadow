@@ -9,7 +9,7 @@ function defaultWorkspace(): string {
   const isWin = navigator.platform.toLowerCase().includes("win");
   return isWin ? "C:\\Chronos-Workspace" : "~/Chronos-Workspace";
 }
-import { useT } from "@/lib/i18n-context";
+import { useT, useLang } from "@/lib/i18n-context";
 import {
   cvfsGetCheckpoints,
   cvfsGetProjects,
@@ -56,6 +56,7 @@ interface ProjectExplorerProps {
 
 export default function ProjectExplorer({ currentProject, onProjectChange }: ProjectExplorerProps) {
   const t = useT();
+  const { lang } = useLang();
   const [checkpoints, setCheckpoints] = useState<CheckpointEntry[]>([]);
   const [sandboxStatus, setSandboxStatus] = useState("Active");
   const [projects, setProjects] = useState<ProjectEntry[]>([]);
@@ -100,7 +101,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
       setShowNewProject(false); setNewProjId("");
       onProjectChange(newProjId);
       refresh();
-    } catch (e) { alert(`创建失败: ${e}`); }
+    } catch (e) { alert(`${lang === "zh" ? "创建失败" : "Creation failed"}: ${e}`); }
   };
 
   const handleCaptureCheckpoint = async () => {
@@ -109,32 +110,32 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
       await cvfsCaptureCheckpointV2(currentProject, snapshotLabel, "手动快照");
       setSnapshotLabel(""); setShowSnapshot(false);
       refresh();
-    } catch (e) { alert(`快照失败: ${e}`); }
+    } catch (e) { alert(`${lang === "zh" ? "快照失败" : "Snapshot failed"}: ${e}`); }
   };
 
   const handleRestore = async (cpId: string) => {
-    if (!currentProject || !confirm(`确定恢复到检查点 ${cpId}？此操作不可逆。`)) return;
+    if (!currentProject || !confirm(lang === "zh" ? `确定恢复到检查点 ${cpId}？此操作不可逆。` : `Restore checkpoint ${cpId}? This is irreversible.`)) return;
     try { await cvfsRestoreCheckpoint(currentProject, cpId); refresh(); }
-    catch (e) { alert(`恢复失败: ${e}`); }
+    catch (e) { alert(`${lang === "zh" ? "恢复失败" : "Restore failed"}: ${e}`); }
   };
 
   const handleDeleteCp = async (cpId: string) => {
-    if (!currentProject || !confirm(`删除检查点 ${cpId}？`)) return;
+    if (!currentProject || !confirm(lang === "zh" ? `删除检查点 ${cpId}？` : `Delete checkpoint ${cpId}?`)) return;
     try { await cvfsDeleteCheckpoint(currentProject, cpId); refresh(); }
-    catch (e) { alert(`删除失败: ${e}`); }
+    catch (e) { alert(`${lang === "zh" ? "删除失败" : "Delete failed"}: ${e}`); }
   };
 
   const handleDeleteProject = async () => {
-    if (!currentProject || currentProject === "default" || !confirm(`确认删除项目 ${currentProject}？此操作不可恢复。`)) return;
+    if (!currentProject || currentProject === "default" || !confirm(lang === "zh" ? `确认删除项目 ${currentProject}？此操作不可恢复。` : `Delete project ${currentProject}? This cannot be undone.`)) return;
     try { await cvfsDeleteProject(currentProject); onProjectChange("default"); refresh(); }
     catch (e) { alert(`删除失败: ${e}`); }
   };
 
   const handleMergeWorktree = async (wtId: string) => {
-    if (!confirm(`确认合并 Worktree ${wtId} 到主分支？`)) return;
+    if (!confirm(lang === "zh" ? `确认合并 Worktree ${wtId} 到主分支？` : `Merge Worktree ${wtId} to main?`)) return;
     try {
       await mergeWorktree(wtId);
-      alert(`Worktree ${wtId} 合并成功`);
+      alert(lang === "zh" ? `Worktree ${wtId} 合并成功` : `Worktree ${wtId} merged`);
       refresh();
     } catch (e: unknown) {
       const msg = String(e);
@@ -144,11 +145,11 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
         const targetId = targetMatch ? targetMatch[1] : wtId;
         try {
           await submitForApproval("worktree_merge", targetId,
-            `合并 Worktree ${targetId} 到主分支`, "{}");
+            lang === "zh" ? `合并 Worktree ${targetId} 到主分支` : `Merge Worktree ${targetId} to main`, "{}");
           alert(`已自动提交审批请求 (${targetId})。请切换到审批面板 (🛡️ 第四红线) 审核后重试合并。`);
-        } catch { alert(`审批提交失败: ${msg}`); }
+        } catch { alert(`${lang === "zh" ? "审批提交失败" : "Approval submission failed"}: ${msg}`); }
       } else {
-        alert(`合并失败: ${msg}`);
+        alert(`${lang === "zh" ? "合并失败" : "Merge failed"}: ${msg}`);
       }
     }
   };
