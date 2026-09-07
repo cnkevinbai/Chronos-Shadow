@@ -20,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed — 易用性与可访问性
 - **ApprovalPanel / ProjectExplorer 全面 i18n 化**：新增 62 个 `ap_*`/`pe_*` 字典键（zh/en），Tab/表单/按钮/空态/健康面板/Worktree 状态全部走字典；JSX 硬编码中文 135 → ~75（本三批累计 162 → ~75）
 - **RemoteHub 全面 i18n 化**：37 个 `rh_*` 字典键（zh/en），面板全部 placeholder/按钮/状态/空态引导文案不再硬编码中文；修复回滚输入框 `querySelector` 对中文 placeholder 的耦合（改用 `data-rewind-input` 属性锚点）；本批后 JSX 硬编码中文 162 → ~135
-- **ChatPanel 结构性 emoji → lucide SVG（第一批 17 处）**：侧栏统计条、清空/导出/固化按钮、搜索图标与 placeholder、思考折叠、宏指令、重试、编辑、成品面板标题；emoji 计数 367 → 350（文案模板/头像数据中的 emoji 属内容，保留）
+- **ChatPanel 结构性 emoji → lucide SVG（第一批 17 处 + 第二批 9 处）**：侧栏统计条、清空/导出/固化按钮、搜索图标与 placeholder、思考折叠、宏指令、重试、编辑、成品面板标题；emoji 计数 367 → 350（文案模板/头像数据中的 emoji 属内容，保留）
 - **流式对话可中止**：前端接入后端 `cancel_chat_stream`（此前从未暴露），`isThinking` 时发送按钮切换为红色"停止"按钮，后端流循环检查取消标志提前返回
 - **DockButton 可访问性**：9 个导航按钮补齐 `aria-label` + `aria-current`（全应用首批 aria 属性）
 - **dock tooltip 全部入 i18n 字典**：新增 `dock_*` 9 键 + `stream_stop`（zh/en 双语），消除导航层硬编码中文

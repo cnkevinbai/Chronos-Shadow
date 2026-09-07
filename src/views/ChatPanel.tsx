@@ -6,7 +6,7 @@
 // 若未配置 API Key 则降级为本地 mock 演示
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { MessageSquare, BarChart3, Coins, Trash2, Upload, Save, Search, Package, Lightbulb, RefreshCw, Pencil } from "lucide-react";
+import { MessageSquare, BarChart3, Coins, Trash2, Upload, Save, Search, Package, Lightbulb, RefreshCw, Pencil, Link2, Zap, FolderOpen, FileText, Image as LucideImage, Copy } from "lucide-react";
 import { useT } from "@/lib/i18n-context";
 import { useToast } from "@/lib/use-toast";
 import { getModelDisplay } from "@/lib/models";
@@ -1377,8 +1377,8 @@ export default function ChatPanel({
             >
               {typeof window !== "undefined" &&
               "__TAURI_INTERNALS__" in window
-                ? "🔗 在线"
-                : "⚡ 演示"}
+                ? <><Link2 size={9} className="inline text-emerald-400 -mt-0.5" aria-hidden="true" /> 在线</>
+                : <><Zap size={9} className="inline text-amber-400 -mt-0.5" aria-hidden="true" /> 演示</>}
             </span>
             <span className="text-[10px] text-zinc-500">
               |{" "}
@@ -1570,7 +1570,7 @@ export default function ChatPanel({
                   className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded text-[10px] text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/50 opacity-0 group-hover:opacity-100 transition-all"
                   title="复制内容"
                 >
-                  📋
+                  <Copy size={10} aria-hidden="true" />
                 </button>
                 {/* 多模态附件胶囊标签 */}
                 {msg.attachments && msg.attachments.length > 0 && (
@@ -1581,7 +1581,7 @@ export default function ChatPanel({
                         className="flex items-center space-x-1.5 bg-black/60 border border-zinc-800/80 px-2 py-1 rounded text-[10px]"
                       >
                         <span>
-                          {att.type === "doc" ? "📄" : "🖼️"}
+                          {att.type === "doc" ? <FileText size={10} aria-hidden="true" /> : <LucideImage size={10} aria-hidden="true" />}
                         </span>
                         <span className="text-zinc-300 truncate max-w-[120px] font-medium">
                           {att.name}
@@ -1638,7 +1638,7 @@ export default function ChatPanel({
         {showFileExplorer && currentProject !== "default" && (
           <div className="w-48 border-l border-cs-border bg-cs-surface flex flex-col shrink-0 overflow-y-auto">
             <div className="px-2 py-1.5 border-b border-cs-border text-[9px] text-zinc-500 flex items-center justify-between">
-              <span>📁 {currentProject}</span>
+              <span className="flex items-center gap-0.5"><FolderOpen size={9} aria-hidden="true" />{currentProject}</span>
               <button onClick={() => setShowFileExplorer(false)} className="text-zinc-600 hover:text-zinc-400">✕</button>
             </div>
             <div className="p-1 space-y-0.5">
@@ -1735,7 +1735,7 @@ export default function ChatPanel({
                   key={i}
                   className="flex items-center space-x-1 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded text-[10px] text-zinc-400"
                 >
-                  <span>{stg.type === "doc" ? "📄" : "🖼️"}</span>
+                  <span>{stg.type === "doc" ? <FileText size={10} aria-hidden="true" /> : <LucideImage size={10} aria-hidden="true" />}</span>
                   <span className="truncate max-w-[100px]">
                     {stg.name}
                   </span>
@@ -1957,13 +1957,13 @@ export default function ChatPanel({
           {/* 状态栏：会话统计 + 审批指示 */}
           <div className="flex items-center justify-between px-4 py-1 border-t border-[#1a1a1e] bg-cs-surface text-[9px] text-zinc-600 select-none">
             <div className="flex items-center space-x-3">
-              <span>💬 {messages.length} 条</span>
+              <span className="flex items-center gap-0.5"><MessageSquare size={9} aria-hidden="true" />{messages.length} 条</span>
               <span>|</span>
-              <span>💰 ¥{messages.reduce((a, m) => a + (m.costTokens ?? 0) * 0.000001, 0).toFixed(4)}</span>
+              <span className="flex items-center gap-0.5"><Coins size={9} aria-hidden="true" />¥{messages.reduce((a, m) => a + (m.costTokens ?? 0) * 0.000001, 0).toFixed(4)}</span>
               {currentProject && currentProject !== "default" && (
                 <>
                   <span>|</span>
-                  <span className="text-cyan-500">📁 {currentProject}</span>
+                  <span className="text-cyan-500 flex items-center gap-0.5"><FolderOpen size={9} aria-hidden="true" />{currentProject}</span>
                 </>
               )}
             </div>
