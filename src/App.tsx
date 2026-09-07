@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { I18nProvider, useT } from "@/lib/i18n-context";
+import { ShieldHalf, ShieldCheck } from "lucide-react";
 import OrchestrationPanel from "@/views/OrchestrationPanel";
 import { getModel, getLLMs, getVLMs, classifyModelKeys } from "@/lib/models";
 import CommandPalette from "@/components/CommandPalette";
@@ -75,6 +76,14 @@ function AppInner() {
   // ── 全局视图路由 ────────────────────────────────────────────────
   const [activeView, setActiveView] = useState<"workbench" | "settings" | "evolution">("workbench");
   // Dock 导航
+  const [safetyCollapsed, setSafetyCollapsed] = useState(false);
+  // 窄屏自动折叠安全侧栏（<1200px）
+  useEffect(() => {
+    const onResize = () => { if (window.innerWidth < 1200) setSafetyCollapsed(true); };
+    window.addEventListener("resize", onResize);
+    onResize();
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   const [dockView, setDockView] = useState<"chat" | "pipeline" | "orchestrator" | "glue" | "skills" | "webintel" | "autoroute" | "remote" | "explorer" | "approval">("chat");
   // Command Palette
   const [showPalette, setShowPalette] = useState(false);
@@ -525,8 +534,23 @@ function AppInner() {
               )}
             </section>
 
-            {/* 右侧安全风控面板 */}
+            {/* 右侧安全风控面板（可折叠；<1200px 自动折叠） */}
+            {safetyCollapsed ? (
+            <aside className="w-8 border-l border-cs-border bg-cs-surface flex flex-col items-center py-2 shrink-0">
+              <button onClick={() => setSafetyCollapsed(false)} title={t.safety_expand} aria-label={t.safety_expand}
+                className="w-6 h-6 flex items-center justify-center rounded hover:bg-zinc-800 text-zinc-500 hover:text-cyan-300 transition-colors">
+                <ShieldCheck size={14} aria-hidden="true" />
+              </button>
+            </aside>
+            ) : (
             <aside className="w-[280px] border-l border-cs-border bg-cs-surface flex flex-col overflow-hidden shrink-0">
+              <div className="flex items-center justify-between px-2 py-1 border-b border-cs-border bg-cs-header shrink-0">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">{t.safety_panel}</span>
+                <button onClick={() => setSafetyCollapsed(true)} title={t.safety_collapse} aria-label={t.safety_collapse}
+                  className="w-5 h-5 flex items-center justify-center rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-200 transition-colors">
+                  <ShieldHalf size={12} aria-hidden="true" />
+                </button>
+              </div>
               <div className="flex-1 border-b border-cs-border overflow-hidden">
                 <RedlineGuardPanel redlineStatus={redlineStatus} />
               </div>
@@ -534,6 +558,7 @@ function AppInner() {
                 <SecurityShieldPanel redlineStatus={redlineStatus} />
               </div>
             </aside>
+            )}
           </div>
         ) : activeView === "evolution" ? (
           /* 进化控制台 */

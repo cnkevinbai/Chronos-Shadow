@@ -1148,7 +1148,7 @@ export default function ChatPanel({
             </span>
             {/* Tauri 连通性指示器 */}
             <span
-              className={`text-[8px] px-1 rounded ${
+              className={`text-[10px] px-1 rounded ${
                 typeof window !== "undefined" &&
                 "__TAURI_INTERNALS__" in window
                   ? "bg-emerald-950/30 text-emerald-500 border border-emerald-500/30"
@@ -1177,9 +1177,9 @@ export default function ChatPanel({
                     : t.agent_listening}
             </span>
             {isThinking ? (
-              <span className="text-[9px] text-cyan-400 animate-pulse">● 心流激活</span>
+              <span className="text-[10px] text-cyan-400 animate-pulse">● 心流激活</span>
             ) : !currentHasKey && (
-              <span className={anyKey ? "text-[9px] text-cyan-400" : "text-[9px] text-amber-500"}>
+              <span className={anyKey ? "text-[10px] text-cyan-400" : "text-[10px] text-amber-500"}>
                 {anyKey ? `(切换至 ${availableProvider})` : "(Demo)"}
               </span>
             )}
@@ -1188,7 +1188,7 @@ export default function ChatPanel({
               value={currentProject || ""}
               onChange={e => { if (e.target.value) { onProjectChange?.(e.target.value); cvfsListProjectFiles(e.target.value).then(setProjectFiles).catch(()=>{}); } }}
               onFocus={() => { cvfsGetProjects().then(p => { if (p.length) setProjectList(p); }).catch(()=>{}); }}
-              className="text-[9px] bg-cs-header border border-cs-border rounded px-1.5 py-0.5 text-zinc-300 outline-none cursor-pointer max-w-[140px]"
+              className="text-[10px] bg-cs-header border border-cs-border rounded px-1.5 py-0.5 text-zinc-300 outline-none cursor-pointer max-w-[140px]"
               title="切换项目"
             >
               <option value="">📁 选择项目</option>
@@ -1200,7 +1200,7 @@ export default function ChatPanel({
             {currentProject && currentProject !== "default" && (
               <button
                 onClick={() => { setShowFileExplorer(!showFileExplorer); if (!showFileExplorer) cvfsListProjectFiles(currentProject).then(setProjectFiles).catch(()=>{}); }}
-                className={`text-[8px] border px-1 py-0.5 rounded transition-colors ${
+                className={`text-[10px] border px-1 py-0.5 rounded transition-colors ${
                   showFileExplorer
                     ? "text-cyan-300 border-cyan-400/40 bg-cyan-950/30"
                     : "text-zinc-500 border-cs-border hover:border-zinc-600"
@@ -1310,19 +1310,19 @@ export default function ChatPanel({
                   : "mr-auto items-start"
               }`}
             >
-              <div className="flex items-center space-x-1.5 text-[9px] text-zinc-500 px-1">
+              <div className="flex items-center space-x-1.5 text-[10px] text-zinc-500 px-1">
                 <span className="font-bold text-zinc-400">
                   {msg.sender}
                 </span>
                 <span>•</span>
-                <span className="bg-cs-header border border-cs-border px-1 rounded text-[9px] text-zinc-300">
+                <span className="bg-cs-header border border-cs-border px-1 rounded text-[10px] text-zinc-300">
                   {msg.model}
                 </span>
                 {msg.costTokens != null && msg.costTokens > 0 && (
                   <span className="text-zinc-600">
                     ({msg.costTokens}t
                     {msg.isCached && (
-                      <span className="ml-1 text-[8px] text-emerald-400 font-bold border border-emerald-500/30 bg-emerald-950/20 px-1 rounded animate-pulse">
+                      <span className="ml-1 text-[10px] text-emerald-400 font-bold border border-emerald-500/30 bg-emerald-950/20 px-1 rounded animate-pulse">
                         [Cache-Aligned]
                       </span>
                     )}
@@ -1339,11 +1339,11 @@ export default function ChatPanel({
                   </span>
                 )}
                 {msg.cachingMarkerHash && (
-                  <span className="hidden group-hover:inline text-[8px] text-zinc-600 font-light">
+                  <span className="hidden group-hover:inline text-[10px] text-zinc-600 font-light">
                     Hash: {msg.cachingMarkerHash.substring(0, 6)}
                   </span>
                 )}
-                <span className="text-[9px] text-zinc-600">
+                <span className="text-[10px] text-zinc-600">
                   {msg.timestamp}
                 </span>
               </div>
@@ -1372,7 +1372,7 @@ export default function ChatPanel({
                         <span className="text-zinc-300 truncate max-w-[120px] font-medium">
                           {att.name}
                         </span>
-                        <span className="text-[9px] text-zinc-600">
+                        <span className="text-[10px] text-zinc-600">
                           ({att.sizeOrPath})
                         </span>
                       </div>
@@ -1394,7 +1394,7 @@ export default function ChatPanel({
                 {msg.sender === "System" && msg.model === "Error" && retryCount < 2 && (
                   <button
                     onClick={handleRetry}
-                    className="mt-2 flex items-center space-x-1 text-[9px] bg-amber-800/30 hover:bg-amber-700/40 border border-amber-700/40 text-amber-300 px-2 py-0.5 rounded transition-colors"
+                    className="mt-2 flex items-center space-x-1 text-[10px] bg-amber-800/30 hover:bg-amber-700/40 border border-amber-700/40 text-amber-300 px-2 py-0.5 rounded transition-colors"
                   >
                     <RefreshCw size={9} className="inline mr-0.5 -mt-0.5" aria-hidden="true" />
                     重试 ({2 - retryCount} 次)
@@ -1423,7 +1423,7 @@ export default function ChatPanel({
         {/* 文件浏览器 (右侧面板) */}
         {showFileExplorer && currentProject !== "default" && (
           <div className="w-48 border-l border-cs-border bg-cs-surface flex flex-col shrink-0 overflow-y-auto">
-            <div className="px-2 py-1.5 border-b border-cs-border text-[9px] text-zinc-500 flex items-center justify-between">
+            <div className="px-2 py-1.5 border-b border-cs-border text-[10px] text-zinc-500 flex items-center justify-between">
               <span className="flex items-center gap-0.5"><FolderOpen size={9} aria-hidden="true" />{currentProject}</span>
               <button onClick={() => setShowFileExplorer(false)} className="text-zinc-600 hover:text-zinc-400">✕</button>
             </div>
@@ -1433,7 +1433,7 @@ export default function ChatPanel({
                 const isModified = (f as any).is_modified || false;
                 return (
                 <div key={f.relative_path}
-                  className={`flex items-center space-x-1 px-1 py-0.5 rounded text-[9px] cursor-default transition-colors ${
+                  className={`flex items-center space-x-1 px-1 py-0.5 rounded text-[10px] cursor-default transition-colors ${
                     isModified ? 'bg-emerald-950/20 border border-emerald-900/30 animate-pulse' : 'hover:bg-zinc-800/40'
                   }`}>
                   <span className="shrink-0">{f.is_dir ? '📁' : '📄'}</span>
@@ -1442,13 +1442,13 @@ export default function ChatPanel({
                     isModified ? 'text-emerald-400 font-bold' :
                     f.is_dir ? 'text-cyan-400/70' : 'text-zinc-400'
                   }`} title={f.relative_path}>{f.name}</span>
-                  {isContract && <span className="text-[7px] text-amber-500 border border-amber-500/30 bg-amber-950/20 px-0.5 rounded shrink-0">🔒</span>}
-                  {isModified && <span className="text-[7px] text-emerald-400 shrink-0">●</span>}
+                  {isContract && <span className="text-[10px] text-amber-500 border border-amber-500/30 bg-amber-950/20 px-0.5 rounded shrink-0">🔒</span>}
+                  {isModified && <span className="text-[10px] text-emerald-400 shrink-0">●</span>}
                 </div>
                 );
               })}
               {projectFiles.length === 0 && (
-                <div className="text-[9px] text-zinc-600 text-center py-2">
+                <div className="text-[10px] text-zinc-600 text-center py-2">
                   空项目 — AI创建文件后出现
                 </div>
               )}
@@ -1502,7 +1502,7 @@ ${content}`);
           />
 
           {/* 状态栏：会话统计 + 审批指示 */}
-          <div className="flex items-center justify-between px-4 py-1 border-t border-[#1a1a1e] bg-cs-surface text-[9px] text-zinc-600 select-none">
+          <div className="flex items-center justify-between px-4 py-1 border-t border-[#1a1a1e] bg-cs-surface text-[10px] text-zinc-600 select-none">
             <div className="flex items-center space-x-3">
               <span className="flex items-center gap-0.5"><MessageSquare size={9} aria-hidden="true" />{messages.length} 条</span>
               <span>|</span>
@@ -1521,40 +1521,40 @@ ${content}`);
           </div>
 
           {/* 键盘快捷提示 + Token 计数器 */}
-          <div className="flex items-center justify-between px-4 pb-2 text-[9px] text-zinc-700 select-none">
+          <div className="flex items-center justify-between px-4 pb-2 text-[10px] text-zinc-700 select-none">
             <div className="flex items-center space-x-3">
               <span>
-                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[10px] text-zinc-500 mr-1">
                   Ctrl+Enter
                 </kbd>
                 发送
               </span>
               <span>
-                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[10px] text-zinc-500 mr-1">
                   /
                 </kbd>
                 宏命令
               </span>
               <span>
-                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[10px] text-zinc-500 mr-1">
                   @
                 </kbd>
                 特种兵
               </span>
               <span>
-                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[10px] text-zinc-500 mr-1">
                   Ctrl+N
                 </kbd>
                 新建
               </span>
               <span>
-                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[10px] text-zinc-500 mr-1">
                   Ctrl+S
                 </kbd>
                 保存
               </span>
               <span>
-                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[8px] text-zinc-500 mr-1">
+                <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[10px] text-zinc-500 mr-1">
                   Esc
                 </kbd>
                 关闭

@@ -98,14 +98,14 @@ export default function DiffViewer({
             {title ?? t.diff_title}
           </span>
         </div>
-        <div className="flex items-center space-x-2 text-[9px]">
+        <div className="flex items-center space-x-2 text-[10px]">
           <span className="text-cs-accent">+{addedCount}</span>
           <span className="text-cs-danger">-{removedCount}</span>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex items-center space-x-4 px-3 py-1.5 border-b border-cs-border/50 text-[9px] shrink-0">
+      <div className="flex items-center space-x-4 px-3 py-1.5 border-b border-cs-border/50 text-[10px] shrink-0">
         <div className="flex items-center space-x-1">
           <div className="w-3 h-3 rounded bg-cs-accent/20 border border-cs-accent/30" />
           <span className="text-cs-dim">{leftLabel ?? t.before}</span>
@@ -163,7 +163,7 @@ export default function DiffViewer({
       </div>
 
       {/* Footer */}
-      <div className="h-5 border-t border-cs-border bg-cs-surface px-3 flex items-center text-[9px] text-cs-muted shrink-0">
+      <div className="h-5 border-t border-cs-border bg-cs-surface px-3 flex items-center text-[10px] text-cs-muted shrink-0">
         <GitBranch className="w-2.5 h-2.5 mr-1" />
         <span>{diffLines.length} {t.lines_count}</span>
         <span className="ml-auto">
@@ -182,7 +182,7 @@ export function MiniDiff({ before, after }: { before: string; after: string }) {
 
   const diff = computeDiff(before, after);
   return (
-    <span className="font-mono text-[9px]">
+    <span className="font-mono text-[10px]">
       {diff.map((line, i) => (
         <span
           key={i}

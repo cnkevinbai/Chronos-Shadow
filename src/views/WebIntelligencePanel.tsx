@@ -202,7 +202,7 @@ export default function WebIntelligencePanel() {
           {t.wi_title}
         </span>
         {stats && (
-          <span className="ml-auto text-[9px] text-cs-muted">
+          <span className="ml-auto text-[10px] text-cs-muted">
             {stats.total_searches + stats.total_fetches + stats.total_research} req · {stats.domains_whitelisted} domains
           </span>
         )}
@@ -268,7 +268,7 @@ export default function WebIntelligencePanel() {
             </div>
 
             {/* Info */}
-            <div className="flex items-center space-x-2 text-[9px] text-cs-muted">
+            <div className="flex items-center space-x-2 text-[10px] text-cs-muted">
               <Shield className="w-3 h-3 text-cs-accent" />
               <span>搜索引擎: Bing · 域名白名单过滤 · 结果端侧蒸馏</span>
             </div>
@@ -278,7 +278,7 @@ export default function WebIntelligencePanel() {
               <div className="space-y-2">
                 <div className="text-[10px] font-bold text-cs-text">{searchResults.length} 条结果</div>
                 {entityRelations.length > 0 && (
-                  <div className="text-[8px] text-violet-300/80 font-mono">
+                  <div className="text-[10px] text-violet-300/80 font-mono">
                     实体关系: {entityRelations.slice(0, 3).map((rel) => `${rel.source}→${rel.target}`).join(" · ")}
                   </div>
                 )}
@@ -294,10 +294,10 @@ export default function WebIntelligencePanel() {
                       <span className="text-[11px] font-bold text-cs-accent truncate">{r.title}</span>
                       <ExternalLink className="w-3 h-3 text-cs-muted shrink-0" />
                     </div>
-                    <div className="text-[9px] text-cs-dim leading-relaxed line-clamp-2">{r.snippet}</div>
+                    <div className="text-[10px] text-cs-dim leading-relaxed line-clamp-2">{r.snippet}</div>
                     <div className="flex items-center space-x-2 mt-1">
-                      <span className="text-[8px] text-cs-muted truncate max-w-[200px]">{r.url}</span>
-                      <span className="text-[8px] px-1 py-0.5 rounded bg-cs-accent/10 text-cs-accent">
+                      <span className="text-[10px] text-cs-muted truncate max-w-[200px]">{r.url}</span>
+                      <span className="text-[10px] px-1 py-0.5 rounded bg-cs-accent/10 text-cs-accent">
                         {r.source}
                       </span>
                     </div>
@@ -362,13 +362,13 @@ export default function WebIntelligencePanel() {
                       <div className="p-2 rounded border border-amber-800/30 bg-amber-950/20">
                         <div className="flex items-center space-x-1.5 mb-1.5">
                           <Zap className="w-3 h-3 text-amber-400" />
-                          <span className="text-[9px] font-bold text-amber-400">端侧蒸馏摘要</span>
+                          <span className="text-[10px] font-bold text-amber-400">端侧蒸馏摘要</span>
                         </div>
                         <div className="text-[10px] text-amber-300/80">{fetchResult.distilled_summary}</div>
                         {fetchResult.key_points.length > 0 && (
                           <ul className="mt-1.5 space-y-0.5">
                             {fetchResult.key_points.map((kp, i) => (
-                              <li key={i} className="text-[9px] text-amber-400/70 flex items-start space-x-1">
+                              <li key={i} className="text-[10px] text-amber-400/70 flex items-start space-x-1">
                                 <span>•</span>
                                 <span>{kp}</span>
                               </li>
@@ -415,7 +415,7 @@ export default function WebIntelligencePanel() {
               </button>
             </div>
 
-            <div className="flex items-center space-x-2 text-[9px] text-cs-muted">
+            <div className="flex items-center space-x-2 text-[10px] text-cs-muted">
               <Shield className="w-3 h-3 text-cs-accent" />
               <span>多源聚合 · 交叉验证 · 端侧蒸馏 · 置信度评分</span>
             </div>
@@ -428,7 +428,7 @@ export default function WebIntelligencePanel() {
                     <BookOpen className="w-3.5 h-3.5 text-cs-info" />
                     <span className="text-[11px] font-bold text-cs-text">{researchReport.topic}</span>
                   </div>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${
                     researchReport.confidence >= 0.7 ? "bg-emerald-950/30 text-emerald-400" :
                     researchReport.confidence >= 0.4 ? "bg-amber-950/30 text-amber-400" :
                     "bg-red-950/30 text-red-400"
@@ -448,7 +448,7 @@ export default function WebIntelligencePanel() {
                     <div className="text-[10px] font-bold text-cs-text mb-1.5">核心发现</div>
                     <ul className="space-y-1">
                       {researchReport.key_findings.map((kf, i) => (
-                        <li key={i} className="flex items-start space-x-1.5 text-[9px] text-cs-dim">
+                        <li key={i} className="flex items-start space-x-1.5 text-[10px] text-cs-dim">
                           <CheckCircle className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />
                           <span>{kf}</span>
                         </li>
@@ -463,7 +463,7 @@ export default function WebIntelligencePanel() {
                     <div className="text-[10px] font-bold text-cs-text mb-1.5">建议</div>
                     <ul className="space-y-1">
                       {researchReport.recommendations.map((rec, i) => (
-                        <li key={i} className="flex items-start space-x-1.5 text-[9px] text-cs-dim">
+                        <li key={i} className="flex items-start space-x-1.5 text-[10px] text-cs-dim">
                           <Zap className="w-3 h-3 text-amber-400 mt-0.5 shrink-0" />
                           <span>{rec}</span>
                         </li>
@@ -485,7 +485,7 @@ export default function WebIntelligencePanel() {
                           href={s.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center space-x-1.5 text-[9px] text-cs-accent hover:text-cs-accent/80"
+                          className="flex items-center space-x-1.5 text-[10px] text-cs-accent hover:text-cs-accent/80"
                         >
                           <ExternalLink className="w-2.5 h-2.5" />
                           <span className="truncate">{s.title}</span>
@@ -515,7 +515,7 @@ export default function WebIntelligencePanel() {
               <select
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value)}
-                className="px-1.5 py-1 rounded border border-cs-border bg-cs-bg text-cs-text text-[9px] focus:border-cs-accent focus:outline-none"
+                className="px-1.5 py-1 rounded border border-cs-border bg-cs-bg text-cs-text text-[10px] focus:border-cs-accent focus:outline-none"
               >
                 {domainCategories.map((c) => (
                   <option key={c} value={c}>{c}</option>
@@ -524,13 +524,13 @@ export default function WebIntelligencePanel() {
               <button
                 onClick={handleAddDomain}
                 disabled={!newDomain.trim()}
-                className="flex items-center space-x-1 px-2 py-1 rounded bg-cs-accent text-white text-[9px] font-medium hover:bg-cs-accent/80 disabled:opacity-40 transition-colors"
+                className="flex items-center space-x-1 px-2 py-1 rounded bg-cs-accent text-white text-[10px] font-medium hover:bg-cs-accent/80 disabled:opacity-40 transition-colors"
               >
                 <Plus className="w-3 h-3" />
               </button>
             </div>
 
-            <div className="text-[9px] text-cs-muted flex items-center space-x-1.5">
+            <div className="text-[10px] text-cs-muted flex items-center space-x-1.5">
               <Shield className="w-3 h-3 text-cs-accent" />
               <span>仅白名单内域名可被访问 · 首次访问需审批 · 全量审计</span>
             </div>
@@ -545,7 +545,7 @@ export default function WebIntelligencePanel() {
                   <div className="flex items-center space-x-2">
                     <Globe className="w-3 h-3 text-cs-accent" />
                     <span className="text-[10px] text-cs-text font-medium">{domain}</span>
-                    <span className="text-[8px] px-1 py-0.5 rounded bg-cs-bg text-cs-muted">{category}</span>
+                    <span className="text-[10px] px-1 py-0.5 rounded bg-cs-bg text-cs-muted">{category}</span>
                   </div>
                   <button
                     onClick={() => handleRemoveDomain(domain)}
@@ -590,12 +590,12 @@ export default function WebIntelligencePanel() {
               </div>
               <div className="space-y-1 max-h-80 overflow-y-auto">
                 {auditLog.length === 0 && (
-                  <div className="text-center py-4 text-cs-muted text-[9px]">暂无审计记录</div>
+                  <div className="text-center py-4 text-cs-muted text-[10px]">暂无审计记录</div>
                 )}
                 {auditLog.map((entry, i) => (
                   <div
                     key={i}
-                    className={`flex items-center space-x-2 p-1.5 rounded text-[9px] ${
+                    className={`flex items-center space-x-2 p-1.5 rounded text-[10px] ${
                       entry.domain_allowed ? "bg-emerald-950/10" : "bg-red-950/10"
                     }`}
                   >
@@ -616,7 +616,7 @@ export default function WebIntelligencePanel() {
       </div>
 
       {/* Bottom status bar */}
-      <div className="h-6 border-t border-cs-border bg-cs-bg px-3 flex items-center text-[8px] text-cs-muted space-x-3">
+      <div className="h-6 border-t border-cs-border bg-cs-bg px-3 flex items-center text-[10px] text-cs-muted space-x-3">
         <Shield className="w-2.5 h-2.5 text-cs-accent" />
         <span>{t.wi_security_notice}</span>
       </div>
@@ -656,7 +656,7 @@ function StatBox({
       <span className={colorMap[color] || "text-cs-accent"}>{icon}</span>
       <div>
         <div className="text-[10px] font-bold text-cs-text">{value}</div>
-        <div className="text-[8px] text-cs-muted">{label}</div>
+        <div className="text-[10px] text-cs-muted">{label}</div>
       </div>
     </div>
   );

@@ -81,7 +81,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
           </span>
         </div>
         <div className="flex items-center space-x-1">
-          <span className="text-[9px] text-cs-muted">Privacy</span>
+          <span className="text-[10px] text-cs-muted">Privacy</span>
           <button
             onClick={() => setPrivacyEnabled(!privacyEnabled)}
             className={`w-7 h-4 rounded-full p-0.5 transition-colors ${
@@ -99,7 +99,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
 
       {/* Privacy Overlay Preview */}
       <div className="px-3 py-2.5 border-b border-cs-border/50">
-        <div className="text-[9px] text-cs-muted mb-2 flex items-center space-x-1.5">
+        <div className="text-[10px] text-cs-muted mb-2 flex items-center space-x-1.5">
           {privacyEnabled ? (
             <EyeOff className="w-2.5 h-2.5 text-cs-accent" />
           ) : (
@@ -115,10 +115,10 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
           {privacyEnabled && (
             <>
               <div className="absolute top-3 right-6 w-16 h-8 rounded bg-cs-danger/20 border border-cs-danger/40 flex items-center justify-center">
-                <span className="text-[7px] text-cs-danger">*** BLUR ***</span>
+                <span className="text-[10px] text-cs-danger">*** BLUR ***</span>
               </div>
               <div className="absolute bottom-3 left-4 w-12 h-6 rounded bg-cs-danger/20 border border-cs-danger/40 flex items-center justify-center">
-                <span className="text-[7px] text-cs-danger">****</span>
+                <span className="text-[10px] text-cs-danger">****</span>
               </div>
             </>
           )}
@@ -134,7 +134,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
             <button
               key={region.id}
               onClick={() => setSelectedRegion(region.id)}
-              className={`px-2 py-0.5 rounded text-[8px] border transition-colors ${
+              className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${
                 region.active
                   ? selectedRegion === region.id
                     ? "border-cs-danger text-cs-danger bg-cs-danger/10"
@@ -145,7 +145,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
               {region.label}
             </button>
           ))}
-          <button className="px-2 py-0.5 rounded text-[8px] border border-cs-border text-cs-muted hover:border-cs-dim transition-colors">
+          <button className="px-2 py-0.5 rounded text-[10px] border border-cs-border text-cs-muted hover:border-cs-dim transition-colors">
             {t.add_mask_region}
           </button>
         </div>
@@ -160,7 +160,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
               alert(`校验通过: ${result}`);
             } catch (e) { alert(`校验拦截: ${e}`); }
           }}
-          className="flex items-center space-x-1 text-[8px] bg-purple-950/30 border border-purple-800/30 text-purple-400 hover:bg-purple-900/40 px-2 py-0.5 rounded transition-colors">
+          className="flex items-center space-x-1 text-[10px] bg-purple-950/30 border border-purple-800/30 text-purple-400 hover:bg-purple-900/40 px-2 py-0.5 rounded transition-colors">
           <FlaskConical className="w-2.5 h-2.5" /> 测试校验
         </button>
         {redlineStatus?.fused && (
@@ -168,7 +168,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
             onClick={async () => {
               try { await resetFuse(); alert("熔断器已重置。"); } catch(e) { alert(`失败: ${e}`); }
             }}
-            className="text-[8px] bg-red-950/30 border border-red-800/30 text-red-400 hover:bg-red-900/40 px-2 py-0.5 rounded transition-colors font-bold">
+            className="text-[10px] bg-red-950/30 border border-red-800/30 text-red-400 hover:bg-red-900/40 px-2 py-0.5 rounded transition-colors font-bold">
             ⚡ 重置熔断
           </button>
         )}
@@ -200,7 +200,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
           <span className="text-[10px] text-cs-muted font-medium">
             {t.execution_timeline}
           </span>
-          <span className="text-[9px] text-cs-dim ml-auto">
+          <span className="text-[10px] text-cs-dim ml-auto">
             {buildTimeline(redlineStatus).length} events
           </span>
         </div>
@@ -228,7 +228,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
 
               {/* Event card */}
               <div
-                className={`ml-1 p-1.5 rounded border text-[9px] ${
+                className={`ml-1 p-1.5 rounded border text-[10px] ${
                   event.status === "fail"
                     ? "border-cs-danger/30 bg-cs-danger/5"
                     : event.status === "warn"
@@ -268,7 +268,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
       </div>
 
       {/* Bottom: fusion counter — live */}
-      <div className="h-6 border-t border-cs-border bg-cs-bg px-3 flex items-center text-[9px] text-cs-muted">
+      <div className="h-6 border-t border-cs-border bg-cs-bg px-3 flex items-center text-[10px] text-cs-muted">
         <ShieldAlert className={`w-2.5 h-2.5 mr-1.5 ${redlineStatus?.fused ? "text-cs-danger" : "text-cs-accent"}`} />
         <span>{t.healing_fuse}: </span>
         <span className={`font-bold ml-1 ${redlineStatus?.fused ? "text-cs-danger" : "text-cs-warn"}`}>
@@ -305,8 +305,8 @@ function RedlineIndicator({
               : "bg-cs-danger"
         }`}
       />
-      <span className="text-[9px] text-cs-dim flex-1">{label}</span>
-      <span className="text-[8px] text-cs-muted">{detail}</span>
+      <span className="text-[10px] text-cs-dim flex-1">{label}</span>
+      <span className="text-[10px] text-cs-muted">{detail}</span>
     </div>
   );
 }

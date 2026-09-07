@@ -42,7 +42,7 @@ const RISK_LABEL: Record<number, string> = {
 const ACTION_ICON: Record<string, React.ReactNode> = {
   WorktreeMerge: <GitMerge className="w-3 h-3" />,
   PipelineAdvance: <Zap className="w-3 h-3" />,
-  RemoteCommand: <span className="text-[9px]">&gt;_</span>,
+  RemoteCommand: <span className="text-[10px]">&gt;_</span>,
   CostThreshold: <DollarSign className="w-3 h-3" />,
   FileDelete: <Trash2 className="w-3 h-3" />,
 };
@@ -150,7 +150,7 @@ export default function ApprovalPanel() {
           <Shield className={`w-3 h-3 ${highRiskCount > 0 ? "text-red-400 animate-pulse" : "text-red-400"}`} />
           <span className="font-bold text-zinc-200">第四红线</span>
           {pendingCount > 0 && (
-            <span className="px-1.5 py-0.5 text-[9px] bg-red-500/20 text-red-400 border border-red-500/30 rounded-full font-bold">
+            <span className="px-1.5 py-0.5 text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 rounded-full font-bold">
               {pendingCount}
             </span>
           )}
@@ -175,8 +175,8 @@ export default function ApprovalPanel() {
               }`}>
               <Icon className={`w-3 h-3 ${active ? "text-red-400" : ""}`} />
               <span>{tab.label}</span>
-              {tab.id === "pending" && pendingCount > 0 && <span className="text-[9px] text-red-400">({pendingCount})</span>}
-              {tab.id === "suggest" && suggestions.length > 0 && <span className="text-[9px] text-amber-400">({suggestions.length})</span>}
+              {tab.id === "pending" && pendingCount > 0 && <span className="text-[10px] text-red-400">({pendingCount})</span>}
+              {tab.id === "suggest" && suggestions.length > 0 && <span className="text-[10px] text-amber-400">({suggestions.length})</span>}
             </button>
           );
         })}
@@ -238,10 +238,10 @@ export default function ApprovalPanel() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-1.5 mb-1">
-                        <span className={`text-[8px] px-1 py-0.5 rounded border font-bold ${RISK_GRADIENT[req.risk_level] ?? "text-zinc-400 bg-zinc-950 border-zinc-700"}`}>
+                        <span className={`text-[10px] px-1 py-0.5 rounded border font-bold ${RISK_GRADIENT[req.risk_level] ?? "text-zinc-400 bg-zinc-950 border-zinc-700"}`}>
                           R{req.risk_level} {RISK_LABEL[req.risk_level] ?? ""}
                         </span>
-                        <span className="text-[9px] text-zinc-500">
+                        <span className="text-[10px] text-zinc-500">
                           {ACTION_LABEL[req.action_type] ?? req.action_type}
                         </span>
                       </div>
@@ -253,7 +253,7 @@ export default function ApprovalPanel() {
                         }`} style={{ width: `${req.risk_level * 10}%` }} />
                       </div>
                       <p className="text-zinc-300 text-[10px] truncate">{req.description}</p>
-                      <div className="flex items-center space-x-2 mt-1 text-[9px] text-zinc-600">
+                      <div className="flex items-center space-x-2 mt-1 text-[10px] text-zinc-600">
                         <span>{req.id}</span>
                         <span>·</span>
                         <span>{new Date(req.submitted_at).toLocaleTimeString()}</span>
@@ -271,11 +271,11 @@ export default function ApprovalPanel() {
 
                   {expanded && (
                     <>
-                      <div className="text-[9px] text-zinc-600 space-y-0.5 border-t border-[#1a1a1e] pt-1.5">
+                      <div className="text-[10px] text-zinc-600 space-y-0.5 border-t border-[#1a1a1e] pt-1.5">
                         <div className="flex space-x-1"><span className="text-zinc-500">target:</span><span className="text-zinc-400">{req.target_id}</span></div>
                         {req.metadata && <div className="flex space-x-1"><span className="text-zinc-500">meta:</span><span className="text-zinc-400 truncate">{req.metadata}</span></div>}
                         {req.auditor_prescreen && (
-                          <div className={`text-[9px] ${req.auditor_prescreen.passed ? "text-emerald-500" : "text-red-500"}`}>
+                          <div className={`text-[10px] ${req.auditor_prescreen.passed ? "text-emerald-500" : "text-red-500"}`}>
                             Auditor: {req.auditor_prescreen.passed ? "✅ 通过" : "❌ 不通过"} · {req.auditor_prescreen.summary}
                           </div>
                         )}
@@ -315,7 +315,7 @@ export default function ApprovalPanel() {
                 }`}>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-zinc-400 font-bold">{ACTION_LABEL[req.action_type] ?? req.action_type}</span>
-                    <span className={`text-[9px] px-1 py-0.5 rounded ${
+                    <span className={`text-[10px] px-1 py-0.5 rounded ${
                       req.status === "AutoApproved" ? "text-emerald-400 bg-emerald-950/30" :
                       req.status === "Approved" ? "text-emerald-400 bg-emerald-950/30" :
                       req.status === "Rejected" ? "text-red-400 bg-red-950/30" :
@@ -327,7 +327,7 @@ export default function ApprovalPanel() {
                     </span>
                   </div>
                   <p className="text-zinc-500 truncate">{req.description}</p>
-                  <div className="flex justify-between mt-1 text-[9px] text-zinc-600">
+                  <div className="flex justify-between mt-1 text-[10px] text-zinc-600">
                     <span>{req.decided_by ?? "—"}{req.decision_comment ? ` · ${req.decision_comment}` : ""}</span>
                     <span>{req.decided_at ? new Date(req.decided_at).toLocaleTimeString() : ""}</span>
                   </div>
@@ -355,7 +355,7 @@ export default function ApprovalPanel() {
                     <Trash2 className="w-3 h-3" />
                   </button>
                 </div>
-                <div className="flex flex-wrap gap-x-2 text-[9px] text-zinc-500">
+                <div className="flex flex-wrap gap-x-2 text-[10px] text-zinc-500">
                   <span>{t.ap_threshold_below}{rule.auto_approve_below_risk}</span>
                   <span>·</span>
                   <span>{t.ap_timeout} {rule.timeout_secs}s</span>
@@ -381,10 +381,10 @@ export default function ApprovalPanel() {
                   <span className="text-amber-400 font-bold text-[10px] flex items-center space-x-1">
                     <Sparkles className="w-3 h-3" /><span>{s.rule_name}</span>
                   </span>
-                  <span className="text-[9px] text-amber-600">{Math.round(s.confidence * 100)}% 置信</span>
+                  <span className="text-[10px] text-amber-600">{Math.round(s.confidence * 100)}% 置信</span>
                 </div>
                 <p className="text-zinc-400 text-[10px]">{s.reason}</p>
-                <div className="flex items-center space-x-1 text-[9px] text-zinc-500">
+                <div className="flex items-center space-x-1 text-[10px] text-zinc-500">
                   <span>{t.ap_sugg_threshold} {s.current_threshold} → {s.suggested_threshold}</span>
                 </div>
               </div>
@@ -393,7 +393,7 @@ export default function ApprovalPanel() {
         )}
       </div>
 
-      <div className="px-3 py-1.5 border-t border-cs-border bg-cs-header text-[9px] text-zinc-600 flex items-center justify-between shrink-0">
+      <div className="px-3 py-1.5 border-t border-cs-border bg-cs-header text-[10px] text-zinc-600 flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-3">
           <Settings className="w-2.5 h-2.5" />
           <span>{rules.length} {t.ap_n_rules}</span>

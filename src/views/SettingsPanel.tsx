@@ -65,6 +65,19 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
   const onKeyChangeRef = useRef(onKeyChange);
   onKeyChangeRef.current = onKeyChange;
 
+  // ── 未保存更改检测（dirty）：与最近一次加载/保存的快照对比 ──
+  const [savedSnapshot, setSavedSnapshot] = useState("");
+  const isDirty = savedSnapshot !== "" && savedSnapshot !== JSON.stringify([
+    costCap, costCapEnabled, ollamaUrl, lanModel, lanTimeout,
+    autoFallback, maxHealing, astAudit, blockGpl, privacyBlur,
+  ]);
+  useEffect(() => {
+    if (!isDirty) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [isDirty]);
+
   // Cleanup saving timer on unmount
   useEffect(() => {
     return () => { if (savingTimer.current) clearTimeout(savingTimer.current); };
@@ -83,6 +96,10 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
       setAstAudit(s.ast_audit);
       setBlockGpl(s.block_gpl);
       setPrivacyBlur(s.privacy_blur);
+      setSavedSnapshot(JSON.stringify([
+        s.cost_cap, s.cost_cap_enabled, s.ollama_url, s.lan_model, s.lan_timeout,
+        s.auto_fallback, s.max_healing, s.ast_audit, s.block_gpl, s.privacy_blur,
+      ]));
       // Restore key presence flags from vault
       if (s.has_key_deepseek) onKeyChangeRef.current("deepseek", true);
       if (s.has_key_kimi) onKeyChangeRef.current("kimi", true);
@@ -112,7 +129,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
       // Save settings first
       const result = await saveSettings({
         version: 1,
-        cost_cap: costCap, cost_cap_enabled: costCapEnabled,
+        cost_cap: Math.max(0.1, Number.isFinite(costCap) ? costCap : 5.0), cost_cap_enabled: costCapEnabled,
         ollama_url: ollamaUrl, lan_model: lanModel, lan_timeout: lanTimeout,
         auto_fallback: autoFallback, max_healing: maxHealing,
         ast_audit: astAudit, block_gpl: blockGpl, privacy_blur: privacyBlur,
@@ -125,12 +142,27 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
         workHoursStart, workHoursEnd, skillLevel, workMode,
       });
       // Router keys are now vault-resolved server-side — no sync needed
+      setSavedSnapshot(JSON.stringify([
+        costCap, costCapEnabled, ollamaUrl, lanModel, lanTimeout,
+        autoFallback, maxHealing, astAudit, blockGpl, privacyBlur,
+      ]));
       toast.showToast("success", "CONFIG SAVED", result);
     } catch (e) {
       toast.showToast("error", "SAVE FAILED", String(e));
     }
     if (savingTimer.current) clearTimeout(savingTimer.current);
     savingTimer.current = setTimeout(() => setSaving(false), 600);
+  };
+
+  // ── 恢复默认配置：前端已知默认值常量化 + 确认 + 自动保存 ──
+  const handleResetDefaults = async () => {
+    if (!confirm(lang === "zh" ? "确定恢复全部设置为默认值？当前未保存的修改将被覆盖。" : "Reset all settings to defaults? Unsaved changes will be overwritten.")) return;
+    setCostCap(5.0); setCostCapEnabled(true); setCachingPriority(true);
+    setOllamaUrl("http://localhost:11434"); setLanModel("deepseek-v4-flash");
+    setLanTimeout(3500); setAutoFallback(true); setMaxHealing(3);
+    setAstAudit(true); setBlockGpl(true); setPrivacyBlur(true);
+    await handleSave();
+    toast.showToast("success", "RESET DONE", lang === "zh" ? "已恢复默认配置并保存。" : "Defaults restored and saved.");
   };
 
   const tabs: { id: Tab; icon: React.ReactNode; label: string }[] = [
@@ -174,6 +206,12 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
             className="w-full bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 active:scale-[0.98] text-black font-bold text-xs py-1.5 rounded transition-all duration-150 disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
           >
             {saving ? t.syncing : t.apply_changes}
+          </button>
+          <button
+            onClick={handleResetDefaults}
+            className="w-full text-[10px] text-zinc-500 hover:text-red-400 border border-cs-border hover:border-red-500/40 rounded py-1 transition-colors"
+          >
+            {lang === "zh" ? "恢复默认设置" : "Reset to defaults"}
           </button>
         </div>
       </div>
@@ -228,9 +266,15 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
               <label className="text-[11px] font-medium text-zinc-400">{t.cost_amount_label}</label>
               <input
                 type="number"
+                min={0.1}
+                step={0.5}
                 disabled={!costCapEnabled}
                 value={costCap}
-                onChange={(e) => setCostCap(Number(e.target.value))}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (!Number.isNaN(v) && v >= 0) setCostCap(v);
+                }}
+                aria-label={t.cost_amount_label}
                 className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white disabled:opacity-30 focus:border-zinc-500 outline-none w-28"
               />
             </div>
@@ -309,7 +353,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                         <button
                           key={m}
                           onClick={() => setLanModel(m)}
-                          className={`px-2 py-0.5 rounded text-[9px] border transition-colors ${
+                          className={`px-2 py-0.5 rounded text-[10px] border transition-colors ${
                             lanModel === m
                               ? "border-emerald-400 bg-emerald-400/20 text-emerald-300"
                               : "border-zinc-700 text-zinc-400 hover:border-zinc-500"
@@ -502,7 +546,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                     <div key={a.id} className={`p-2 rounded border text-center ${a.unlocked ? "border-emerald-500/40 bg-emerald-950/20" : "border-cs-border/50 bg-black/40 opacity-60"}`}>
                       <div className="text-xl">{a.unlocked ? a.emoji : "🔒"}</div>
                       <div className="text-[10px] font-bold text-zinc-300 mt-1">{a.name}</div>
-                      <div className="text-[9px] text-zinc-500 mt-0.5">{a.description}</div>
+                      <div className="text-[10px] text-zinc-500 mt-0.5">{a.description}</div>
                       <div className="mt-1 h-1 bg-zinc-800 rounded overflow-hidden">
                         <div className="h-full bg-emerald-400" style={{ width: `${Math.round(a.progress * 100)}%` }} />
                       </div>
@@ -666,14 +710,14 @@ function ModelMatrix() {
                       <div className="flex items-center space-x-2 min-w-0">
                         <span className="text-[11px] text-zinc-300 truncate">{m.shortDisplay}</span>
                         {m.isVision && (
-                          <span className="text-[9px] text-purple-400 border border-purple-500/40 bg-purple-950/20 px-1 rounded">视觉</span>
+                          <span className="text-[10px] text-purple-400 border border-purple-500/40 bg-purple-950/20 px-1 rounded">视觉</span>
                         )}
                       </div>
                       <div className="flex items-center space-x-1.5 shrink-0">
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded border ${tb.cls}`}>{tb.label}</span>
-                        <span className="text-[9px] text-zinc-600" title="上下文窗口 (tokens)">{(m.contextWindow / 1000).toFixed(0)}K ctx</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${tb.cls}`}>{tb.label}</span>
+                        <span className="text-[10px] text-zinc-600" title="上下文窗口 (tokens)">{(m.contextWindow / 1000).toFixed(0)}K ctx</span>
                         {m.supportsCache && (
-                          <span className="text-[9px] text-emerald-400" title="支持 Context Caching">⚡缓存</span>
+                          <span className="text-[10px] text-emerald-400" title="支持 Context Caching">⚡缓存</span>
                         )}
                       </div>
                     </div>

@@ -175,7 +175,7 @@ export default function SkillMcpHub() {
             </div>
             {/* Live skills count badge */}
             {liveSkills.length > 0 && (
-              <div className="text-[8px] text-cs-muted text-center mt-1">
+              <div className="text-[10px] text-cs-muted text-center mt-1">
                 +{liveSkills.length} 个运行时技能已加载
               </div>
             )}
@@ -209,7 +209,7 @@ export default function SkillMcpHub() {
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-cs-border bg-cs-header shrink-0">
               <span className="text-[10px] font-bold text-purple-300">OmniPPT-Matrix 演进中心</span>
-              <span className="text-[8px] text-purple-400 animate-pulse">EXECUTING</span>
+              <span className="text-[10px] text-purple-400 animate-pulse">EXECUTING</span>
             </div>
             {/* Theme selector */}
             <div className="flex items-center space-x-1 px-2 py-1.5 border-b border-cs-border bg-cs-surface shrink-0">
@@ -219,7 +219,7 @@ export default function SkillMcpHub() {
                 { id: "apple_minimalist" as const, label: "Apple 极简" },
               ]).map(th => (
                 <button key={th.id} onClick={() => setPptTheme(th.id)}
-                  className={`text-[8px] px-2 py-0.5 rounded border transition-colors ${
+                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
                     pptTheme === th.id ? "bg-purple-950/40 border-purple-500/50 text-purple-300" : "border-cs-border text-zinc-500 hover:text-zinc-300"
                   }`}>
                   {th.label}
@@ -230,7 +230,7 @@ export default function SkillMcpHub() {
             <div className="flex-1 flex overflow-hidden">
               {/* Left: Markdown editor */}
               <div className="w-1/2 border-r border-cs-border flex flex-col">
-                <div className="text-[8px] text-zinc-500 px-2 py-1 border-b border-cs-border shrink-0">📄 Markdown 大纲</div>
+                <div className="text-[10px] text-zinc-500 px-2 py-1 border-b border-cs-border shrink-0">📄 Markdown 大纲</div>
                 <textarea
                   value={pptOutline}
                   onChange={e => setPptOutline(e.target.value)}
@@ -239,7 +239,7 @@ export default function SkillMcpHub() {
               </div>
               {/* Right: Preview */}
               <div className="w-1/2 flex flex-col">
-                <div className="text-[8px] text-zinc-500 px-2 py-1 border-b border-cs-border shrink-0">📺 高保真渲染</div>
+                <div className="text-[10px] text-zinc-500 px-2 py-1 border-b border-cs-border shrink-0">📺 高保真渲染</div>
                 <div className={`flex-1 p-4 overflow-y-auto ${
                   pptTheme === "linear_dark_neon" ? "bg-[#09090b] text-[#e4e4e7]" :
                   pptTheme === "vercel_monochrome" ? "bg-black text-white" :
@@ -255,7 +255,7 @@ export default function SkillMcpHub() {
                           {title}
                         </div>
                         {bullets.map((b, j) => (
-                          <div key={j} className="text-[9px] mb-0.5 flex items-center space-x-1">
+                          <div key={j} className="text-[10px] mb-0.5 flex items-center space-x-1">
                             <span className={pptTheme === "linear_dark_neon" ? "text-[#5e6ad2]" : pptTheme === "apple_minimalist" ? "text-[#0071e3]" : "text-white"}>●</span>
                             <span>{b}</span>
                           </div>
@@ -268,7 +268,7 @@ export default function SkillMcpHub() {
             </div>
             {/* Bottom: ONNX status + export */}
             <div className="flex items-center justify-between px-3 py-1.5 border-t border-cs-border bg-cs-surface shrink-0">
-              <span className="text-[8px] text-emerald-400">ONNX 走查: [{onnxStatus}]</span>
+              <span className="text-[10px] text-emerald-400">ONNX 走查: [{onnxStatus}]</span>
               <div className="flex items-center space-x-1">
                 {(["PDF", "PPTX", "HTML"] as const).map(fmt => (
                   <button key={fmt} onClick={async () => {
@@ -288,7 +288,7 @@ export default function SkillMcpHub() {
                     setExporting(false);
                   }}
                     disabled={exporting}
-                    className="text-[8px] px-2 py-0.5 rounded border border-purple-500/40 text-purple-300 hover:bg-purple-950/30 disabled:opacity-40">
+                    className="text-[10px] px-2 py-0.5 rounded border border-purple-500/40 text-purple-300 hover:bg-purple-950/30 disabled:opacity-40">
                     {fmt}
                   </button>
                 ))}
@@ -312,7 +312,7 @@ export default function SkillMcpHub() {
       </Modal>
 
       {/* Bottom */}
-      <div className="h-6 border-t border-cs-border bg-cs-bg px-3 flex items-center text-[9px] text-cs-muted space-x-3">
+      <div className="h-6 border-t border-cs-border bg-cs-bg px-3 flex items-center text-[10px] text-cs-muted space-x-3">
         <Plug className="w-2.5 h-2.5 text-cs-accent" />
         <span>
           {liveMcp.filter((s: McpServerItem) => s.connected).length || mcpServers.filter((s) => s.connected).length}/{liveMcp.length || mcpServers.length}{" "}
@@ -342,7 +342,7 @@ function SkillCard({ skill }: { skill: Skill }) {
     >
       {/* Premium badge */}
       {skill.premium && skill.badge && (
-        <span className={`absolute -top-1.5 -right-1.5 text-[7px] px-1.5 py-0.5 rounded-full font-bold border ${
+        <span className={`absolute -top-1.5 -right-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${
           (skill.badge || '').includes("安全") ? "bg-red-950/80 border-red-800/50 text-red-400" : "bg-emerald-950/80 border-emerald-800/50 text-emerald-400"
         }`}>
           {skill.badge}
@@ -374,24 +374,24 @@ function SkillCard({ skill }: { skill: Skill }) {
           <div className={`w-3 h-3 rounded-full bg-white transition-transform ${skill.enabled ? "translate-x-3" : "translate-x-0"}`} />
         </button>
       </div>
-      <div className={`text-[8px] mb-1.5 ${skill.premium ? "text-cyan-400/80" : "text-cs-muted"}`}>
+      <div className={`text-[10px] mb-1.5 ${skill.premium ? "text-cyan-400/80" : "text-cs-muted"}`}>
         {skill.description}
       </div>
       <div className="flex items-center space-x-2">
         {skill.premium && (
-          <span className={`px-1 py-0.5 rounded text-[7px] font-bold ${
+          <span className={`px-1 py-0.5 rounded text-[10px] font-bold ${
             skill.badge?.includes("安全") ? "bg-red-950/50 text-red-400 border border-red-800/30" : "bg-cyan-950/50 text-cyan-400 border border-cyan-800/30"
           }`}>
             {skill.badge}
           </span>
         )}
         {skill.model && (
-          <span className="px-1 py-0.5 rounded bg-cs-info/10 text-cs-info text-[7px]">
+          <span className="px-1 py-0.5 rounded bg-cs-info/10 text-cs-info text-[10px]">
             {skill.model}
           </span>
         )}
         <span
-          className={`flex items-center space-x-0.5 text-[7px] ${
+          className={`flex items-center space-x-0.5 text-[10px] ${
             skill.synced ? "text-cs-accent" : "text-cs-muted"
           }`}
         >
@@ -446,7 +446,7 @@ function McpServerCard({
     >
       {/* Premium badge */}
       {server.premium && server.badge && (
-        <span className="absolute -top-1.5 -right-1.5 text-[7px] px-1.5 py-0.5 rounded-full font-bold bg-cyan-950/80 border border-cyan-800/50 text-cyan-400">
+        <span className="absolute -top-1.5 -right-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-cyan-950/80 border border-cyan-800/50 text-cyan-400">
           {server.badge}
         </span>
       )}
@@ -464,7 +464,7 @@ function McpServerCard({
             <div className={`text-[10px] font-bold ${server.premium ? "text-cyan-300" : "text-cs-text"}`}>
               {server.name}
             </div>
-            <div className="flex items-center space-x-1.5 text-[8px] text-cs-muted">
+            <div className="flex items-center space-x-1.5 text-[10px] text-cs-muted">
               <TransportIcon className="w-2 h-2" />
               <span>{server.transport.toUpperCase()}</span>
               {server.premium && server.description && (
@@ -474,7 +474,7 @@ function McpServerCard({
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <div className="text-[9px] text-cs-dim">
+          <div className="text-[10px] text-cs-dim">
             <span className="font-bold">{server.tools}</span> {t.tools_label}
           </div>
           <div
@@ -488,7 +488,7 @@ function McpServerCard({
       {/* Expanded detail */}
       {expanded && (
         <div className="px-3 pb-2 border-t border-cs-border/50 pt-2 space-y-1">
-          <div className="flex items-center justify-between text-[8px]">
+          <div className="flex items-center justify-between text-[10px]">
             <span className="text-cs-muted">{t.status_label}</span>
             <span
               className={`font-medium ${
@@ -498,17 +498,17 @@ function McpServerCard({
               {server.connected ? t.connected : t.disconnected}
             </span>
           </div>
-          <div className="flex items-center justify-between text-[8px]">
+          <div className="flex items-center justify-between text-[10px]">
             <span className="text-cs-muted">{t.transport_label}</span>
             <span className="text-cs-dim">[{server.transport.toUpperCase()}]</span>
           </div>
-          <div className="flex items-center justify-between text-[8px]">
+          <div className="flex items-center justify-between text-[10px]">
             <span className="text-cs-muted">{t.resources_label}</span>
             <span className="text-cs-dim">{server.resources} paths</span>
           </div>
           <div className="flex space-x-1 mt-1">
             <button
-              className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 rounded bg-emerald-950/30 border border-emerald-800/30 text-emerald-400 text-[8px] hover:bg-emerald-900/40 transition-colors"
+              className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 rounded bg-emerald-950/30 border border-emerald-800/30 text-emerald-400 text-[10px] hover:bg-emerald-900/40 transition-colors"
               onClick={async (e) => {
                 e.stopPropagation();
                 try { await mcpConnectAndInit(server.id); } catch {}
@@ -516,7 +516,7 @@ function McpServerCard({
               连接
             </button>
             <button
-              className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 rounded bg-cyan-950/30 border border-cyan-800/30 text-cyan-400 text-[8px] hover:bg-cyan-900/40 transition-colors"
+              className="flex-1 flex items-center justify-center space-x-1 px-2 py-1 rounded bg-cyan-950/30 border border-cyan-800/30 text-cyan-400 text-[10px] hover:bg-cyan-900/40 transition-colors"
               onClick={async (e) => {
                 e.stopPropagation();
                 try { await mcpFetchTools(server.id); } catch {}
@@ -525,7 +525,7 @@ function McpServerCard({
             </button>
           </div>
           <button
-            className="w-full mt-1 flex items-center justify-center space-x-1 px-2 py-1 rounded bg-cs-bg border border-cs-border text-cs-dim text-[8px] hover:border-cs-dim transition-colors"
+            className="w-full mt-1 flex items-center justify-center space-x-1 px-2 py-1 rounded bg-cs-bg border border-cs-border text-cs-dim text-[10px] hover:border-cs-dim transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               onViewSchema?.(

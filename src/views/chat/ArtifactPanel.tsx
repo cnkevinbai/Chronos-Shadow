@@ -43,7 +43,7 @@ export default function ArtifactPanel({
 
               <div className="border-t border-cs-border bg-cs-surface px-3 py-1.5 shrink-0 max-h-32 overflow-y-auto">
 
-              <div className="flex items-center justify-between text-[8px] text-zinc-500 mb-1">
+              <div className="flex items-center justify-between text-[10px] text-zinc-500 mb-1">
 
                 <span className="font-bold text-zinc-400 flex items-center gap-1"><Package size={10} aria-hidden="true" />本会话成品 ({artifacts.length})</span>
 
@@ -55,7 +55,7 @@ export default function ArtifactPanel({
 
                   {artifacts.map((a, i) => (
 
-                    <div key={i} className="flex items-center justify-between text-[8px] bg-cs-header border border-cs-border rounded px-2 py-1">
+                    <div key={i} className="flex items-center justify-between text-[10px] bg-cs-header border border-cs-border rounded px-2 py-1">
 
                       <span className="text-zinc-300 truncate max-w-[200px] font-mono" title={a.path}>
 
@@ -63,7 +63,7 @@ export default function ArtifactPanel({
 
                       </span>
 
-                      <span className={`px-1 rounded text-[7px] ${extColor(a.type)}`}>
+                      <span className={`px-1 rounded text-[10px] ${extColor(a.type)}`}>
 
                         .{a.type}
 
@@ -75,7 +75,7 @@ export default function ArtifactPanel({
 
                           onClick={() => onEditRequest(a.path)}
 
-                          className="text-[7px] text-cyan-400 hover:text-cyan-300 px-1 rounded border border-cyan-800/30 hover:border-cyan-500/40"
+                          className="text-[10px] text-cyan-400 hover:text-cyan-300 px-1 rounded border border-cyan-800/30 hover:border-cyan-500/40"
 
                           title="编辑文件"
 
@@ -129,15 +129,15 @@ export default function ArtifactPanel({
 
                     <button onClick={() => { cvfsReadFile(currentProject, editingFile).then(content => setFileContent(content)).catch(() => {}); }}
 
-                      className="text-[9px] text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded border border-cs-border">📂 加载文件</button>
+                      className="text-[10px] text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded border border-cs-border">📂 加载文件</button>
 
                     <button onClick={() => setEditingFile(null)}
 
-                      className="text-[9px] text-zinc-500 hover:text-zinc-300 px-2 py-1">取消</button>
+                      className="text-[10px] text-zinc-500 hover:text-zinc-300 px-2 py-1">取消</button>
 
                     <button onClick={() => { if (fileContent.trim()) onEditWithAI(editingFile, fileContent) }}
 
-                      className="text-[9px] bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 px-2 py-1 rounded font-bold">💬 让AI修改</button>
+                      className="text-[10px] bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 px-2 py-1 rounded font-bold">💬 让AI修改</button>
 
                   </div>
 

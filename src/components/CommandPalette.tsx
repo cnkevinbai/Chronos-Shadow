@@ -51,20 +51,20 @@ export default function CommandPalette({ commands, open, onClose }: Props) {
             const items = filtered.filter(c => c.category===cat);
             if (!items.length) return null;
             return <div key={cat} className="mb-1">
-              <div className={`text-[9px] ${catColor[cat]} px-2 py-1 uppercase tracking-wider font-bold`}>{catLabel[cat]}</div>
+              <div className={`text-[10px] ${catColor[cat]} px-2 py-1 uppercase tracking-wider font-bold`}>{catLabel[cat]}</div>
               {items.map(cmd => {
                 const idx = filtered.indexOf(cmd); const isSel = idx===sel; const Icon = cmd.icon;
                 return <button key={cmd.id} onClick={()=>{cmd.action();onClose()}} onMouseEnter={()=>setSel(idx)}
                   className={`w-full flex items-center px-2 py-2 rounded-md text-left transition-colors ${isSel?"bg-zinc-800/80 text-white":"text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200"}`}>
                   <Icon className="w-4 h-4 mr-3 shrink-0" />
                   <div className="flex-1 min-w-0"><div className="text-sm font-medium truncate">{cmd.label}</div><div className="text-[10px] text-zinc-600 truncate">{cmd.description}</div></div>
-                  {isSel && <kbd className="text-[9px] text-zinc-500 ml-2">↵</kbd>}
+                  {isSel && <kbd className="text-[10px] text-zinc-500 ml-2">↵</kbd>}
                 </button>;
               })}
             </div>;
           })}
         </div>
-        <div className="flex items-center justify-between px-4 py-2 border-t border-cs-border text-[9px] text-zinc-600">
+        <div className="flex items-center justify-between px-4 py-2 border-t border-cs-border text-[10px] text-zinc-600">
           <div className="flex items-center space-x-3"><span>{t.cmd_hint_nav}</span><span>{t.cmd_hint_exec}</span><span>{t.cmd_hint_close}</span></div>
           <span>{filtered.length} {t.cmd_count}</span>
         </div>

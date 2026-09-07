@@ -127,7 +127,7 @@ export function renderMarkdown(
                 props: {
                   key: "lang",
                   className:
-                    "text-[9px] text-zinc-600 mb-1 uppercase tracking-wider",
+                    "text-[10px] text-zinc-600 mb-1 uppercase tracking-wider",
                   children: block.lang,
                 },
               },

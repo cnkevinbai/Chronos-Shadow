@@ -163,7 +163,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
           <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">📁 {t.workspace}</span>
           <div className="flex items-center space-x-1">
             <button onClick={() => setShowSnapshot(!showSnapshot)}
-              className="text-[9px] bg-black border border-amber-500/30 hover:border-amber-400 text-amber-400 px-1.5 py-0.5 rounded transition-all" title="手动快照">
+              className="text-[10px] bg-black border border-amber-500/30 hover:border-amber-400 text-amber-400 px-1.5 py-0.5 rounded transition-all" title="手动快照">
               <Camera className="w-2.5 h-2.5 inline mr-0.5" />{t.pe_snapshot_btn}</button>
             <button onClick={() => setShowNewProject(!showNewProject)}
               className="text-[10px] bg-black border border-cs-border hover:border-zinc-500 text-white px-1.5 py-0.5 rounded font-bold transition-all active:scale-95">
@@ -176,7 +176,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
             <input value={snapshotLabel} onChange={(e) => setSnapshotLabel(e.target.value)}
               placeholder={t.pe_snapshot_ph} className="flex-1 bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white outline-none focus:border-amber-500" />
             <button onClick={handleCaptureCheckpoint}
-              className="bg-amber-800/50 hover:bg-amber-700 border border-amber-700/50 text-amber-300 text-[9px] px-2 py-1 rounded">捕获</button>
+              className="bg-amber-800/50 hover:bg-amber-700 border border-amber-700/50 text-amber-300 text-[10px] px-2 py-1 rounded">捕获</button>
           </div>
         )}
 
@@ -187,7 +187,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
             <input value={newProjPath} onChange={(e) => setNewProjPath(e.target.value)}
               placeholder={t.pe_path_ph} className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white outline-none focus:border-cyan-500" />
             <button onClick={handleCreateProject}
-              className="w-full bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 text-[9px] py-1 rounded font-bold">{t.pe_create_scope}</button>
+              className="w-full bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 text-[10px] py-1 rounded font-bold">{t.pe_create_scope}</button>
           </div>
         )}
 
@@ -199,7 +199,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
           )) : <option value="">{t.pe_no_projects}</option>}
         </select>
 
-        <div className="flex items-center justify-between text-[9px] text-zinc-500">
+        <div className="flex items-center justify-between text-[10px] text-zinc-500">
           <div className="flex items-center space-x-2">
             <Shield className="w-2.5 h-2.5 text-cs-accent" />
             <span>{currentProject}</span>
@@ -252,8 +252,8 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                     <span className={node.is_locked ? "text-amber-400" : ""}>{node.name}</span>
                   </div>
                   <div className="flex items-center space-x-1 shrink-0">
-                    {node.is_locked && <span className="text-[7px] bg-amber-950 text-amber-400 border border-amber-900/40 px-1 rounded">LOCKED</span>}
-                    <span className="text-zinc-600 text-[8px]">{node.relative_path}</span>
+                    {node.is_locked && <span className="text-[10px] bg-amber-950 text-amber-400 border border-amber-900/40 px-1 rounded">LOCKED</span>}
+                    <span className="text-zinc-600 text-[10px]">{node.relative_path}</span>
                   </div>
                 </div>
               ))
@@ -275,15 +275,15 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                   <span className="absolute -left-[4.5px] top-1.5 w-2 h-2 rounded-full bg-zinc-800 group-hover:bg-cyan-400 transition-all" />
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="font-bold text-zinc-300 group-hover:text-cyan-400">{cp.title}</span>
-                    <span className="text-zinc-600 text-[9px]">{cp.time}</span>
+                    <span className="text-zinc-600 text-[10px]">{cp.time}</span>
                   </div>
                   <p className="text-[10px] text-zinc-500 mt-0.5">{cp.desc}</p>
                   <div className="flex space-x-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => handleRestore(cp.id)}
-                      className="text-[8px] bg-amber-950/50 border border-amber-700/40 text-amber-400 px-1 py-0.5 rounded hover:bg-amber-900/50">
+                      className="text-[10px] bg-amber-950/50 border border-amber-700/40 text-amber-400 px-1 py-0.5 rounded hover:bg-amber-900/50">
                       <RotateCcw className="w-2 h-2 inline mr-0.5" />{t.pe_restore}</button>
                     <button onClick={() => handleDeleteCp(cp.id)}
-                      className="text-[8px] bg-red-950/50 border border-red-700/40 text-red-400 px-1 py-0.5 rounded hover:bg-red-900/50">
+                      className="text-[10px] bg-red-950/50 border border-red-700/40 text-red-400 px-1 py-0.5 rounded hover:bg-red-900/50">
                       <Trash2 className="w-2 h-2 inline mr-0.5" />{t.pe_delete}</button>
                   </div>
                 </div>
@@ -300,7 +300,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
               <div className="p-2 border border-cs-border rounded bg-cs-header space-y-1.5 text-[10px]">
                 <div className="flex items-center justify-between">
                   <span className="text-zinc-400 font-bold">{t.pe_health_title}</span>
-                  <span className={`px-1 py-0.5 rounded text-[9px] ${
+                  <span className={`px-1 py-0.5 rounded text-[10px] ${
                     health.status === "healthy" ? "text-emerald-400 bg-emerald-950/40" : "text-red-400 bg-red-950/40"
                   }`}>{health.status}</span>
                 </div>
@@ -311,7 +311,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                   <span>{t.pe_checkpoints_label}: <b className="text-zinc-300">{health.checkpoint_count}</b></span>
                 </div>
                 {health.last_checkpoint && (
-                  <div className="text-[9px] text-zinc-600">{t.pe_last_checkpoint}: {health.last_checkpoint}</div>
+                  <div className="text-[10px] text-zinc-600">{t.pe_last_checkpoint}: {health.last_checkpoint}</div>
                 )}
               </div>
             ) : (
@@ -322,9 +322,9 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
             <div className="p-2 border border-cs-border rounded bg-cs-header space-y-1.5 text-[10px]">
               <div className="flex items-center justify-between">
                 <span className="text-zinc-400 font-bold">🌿 Worktrees</span>
-                <span className="text-zinc-600 text-[9px]">{wtStats.total} {t.pe_total}</span>
+                <span className="text-zinc-600 text-[10px]">{wtStats.total} {t.pe_total}</span>
               </div>
-              <div className="flex space-x-2 text-[9px] text-zinc-500">
+              <div className="flex space-x-2 text-[10px] text-zinc-500">
                 <span className="text-cyan-400">{wtStats.active} {t.pe_active}</span>
                 <span className="text-emerald-400">{wtStats.completed} {t.pe_completed}</span>
                 <span className="text-purple-400">{wtStats.merged} {t.pe_merged}</span>
@@ -333,12 +333,12 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
               {worktrees.length > 0 ? (
                 <div className="space-y-1 max-h-32 overflow-y-auto">
                   {worktrees.map(wt => (
-                    <div key={wt.id} className="flex items-center justify-between text-[9px] px-1.5 py-0.5 rounded bg-[#0a0a0c] group">
+                    <div key={wt.id} className="flex items-center justify-between text-[10px] px-1.5 py-0.5 rounded bg-[#0a0a0c] group">
                       <span className="text-zinc-400 truncate">{wt.id}</span>
                       <div className="flex items-center space-x-1">
                         <span className="text-zinc-600">{wt.branch}</span>
                         <button onClick={() => handleMergeWorktree(wt.id)}
-                          className="opacity-0 group-hover:opacity-100 text-[8px] bg-purple-950/50 border border-purple-700/40 text-purple-400 px-1 py-0.5 rounded hover:bg-purple-900/50 transition-all"
+                          className="opacity-0 group-hover:opacity-100 text-[10px] bg-purple-950/50 border border-purple-700/40 text-purple-400 px-1 py-0.5 rounded hover:bg-purple-900/50 transition-all"
                           title="合并到主分支">
                           <GitMerge className="w-2 h-2 inline mr-0.5" />{t.pe_merge}</button>
                       </div>
@@ -346,7 +346,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                   ))}
                 </div>
               ) : (
-                <div className="text-zinc-600 text-[9px]">{t.pe_no_worktree}</div>
+                <div className="text-zinc-600 text-[10px]">{t.pe_no_worktree}</div>
               )}
             </div>
           </div>
@@ -354,7 +354,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
       </div>
 
       {/* Footer */}
-      <div className="h-5 border-t border-cs-border px-2.5 flex items-center text-[8px] text-zinc-500 shrink-0">
+      <div className="h-5 border-t border-cs-border px-2.5 flex items-center text-[10px] text-zinc-500 shrink-0">
         <HardDrive className="w-2 h-2 mr-1" />
         {sandboxStatus} · {checkpoints.length} 检查点 · {vfsTree.length} 文件 · {wtStats.total} WT
       </div>

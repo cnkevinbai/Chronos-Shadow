@@ -62,7 +62,7 @@ export default function SessionSidebar({
           <span className="font-bold text-zinc-500 uppercase tracking-wider text-[10px]">
             🗂️ 项目会话矩阵
             {manifests.length > 0 && (
-              <span className="ml-1.5 bg-zinc-800 text-zinc-400 text-[8px] px-1.5 py-0.5 rounded-full">
+              <span className="ml-1.5 bg-zinc-800 text-zinc-400 text-[10px] px-1.5 py-0.5 rounded-full">
                 {manifests.length}
               </span>
             )}
@@ -70,14 +70,14 @@ export default function SessionSidebar({
           <div className="flex items-center space-x-1">
             <button
               onClick={onImport}
-              className="text-[9px] bg-black border border-cs-border px-1.5 py-0.5 rounded hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors"
+              className="text-[10px] bg-black border border-cs-border px-1.5 py-0.5 rounded hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors"
               title="导入 JSON 会话"
             >
               📥
             </button>
             <button
               onClick={onNewSession}
-              className="text-[9px] bg-black border border-cs-border px-1.5 py-0.5 rounded hover:border-zinc-500 text-white font-bold transition-colors"
+              className="text-[10px] bg-black border border-cs-border px-1.5 py-0.5 rounded hover:border-zinc-500 text-white font-bold transition-colors"
             >
               + NEW
             </button>
@@ -108,9 +108,9 @@ export default function SessionSidebar({
             }
             return Array.from(groups.entries()).map(([project, sessions]) => (
               <div key={project} className="space-y-0.5">
-                <div className="px-1.5 py-0.5 text-[9px] bg-black border border-zinc-900 rounded font-bold text-zinc-400 flex items-center justify-between">
+                <div className="px-1.5 py-0.5 text-[10px] bg-black border border-zinc-900 rounded font-bold text-zinc-400 flex items-center justify-between">
                   <span className="truncate">📁 {project}</span>
-                  <span className="text-zinc-600 font-light text-[8px] shrink-0 ml-1">
+                  <span className="text-zinc-600 font-light text-[10px] shrink-0 ml-1">
                     {sessions.length}会话
                   </span>
                 </div>
@@ -153,18 +153,18 @@ export default function SessionSidebar({
                     {m.title}
                   </div>
                 )}
-                <div className="text-[9px] text-zinc-600 mt-1 flex items-center justify-between font-light">
+                <div className="text-[10px] text-zinc-600 mt-1 flex items-center justify-between font-light">
                   <span>🗂️ {m.bound_project}</span>
                   <span className="text-emerald-500 font-medium">
                     ¥{m.total_accumulated_cost.toFixed(3)}
                   </span>
                 </div>
                 {m.last_message_preview && (
-                  <div className="text-[9px] text-zinc-600 mt-1 truncate font-light italic">
+                  <div className="text-[10px] text-zinc-600 mt-1 truncate font-light italic">
                     {m.last_message_preview}
                   </div>
                 )}
-                <div className="text-[8px] text-zinc-700 mt-0.5 font-light text-right">
+                <div className="text-[10px] text-zinc-700 mt-0.5 font-light text-right">
                   条数: {m.total_messages_count} |{" "}
                   {m.last_updated.substring(11, 19)}
                 </div>
@@ -223,7 +223,7 @@ export default function SessionSidebar({
 
         {/* 侧栏统计摘要 */}
         {manifests.length > 0 && (
-          <div className="p-2 border-t border-cs-border text-[9px] text-zinc-600 space-y-0.5 shrink-0">
+          <div className="p-2 border-t border-cs-border text-[10px] text-zinc-600 space-y-0.5 shrink-0">
             <div className="flex justify-between">
               <span className="flex items-center gap-1"><MessageSquare size={9} aria-hidden="true" />会话</span>
               <span className="text-zinc-500">{manifests.length}</span>
@@ -245,7 +245,7 @@ export default function SessionSidebar({
             </div>
             <button
               onClick={onClearAll}
-              className="w-full mt-1 flex items-center justify-center gap-1 text-[8px] text-zinc-700 hover:text-red-400 transition-colors text-center"
+              className="w-full mt-1 flex items-center justify-center gap-1 text-[10px] text-zinc-700 hover:text-red-400 transition-colors text-center"
             >
               <Trash2 size={9} aria-hidden="true" />
               清空全部会话

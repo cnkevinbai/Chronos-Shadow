@@ -121,7 +121,7 @@ export default function FooterBar({
       {/* 右侧：安全通道 + 字体缩放 + 费用熔断器 */}
       <div className="flex items-center space-x-3">
         {/* AES-GCM 安全通道 */}
-        <span className="text-[8px] text-amber-400/70 border border-amber-500/20 bg-amber-950/20 px-1.5 py-0.5 rounded flex items-center space-x-0.5">
+        <span className="text-[10px] text-amber-400/70 border border-amber-500/20 bg-amber-950/20 px-1.5 py-0.5 rounded flex items-center space-x-0.5">
           <ShieldIcon size={10} className="stroke-amber-400 inline mr-0.5" />AES-GCM
         </span>
 

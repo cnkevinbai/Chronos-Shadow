@@ -73,7 +73,7 @@ export default function OrchestrationPanel() {
 
   const statCard = (label: string, value: string, accent?: string) => (
     <div className="flex-1 bg-cs-header border border-cs-border rounded-lg px-3 py-2.5">
-      <div className="text-[9px] uppercase tracking-wider text-zinc-500">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</div>
       <div className={`text-lg font-bold ${accent ?? "text-zinc-200"}`}>{value}</div>
     </div>
   );
@@ -162,11 +162,11 @@ export default function OrchestrationPanel() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div className="bg-black/40 rounded px-2 py-1.5">
-                    <div className="text-[9px] text-zinc-500">{zh ? "推荐 Agent" : "Recommended Agent"}</div>
+                    <div className="text-[10px] text-zinc-500">{zh ? "推荐 Agent" : "Recommended Agent"}</div>
                     <div className="font-bold text-zinc-200">{analysis.recommended_agent}</div>
                   </div>
                   <div className="bg-black/40 rounded px-2 py-1.5">
-                    <div className="text-[9px] text-zinc-500">{zh ? "推荐模型" : "Recommended Model"}</div>
+                    <div className="text-[10px] text-zinc-500">{zh ? "推荐模型" : "Recommended Model"}</div>
                     <div className="font-bold text-zinc-200">{analysis.recommended_model}</div>
                   </div>
                 </div>
@@ -185,7 +185,7 @@ export default function OrchestrationPanel() {
                 {analysis.secondary_intents.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {analysis.secondary_intents.map(([name, conf]) => (
-                      <span key={name} className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-cs-border">
+                      <span key={name} className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-cs-border">
                         {name} · {(conf * 100).toFixed(0)}%
                       </span>
                     ))}
@@ -210,8 +210,8 @@ export default function OrchestrationPanel() {
                       <div key={task.id} className="flex items-center justify-between text-[11px] bg-black/40 rounded px-2 py-1.5">
                         <span className="text-zinc-300 truncate">{task.title}</span>
                         <span className="flex items-center gap-1.5 shrink-0 ml-2">
-                          <span className="text-[9px] text-zinc-500">P{task.priority}</span>
-                          <span className={`text-[9px] px-1 rounded ${
+                          <span className="text-[10px] text-zinc-500">P{task.priority}</span>
+                          <span className={`text-[10px] px-1 rounded ${
                             task.status.includes("Completed") ? "bg-emerald-900/60 text-emerald-400"
                             : task.status.includes("Failed") ? "bg-red-900/60 text-red-400"
                             : "bg-zinc-800 text-zinc-400"}`}
@@ -241,7 +241,7 @@ export default function OrchestrationPanel() {
                 <ol className="space-y-1">
                   {topo.map((id, i) => (
                     <li key={id} className="flex items-center gap-2 text-[11px] bg-black/40 rounded px-2 py-1.5">
-                      <span className="w-5 h-5 flex items-center justify-center rounded-full bg-cyan-900/50 text-cyan-300 text-[9px] font-bold shrink-0">{i + 1}</span>
+                      <span className="w-5 h-5 flex items-center justify-center rounded-full bg-cyan-900/50 text-cyan-300 text-[10px] font-bold shrink-0">{i + 1}</span>
                       <span className="text-zinc-300 font-mono">{id}</span>
                     </li>
                   ))}
@@ -258,7 +258,7 @@ export default function OrchestrationPanel() {
                 {(executable?.tasks ?? []).map((task) => (
                   <div key={task.id} className="flex items-center justify-between text-[11px] bg-emerald-950/30 border border-emerald-900/40 rounded px-2 py-1.5">
                     <span className="text-zinc-300 truncate">{task.title}</span>
-                    <span className="text-[9px] text-zinc-500 shrink-0 ml-2">P{task.priority}</span>
+                    <span className="text-[10px] text-zinc-500 shrink-0 ml-2">P{task.priority}</span>
                   </div>
                 ))}
               </div>

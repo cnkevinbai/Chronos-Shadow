@@ -63,7 +63,7 @@ export default function FloatingBubble({ currentAgent, savedCost, onMaximize }: 
           </div>
           <div className="h-6 w-[1px] bg-[#27272a]" />
           <div className="text-emerald-400 flex flex-col items-end">
-            <span className="text-[9px] text-zinc-500">{t.bubble_saved}</span>
+            <span className="text-[10px] text-zinc-500">{t.bubble_saved}</span>
             <span className="font-bold">¥ {savedCost.toFixed(2)}</span>
           </div>
           <button

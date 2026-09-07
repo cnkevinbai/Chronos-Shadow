@@ -168,7 +168,7 @@ export default function AutoRoutingPanel() {
       <div className="flex items-center space-x-2 px-3 py-2.5 border-b border-cs-border">
         <Activity className="w-3.5 h-3 text-cs-accent" />
         <span className="text-[11px] font-bold text-cs-text tracking-wide">{t.ar_title}</span>
-        <span className="text-[9px] text-cs-muted ml-auto">
+        <span className="text-[10px] text-cs-muted ml-auto">
           {proCount} pro · {flashCount} flash · {uniqueModels.length} {t.ar_model}
         </span>
       </div>
@@ -201,13 +201,13 @@ export default function AutoRoutingPanel() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={t.ar_search_placeholder}
-                  className="flex-1 bg-transparent text-cs-text text-[9px] outline-none placeholder:text-cs-muted"
+                  className="flex-1 bg-transparent text-cs-text text-[10px] outline-none placeholder:text-cs-muted"
                 />
               </div>
               <select
                 value={filterTier}
                 onChange={(e) => setFilterTier(e.target.value as "all" | "pro" | "flash")}
-                className="px-2 py-1 rounded border border-cs-border bg-cs-bg text-cs-text text-[9px]"
+                className="px-2 py-1 rounded border border-cs-border bg-cs-bg text-cs-text text-[10px]"
               >
                 <option value="all">{t.ar_all}</option>
                 <option value="pro">{t.ar_pro}</option>
@@ -216,7 +216,7 @@ export default function AutoRoutingPanel() {
             </div>
 
             {/* Stats bar */}
-            <div className="flex items-center space-x-3 text-[9px] text-cs-muted px-1">
+            <div className="flex items-center space-x-3 text-[10px] text-cs-muted px-1">
               <span className="flex items-center space-x-1">
                 <Layers className="w-3 h-3" />
                 <span>{filteredRules.length} {t.ar_rules_count}</span>
@@ -243,7 +243,7 @@ export default function AutoRoutingPanel() {
                     <div className="flex items-center space-x-2">
                       <span className={`w-1.5 h-1.5 rounded-full ${rule.tier === "pro" ? "bg-purple-400" : "bg-emerald-400"}`} />
                       <span className="text-[10px] font-bold text-cs-text">{rule.agent}</span>
-                      <span className={`text-[8px] px-1 py-0.5 rounded ${
+                      <span className={`text-[10px] px-1 py-0.5 rounded ${
                         rule.tier === "pro"
                           ? "bg-purple-950/30 text-purple-400 border border-purple-800/30"
                           : "bg-emerald-950/30 text-emerald-400 border border-emerald-800/30"
@@ -251,37 +251,37 @@ export default function AutoRoutingPanel() {
                         {rule.tier === "pro" ? "Pro" : "Flash"}
                       </span>
                     </div>
-                    <span className="text-[9px] text-cs-dim font-mono">{rule.model}</span>
+                    <span className="text-[10px] text-cs-dim font-mono">{rule.model}</span>
                   </div>
 
                   {/* Keywords */}
                   <div className="flex flex-wrap gap-1 mt-1.5">
                     {rule.keywords.slice(0, 6).map((kw) => (
-                      <span key={kw} className="text-[8px] px-1 py-0.5 rounded bg-cs-bg text-cs-muted">
+                      <span key={kw} className="text-[10px] px-1 py-0.5 rounded bg-cs-bg text-cs-muted">
                         {kw}
                       </span>
                     ))}
                     {rule.keywords.length > 6 && (
-                      <span className="text-[8px] text-cs-dim">+{rule.keywords.length - 6}</span>
+                      <span className="text-[10px] text-cs-dim">+{rule.keywords.length - 6}</span>
                     )}
                   </div>
 
                   {/* Expanded detail */}
                   {selectedRule?.agent === rule.agent && (
                     <div className="mt-2 pt-2 border-t border-cs-border space-y-1">
-                      <div className="flex items-center justify-between text-[8px]">
+                      <div className="flex items-center justify-between text-[10px]">
                         <span className="text-cs-muted">{t.ar_category}</span>
                         <span className="text-cs-dim">{rule.category}</span>
                       </div>
-                      <div className="flex items-center justify-between text-[8px]">
+                      <div className="flex items-center justify-between text-[10px]">
                         <span className="text-cs-muted">{t.ar_description}</span>
                         <span className="text-cs-dim">{rule.description}</span>
                       </div>
-                      <div className="flex items-center justify-between text-[8px]">
+                      <div className="flex items-center justify-between text-[10px]">
                         <span className="text-cs-muted">{t.ar_route_model}</span>
                         <span className="text-cs-accent font-mono">{rule.model}</span>
                       </div>
-                      <div className="flex items-center justify-between text-[8px]">
+                      <div className="flex items-center justify-between text-[10px]">
                         <span className="text-cs-muted">{t.ar_match_keywords}</span>
                         <span className="text-cs-dim">{rule.keywords.length}</span>
                       </div>
@@ -299,7 +299,7 @@ export default function AutoRoutingPanel() {
             {/* v2: UCB 探索-利用选型 + 上下文感知路由 */}
             {(ucbModel || ctxDomain) && (
               <div className="p-2 rounded border border-violet-900/40 bg-violet-950/15">
-                <div className="flex items-center justify-between text-[8px]">
+                <div className="flex items-center justify-between text-[10px]">
                   <span className="text-violet-400 font-bold">引擎 v2 智能选型</span>
                   {ucbModel && <span className="text-violet-300 font-mono">UCB → {ucbModel.model}</span>}
                   {ctxDomain && <span className="text-sky-300 font-mono">上下文域 → {ctxDomain}</span>}
@@ -312,12 +312,12 @@ export default function AutoRoutingPanel() {
                 <div key={m.name} className="p-2 rounded border border-cs-border bg-cs-surface">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] font-bold text-cs-text">{m.name}</span>
-                    <span className={`flex items-center space-x-1 text-[8px] ${m.online ? "text-emerald-400" : "text-red-400"}`}>
+                    <span className={`flex items-center space-x-1 text-[10px] ${m.online ? "text-emerald-400" : "text-red-400"}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${m.online ? "bg-emerald-400" : "bg-red-400"}`} />
                       {m.online ? t.ar_online : t.ar_offline}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-[8px]">
+                  <div className="grid grid-cols-3 gap-2 text-[10px]">
                     <div>
                       <span className="text-cs-muted">{t.ar_quality}</span>
                       <div className="text-cs-accent font-mono">{m.quality}</div>
@@ -355,20 +355,20 @@ export default function AutoRoutingPanel() {
             <div className="grid grid-cols-3 gap-2 mb-3">
               <div className="p-2 rounded border border-cs-border bg-cs-surface text-center">
                 <div className="text-[14px] font-bold text-purple-400">{proCount}</div>
-                <div className="text-[8px] text-cs-muted">Pro 深度推理</div>
+                <div className="text-[10px] text-cs-muted">Pro 深度推理</div>
               </div>
               <div className="p-2 rounded border border-cs-border bg-cs-surface text-center">
                 <div className="text-[14px] font-bold text-emerald-400">{flashCount}</div>
-                <div className="text-[8px] text-cs-muted">Flash 快速</div>
+                <div className="text-[10px] text-cs-muted">Flash 快速</div>
               </div>
               <div className="p-2 rounded border border-cs-border bg-cs-surface text-center">
                 <div className="text-[14px] font-bold text-cs-accent">{uniqueModels.length}</div>
-                <div className="text-[8px] text-cs-muted">模型类型</div>
+                <div className="text-[10px] text-cs-muted">模型类型</div>
               </div>
             </div>
 
             {/* Agent-Model mapping table */}
-            <div className="text-[9px]">
+            <div className="text-[10px]">
               <div className="grid grid-cols-[1fr_auto_1fr] gap-1 items-center px-1 py-1 text-cs-muted font-medium border-b border-cs-border">
                 <span>{t.ar_agent}</span>
                 <span className="text-center">→</span>
@@ -387,7 +387,7 @@ export default function AutoRoutingPanel() {
                   </div>
                   <ArrowRight className="w-3 h-3 text-cs-muted" />
                   <div className="flex items-center justify-end space-x-1.5">
-                    <span className="text-cs-dim font-mono text-[8px]">{m.model}</span>
+                    <span className="text-cs-dim font-mono text-[10px]">{m.model}</span>
                     <span className={`w-1.5 h-1.5 rounded-full ${m.tier === "pro" ? "bg-purple-400" : "bg-emerald-400"}`} />
                   </div>
                 </div>
@@ -398,7 +398,7 @@ export default function AutoRoutingPanel() {
       </div>
 
       {/* Bottom bar */}
-      <div className="h-6 border-t border-cs-border bg-cs-bg px-3 flex items-center text-[8px] text-cs-muted space-x-3">
+      <div className="h-6 border-t border-cs-border bg-cs-bg px-3 flex items-center text-[10px] text-cs-muted space-x-3">
         <Activity className="w-2.5 h-2.5 text-cs-accent" />
         <span>{t.ar_bottom_bar}</span>
       </div>

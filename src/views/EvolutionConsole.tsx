@@ -143,7 +143,7 @@ export default function EvolutionConsole() {
       <div className="w-72 border-r border-cs-border bg-cs-surface flex flex-col overflow-hidden shrink-0">
         <div className="p-3 border-b border-cs-border bg-cs-header flex items-center justify-between">
           <span className="text-[11px] font-bold text-zinc-400">{t.evo_error_log}</span>
-          <span className="text-[9px] bg-amber-950/40 border border-amber-900/50 text-amber-400 px-1.5 py-0.5 rounded animate-pulse">
+          <span className="text-[10px] bg-amber-950/40 border border-amber-900/50 text-amber-400 px-1.5 py-0.5 rounded animate-pulse">
             {logs.filter((l) => l.status === "Pending Commit").length} {t.evo_pending}
           </span>
         </div>
@@ -156,14 +156,14 @@ export default function EvolutionConsole() {
                 selectedLog?.id === log.id ? "border-zinc-500 bg-zinc-900/40" : "border-cs-border bg-black/20 hover:border-zinc-800"
               }`}
             >
-              <div className="flex items-center justify-between text-[9px] mb-1">
+              <div className="flex items-center justify-between text-[10px] mb-1">
                 <span className={`font-bold ${log.source === "User Override" ? "text-cyan-400" : log.source === "Verifier Self-Healing" ? "text-purple-400" : "text-amber-400"}`}>
                   {log.source}
                 </span>
                 <span className="text-zinc-600">{log.timestamp}</span>
               </div>
               <h4 className="text-[10px] font-bold text-white truncate">{log.taskName}</h4>
-              <div className="flex items-center justify-between text-[9px] mt-2 text-zinc-500">
+              <div className="flex items-center justify-between text-[10px] mt-2 text-zinc-500">
                 <span className={log.status === "Consolidated" ? "text-emerald-500" : "text-amber-500"}>
                   {log.status === "Consolidated" ? `● ${t.evo_consolidated}` : `○ ${t.evo_pending}`}
                 </span>
@@ -173,7 +173,7 @@ export default function EvolutionConsole() {
           ))}
         </div>
         {/* Stats footer */}
-        <div className="flex items-center space-x-4 px-3 py-2 border-t border-cs-border text-[9px]">
+        <div className="flex items-center space-x-4 px-3 py-2 border-t border-cs-border text-[10px]">
           <StatBadge icon={Database} label="Skills" value={`${evoActive}/${evoTotalSkills}`} color="text-zinc-400" />
           <StatBadge icon={TrendingUp} label="Saved" value={`${evoTokensSaved > 0 ? evoTokensSaved : logs.reduce((s, l) => s + l.tokensSaved, 0)}t`} color="text-emerald-400" />
           {/* Validation sandbox status */}
@@ -182,7 +182,7 @@ export default function EvolutionConsole() {
               validationState === "evaluating" ? "bg-amber-400 animate-pulse" :
               validationState === "validated" ? "bg-emerald-400" : "bg-zinc-600"
             }`} />
-            <span className="text-[8px] text-zinc-500">
+            <span className="text-[10px] text-zinc-500">
               {validationState === "evaluating" ? "Evaluating" : validationState === "validated" ? "Validated" : "Idle"}
             </span>
           </div>
@@ -193,7 +193,7 @@ export default function EvolutionConsole() {
       <div className="flex-1 flex flex-col bg-cs-bg overflow-hidden relative">
         <div className="p-3 border-b border-cs-border bg-cs-surface flex items-center justify-between text-[11px] z-10 shrink-0">
           <span className="font-bold text-zinc-300">{t.evo_skill_tree}</span>
-          <span className="text-[9px] text-zinc-600">{t.evo_aura_connected}</span>
+          <span className="text-[10px] text-zinc-600">{t.evo_aura_connected}</span>
         </div>
         <div className="flex-1 relative overflow-auto bg-[radial-gradient(#1c1c1f_1px,transparent_1px)] [background-size:16px_16px]">
           <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ minWidth: "620px", minHeight: "450px" }}>
@@ -218,7 +218,7 @@ export default function EvolutionConsole() {
                 getNodeStyle(node.status)
               } ${node.status !== "locked" ? "cursor-pointer hover:-translate-y-0.5" : ""}`}
             >
-              <div className="flex items-center justify-between text-[8px] text-zinc-500 mb-1">
+              <div className="flex items-center justify-between text-[10px] text-zinc-500 mb-1">
                 <span className="uppercase tracking-wider font-bold">{node.category}</span>
                 <span>T{node.level}</span>
               </div>
@@ -238,15 +238,15 @@ export default function EvolutionConsole() {
           {selectedLog ? (
             <>
               <div>
-                <span className="text-zinc-500 block text-[9px] uppercase">{t.evo_inspect_node}</span>
+                <span className="text-zinc-500 block text-[10px] uppercase">{t.evo_inspect_node}</span>
                 <h4 className="font-bold text-white text-xs">{selectedLog.taskName}</h4>
               </div>
               <div className="bg-black/40 border border-red-950/40 rounded p-2 text-[10px] text-red-400/90 leading-normal">
-                <span className="text-[8px] text-red-500 block font-bold mb-0.5">{t.evo_hallucination_trace}</span>
+                <span className="text-[10px] text-red-500 block font-bold mb-0.5">{t.evo_hallucination_trace}</span>
                 {selectedLog.errorTrigger}
               </div>
               <div className="bg-black/40 border border-emerald-950/40 rounded p-2 text-[10px] text-emerald-400/90 leading-normal">
-                <span className="text-[8px] text-emerald-500 block font-bold mb-0.5">{t.evo_correction_ledger}</span>
+                <span className="text-[10px] text-emerald-500 block font-bold mb-0.5">{t.evo_correction_ledger}</span>
                 {selectedLog.fixedAction}
               </div>
               <div className="pt-2 space-y-2">
@@ -268,7 +268,7 @@ export default function EvolutionConsole() {
                         setValidationState("validated");
                       } catch { setValidationState("idle"); }
                     }}
-                    className="flex-1 bg-purple-800/30 hover:bg-purple-700/40 border border-purple-700/40 text-purple-300 text-[9px] py-1 rounded transition-colors">
+                    className="flex-1 bg-purple-800/30 hover:bg-purple-700/40 border border-purple-700/40 text-purple-300 text-[10px] py-1 rounded transition-colors">
                     🧪 验证
                   </button>
                   <button
@@ -277,7 +277,7 @@ export default function EvolutionConsole() {
                         await evoInterceptContext(selectedLog.id);
                       } catch {}
                     }}
-                    className="flex-1 bg-amber-800/30 hover:bg-amber-700/40 border border-amber-700/40 text-amber-300 text-[9px] py-1 rounded transition-colors">
+                    className="flex-1 bg-amber-800/30 hover:bg-amber-700/40 border border-amber-700/40 text-amber-300 text-[10px] py-1 rounded transition-colors">
                     🛡️ 拦截
                   </button>
                 </div>
@@ -289,7 +289,7 @@ export default function EvolutionConsole() {
                   <span>{t.evo_export_skill}</span>
                 </button>
               </div>
-              <div className="flex items-center space-x-2 text-[9px] text-zinc-600 pt-1">
+              <div className="flex items-center space-x-2 text-[10px] text-zinc-600 pt-1">
                 <Shield className="w-2.5 h-2.5" />
                 <span>{t.evo_source}: {selectedLog.source}</span>
                 <Cpu className="w-2.5 h-2.5 ml-auto" />
@@ -303,13 +303,13 @@ export default function EvolutionConsole() {
                       <Activity className="w-3 h-3" />
                       <span>进化总线</span>
                     </span>
-                    <span className="text-emerald-300 text-[9px] font-mono">
+                    <span className="text-emerald-300 text-[10px] font-mono">
                       先进性: <b>{evoHealth.avg_advancement}</b>/100
                     </span>
                   </div>
                   <div className="space-y-0.5">
                     {evoHealth.engines.slice(0, 5).map((eng) => (
-                      <div key={eng.engine} className="flex items-center justify-between text-[8px]">
+                      <div key={eng.engine} className="flex items-center justify-between text-[10px]">
                         <span className="text-zinc-400">{eng.engine}</span>
                         <div className="flex items-center space-x-2">
                           <span className={`font-mono ${parseInt(eng.advancement_score) > 80 ? 'text-emerald-400' : parseInt(eng.advancement_score) > 60 ? 'text-amber-400' : 'text-red-400'}`}>
@@ -321,7 +321,7 @@ export default function EvolutionConsole() {
                       </div>
                     ))}
                     {evoHealth.engines.length > 5 && (
-                      <div className="text-[8px] text-zinc-600 text-center pt-0.5">
+                      <div className="text-[10px] text-zinc-600 text-center pt-0.5">
                         +{evoHealth.engines.length - 5} more engines
                       </div>
                     )}
@@ -339,10 +339,10 @@ export default function EvolutionConsole() {
                     </span>
                   </div>
                   {selfAssess.degrading_engines?.length > 0 && (
-                    <div className="text-[8px] text-red-400/80">退化引擎: {selfAssess.degrading_engines.join('、')}</div>
+                    <div className="text-[10px] text-red-400/80">退化引擎: {selfAssess.degrading_engines.join('、')}</div>
                   )}
                   {selfAssess.recommendations?.slice(0, 2).map((rec, i) => (
-                    <div key={i} className="text-[8px] text-zinc-500">• {rec}</div>
+                    <div key={i} className="text-[10px] text-zinc-500">• {rec}</div>
                   ))}
                 </div>
               )}
@@ -352,9 +352,9 @@ export default function EvolutionConsole() {
                 <div className="mt-2 p-2 border border-violet-900/40 bg-violet-950/15 rounded">
                   <div className="flex items-center justify-between">
                     <span className="text-violet-400 font-bold text-[10px]">变点检测 v2 (CUSUM)</span>
-                    <span className="text-violet-300 font-mono text-[9px]">{changePoints.length} 个变点</span>
+                    <span className="text-violet-300 font-mono text-[10px]">{changePoints.length} 个变点</span>
                   </div>
-                  <div className="text-[8px] text-violet-300/70 font-mono">
+                  <div className="text-[10px] text-violet-300/70 font-mono">
                     {changePoints.map((p) => `@${p.index}${p.direction === 'up' ? '↑' : '↓'}`).join(' · ')}
                   </div>
                 </div>
@@ -363,14 +363,14 @@ export default function EvolutionConsole() {
               {/* 缓存命中仪表台 */}
               {cacheStats && cacheStats.models.length > 0 && (
                 <div className="mt-2 p-2 border border-emerald-900/40 bg-emerald-950/15 rounded space-y-1.5">
-                  <div className="flex items-center space-x-1.5 text-[9px]">
+                  <div className="flex items-center space-x-1.5 text-[10px]">
                     <Zap className="w-2.5 h-2.5 text-emerald-400" />
                     <span className="text-emerald-400 font-bold">缓存命中统计</span>
-                    <span className="text-[7px] text-emerald-600 ml-auto">省 ¥{cacheStats.total_cost_saved}</span>
+                    <span className="text-[10px] text-emerald-600 ml-auto">省 ¥{cacheStats.total_cost_saved}</span>
                   </div>
                   {cacheStats.models.filter(m => m.total_requests > 0).map((m) => (
                     <div key={m.model} className="space-y-0.5">
-                      <div className="flex items-center justify-between text-[7px]">
+                      <div className="flex items-center justify-between text-[10px]">
                         <span className="text-zinc-400 truncate max-w-[90px]">{m.model}</span>
                         <span className={Number(m.hit_rate) > 50 ? "text-emerald-400 font-bold" : Number(m.hit_rate) > 20 ? "text-amber-400" : "text-zinc-500"}>
                           {m.hit_rate}%
@@ -386,12 +386,12 @@ export default function EvolutionConsole() {
               )}
               {/* 2.0: Contract hot-compile badge */}
               {contractsCompiled > 0 && (
-                <div className="mt-2 p-1.5 border border-cyan-900/40 bg-cyan-950/20 rounded text-[9px]">
+                <div className="mt-2 p-1.5 border border-cyan-900/40 bg-cyan-950/20 rounded text-[10px]">
                   <div className="flex items-center justify-between">
                     <span className="text-cyan-400 font-bold">📜 CLAUDE.md 契约热编译</span>
-                    <span className="text-cyan-300 text-[8px]">[100%免Token]</span>
+                    <span className="text-cyan-300 text-[10px]">[100%免Token]</span>
                   </div>
-                  <div className="flex space-x-3 mt-0.5 text-[8px] text-zinc-500">
+                  <div className="flex space-x-3 mt-0.5 text-[10px] text-zinc-500">
                     <span>拦截: <b className="text-cyan-400">{totalInterceptions}</b></span>
                     <span>编译: <b className="text-cyan-400">{contractsCompiled}</b></span>
                     <span>记忆池: <b className="text-cyan-400">{memoryPoolSize}</b></span>

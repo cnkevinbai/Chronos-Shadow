@@ -93,7 +93,7 @@ export default function SecurityShieldPanel({ redlineStatus }: SecurityShieldPan
             onClick={async () => {
               try { await resetFuse(); alert("熔断器已重置。"); } catch(e) { alert(`重置失败: ${e}`); }
             }}
-            className="col-span-2 text-[9px] bg-red-950/30 border border-red-800/40 text-red-400 hover:bg-red-900/40 px-2 py-1 rounded transition-colors font-bold">
+            className="col-span-2 text-[10px] bg-red-950/30 border border-red-800/40 text-red-400 hover:bg-red-900/40 px-2 py-1 rounded transition-colors font-bold">
             ⚡ 重置熔断器 (人工介入)
           </button>
         )}
@@ -105,10 +105,10 @@ export default function SecurityShieldPanel({ redlineStatus }: SecurityShieldPan
           <div className="flex items-center space-x-2">
             <Eye className="w-3 h-3 text-cyan-400" />
             <div>
-              <div className="text-[9px] text-cyan-300 font-bold">Shadow 影子随航</div>
-              <div className="text-[8px] text-cyan-600">后台静默监听 · 智能纠错建议</div>
+              <div className="text-[10px] text-cyan-300 font-bold">Shadow 影子随航</div>
+              <div className="text-[10px] text-cyan-600">后台静默监听 · 智能纠错建议</div>
               {shadowStats.suggestions > 0 && (
-                <div className="text-[7px] text-cyan-500/70">建议 {shadowStats.suggestions} · 采纳 {shadowStats.accepted}</div>
+                <div className="text-[10px] text-cyan-500/70">建议 {shadowStats.suggestions} · 采纳 {shadowStats.accepted}</div>
               )}
             </div>
           </div>
@@ -170,7 +170,7 @@ function StatusCard({
         }`}
       />
       <div className="flex flex-col min-w-0">
-        <span className="text-[9px] text-cs-muted leading-tight">{label}</span>
+        <span className="text-[10px] text-cs-muted leading-tight">{label}</span>
         <span
           className={`text-[10px] font-bold leading-tight ${
             ok ? "text-cs-accent" : warn ? "text-cs-warn" : "text-cs-danger"

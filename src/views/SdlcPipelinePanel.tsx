@@ -168,25 +168,25 @@ export default function SdlcPipelinePanel({
                 placeholder="任务标题…" autoFocus
                 className="bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white w-36 outline-none focus:border-cyan-500" />
               <button onClick={handleQuickCreateTask}
-                className="text-[9px] bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 px-2 py-1 rounded">创建</button>
+                className="text-[10px] bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 px-2 py-1 rounded">创建</button>
               <button onClick={() => setShowTaskForm(false)}
-                className="text-[9px] text-zinc-500 hover:text-zinc-300 px-1">✕</button>
+                className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1">✕</button>
             </div>
           ) : (
             <button onClick={() => setShowTaskForm(true)}
-              className="text-[9px] bg-black border border-cs-border hover:border-zinc-500 text-zinc-400 hover:text-white px-2 py-0.5 rounded transition-colors">
+              className="text-[10px] bg-black border border-cs-border hover:border-zinc-500 text-zinc-400 hover:text-white px-2 py-0.5 rounded transition-colors">
               + 任务
             </button>
           )}
           {effortEstimate && taskTitle.trim().length >= 3 && (
-            <div className="text-[8px] text-emerald-300/80 font-mono max-w-[240px] truncate">
+            <div className="text-[10px] text-emerald-300/80 font-mono max-w-[240px] truncate">
               PERT {Math.round(effortEstimate.expected_secs)}s · 风险 {effortEstimate.risk_level} · 关键路径 {Math.round(effortEstimate.critical_path_secs)}s
             </div>
           )}
           {/* Detector switch */}
           <button
             onClick={() => setDetectorOn(!detectorOn)}
-            className={`text-[8px] px-1.5 py-0.5 rounded border transition-colors ${
+            className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
               detectorOn
                 ? "bg-purple-950/40 border-purple-500/40 text-purple-400"
                 : "bg-black border-cs-border text-zinc-500"
@@ -442,7 +442,7 @@ export default function SdlcPipelinePanel({
         {/* Route mode badge */}
         <div className="absolute top-3 right-3">
           <span
-            className={`text-[9px] px-2 py-0.5 rounded-full border ${
+            className={`text-[10px] px-2 py-0.5 rounded-full border ${
               routeMode === "auto"
                 ? "border-cs-accent-border text-cs-accent bg-cs-accent-dim/20"
                 : "border-cs-warn/40 text-cs-warn bg-cs-warn/10"
@@ -454,7 +454,7 @@ export default function SdlcPipelinePanel({
       </div>
 
       {/* Bottom status bar */}
-      <div className="h-6 border-t border-cs-border bg-cs-bg px-4 flex items-center text-[9px] text-cs-muted space-x-4">
+      <div className="h-6 border-t border-cs-border bg-cs-bg px-4 flex items-center text-[10px] text-cs-muted space-x-4">
         <span>{t.stage}: {activeIdx + 1}/{agents.length}</span>
         <span>{t.active}: {agents[activeIdx].name}</span>
         {/* 审批门禁指示：Coder/Auditor 阶段显示 */}
@@ -499,7 +499,7 @@ export default function SdlcPipelinePanel({
                 const taskId = prompt("输入要完成的任务 ID:");
                 if (taskId) try { await completeTask(taskId); } catch(e) { alert(`失败: ${e}`); }
               }}
-              className="text-[8px] bg-emerald-950/30 border border-emerald-800/30 text-emerald-400 px-1.5 py-0.5 rounded hover:bg-emerald-900/40">
+              className="text-[10px] bg-emerald-950/30 border border-emerald-800/30 text-emerald-400 px-1.5 py-0.5 rounded hover:bg-emerald-900/40">
               ✅ 完成
             </button>
             <button
@@ -508,7 +508,7 @@ export default function SdlcPipelinePanel({
                 const err = prompt("错误信息:");
                 if (taskId) try { await failTask(taskId, err ?? "unknown"); } catch(e) { alert(`失败: ${e}`); }
               }}
-              className="text-[8px] bg-red-950/30 border border-red-800/30 text-red-400 px-1.5 py-0.5 rounded hover:bg-red-900/40">
+              className="text-[10px] bg-red-950/30 border border-red-800/30 text-red-400 px-1.5 py-0.5 rounded hover:bg-red-900/40">
               ❌ 失败
             </button>
           </div>

@@ -201,14 +201,14 @@ export default function RemoteHub() {
             Remote Explorer
           </span>
           {clusterStats && (
-            <span className="text-[9px] text-zinc-500">
+            <span className="text-[10px] text-zinc-500">
               {clusterStats.connected_servers}/{clusterStats.total_servers} {t.rh_online}
             </span>
           )}
         </div>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className={`flex items-center space-x-1 text-[9px] px-2 py-0.5 rounded border transition-colors ${
+          className={`flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${
             showAddForm
               ? "bg-cyan-950/30 border-cyan-500/50 text-cyan-400"
               : "bg-black border-cs-border text-zinc-500 hover:border-zinc-500 hover:text-zinc-300"
@@ -276,7 +276,7 @@ export default function RemoteHub() {
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧：服务器列表 */}
         <div className="w-48 border-r border-cs-border flex flex-col shrink-0">
-          <div className="p-2 text-[9px] text-zinc-500 font-bold uppercase border-b border-cs-border">
+          <div className="p-2 text-[10px] text-zinc-500 font-bold uppercase border-b border-cs-border">
             {t.rh_nodes}
           </div>
           <div className="flex-1 overflow-y-auto p-1 space-y-1">
@@ -300,8 +300,8 @@ export default function RemoteHub() {
                     <WifiOff className="w-3 h-3 text-red-400" />
                   )}
                 </div>
-                <div className="text-[8px] text-zinc-600 mt-0.5">{node.host}</div>
-                <div className="text-[8px] text-zinc-700 mt-0.5">
+                <div className="text-[10px] text-zinc-600 mt-0.5">{node.host}</div>
+                <div className="text-[10px] text-zinc-700 mt-0.5">
                   {node.projects.length} {t.rh_projects} · {t.rh_builds} {node.builds_triggered}
                 </div>
               </div>
@@ -310,14 +310,14 @@ export default function RemoteHub() {
               <div className="p-3 text-[10px] text-zinc-600 italic text-center">
                 {t.rh_empty}
                 <br />
-                <span className="text-[9px]">{t.rh_empty_hint}</span>
+                <span className="text-[10px]">{t.rh_empty_hint}</span>
               </div>
             )}
           </div>
 
           {/* 集群统计 */}
           {clusterStats && (
-            <div className="p-2 border-t border-cs-border text-[9px] text-zinc-600 space-y-0.5">
+            <div className="p-2 border-t border-cs-border text-[10px] text-zinc-600 space-y-0.5">
               <div className="flex justify-between">
                 <span>{t.rh_servers}</span>
                 <span className="text-zinc-400">{clusterStats.total_servers}</span>
@@ -328,7 +328,7 @@ export default function RemoteHub() {
               </div>
               <button
                 onClick={refreshCluster}
-                className="w-full mt-1 text-[8px] text-zinc-600 hover:text-cyan-400 transition-colors"
+                className="w-full mt-1 text-[10px] text-zinc-600 hover:text-cyan-400 transition-colors"
               >
                 <RefreshCw className="w-3 h-3 inline mr-0.5 -mt-0.5" aria-hidden="true" />{t.rh_refresh_status}
               </button>
@@ -342,17 +342,17 @@ export default function RemoteHub() {
             <div className="space-y-3 animate-fadeIn">
               {/* 操作按钮 */}
               <div className="flex items-center space-x-2">
-                <button onClick={handleConnect} className="flex items-center space-x-1 text-[9px] bg-emerald-800/50 hover:bg-emerald-700 border border-emerald-700/50 text-emerald-300 px-2 py-1 rounded transition-colors">
+                <button onClick={handleConnect} className="flex items-center space-x-1 text-[10px] bg-emerald-800/50 hover:bg-emerald-700 border border-emerald-700/50 text-emerald-300 px-2 py-1 rounded transition-colors">
                   <Link2 className="w-3 h-3" /> {t.rh_connect}
                 </button>
-                <button onClick={() => handleRemoveServer(expanded)} className="flex items-center space-x-1 text-[9px] bg-red-950/30 hover:bg-red-900/40 border border-red-800/30 text-red-400 px-2 py-1 rounded transition-colors">
+                <button onClick={() => handleRemoveServer(expanded)} className="flex items-center space-x-1 text-[10px] bg-red-950/30 hover:bg-red-900/40 border border-red-800/30 text-red-400 px-2 py-1 rounded transition-colors">
                   <Trash2 className="w-3 h-3" /> {t.rh_remove}
                 </button>
               </div>
 
               {/* 文件浏览器 */}
               <div className="border border-cs-border rounded bg-black/20">
-                <div className="flex items-center justify-between px-2 py-1 border-b border-cs-border text-[9px] text-zinc-500">
+                <div className="flex items-center justify-between px-2 py-1 border-b border-cs-border text-[10px] text-zinc-500">
                   <div className="flex items-center space-x-1">
                     <FolderOpen className="w-3 h-3" />
                     <span>{t.rh_remote_files}</span>
@@ -375,7 +375,7 @@ export default function RemoteHub() {
                           {f.is_dir ? "📁" : "📄"} {f.name}
                         </span>
                         {!f.is_dir && (
-                          <span className="text-[8px] text-zinc-600 ml-2">{f.size} B</span>
+                          <span className="text-[10px] text-zinc-600 ml-2">{f.size} B</span>
                         )}
                       </div>
                     ))
@@ -390,7 +390,7 @@ export default function RemoteHub() {
               {/* 文件内容 */}
               {fileContent && (
                 <div className="border border-cs-border rounded bg-black/40">
-                  <div className="px-2 py-1 border-b border-cs-border text-[9px] text-zinc-500 flex justify-between">
+                  <div className="px-2 py-1 border-b border-cs-border text-[10px] text-zinc-500 flex justify-between">
                     <span>{t.rh_file_content}</span>
                     <button onClick={() => setFileContent(null)} className="text-zinc-600 hover:text-zinc-400">✕</button>
                   </div>
@@ -402,7 +402,7 @@ export default function RemoteHub() {
 
               {/* 远程编译 */}
               <div className="border border-cs-border rounded bg-black/20 p-2 space-y-2">
-                <div className="flex items-center space-x-1 text-[9px] text-zinc-500">
+                <div className="flex items-center space-x-1 text-[10px] text-zinc-500">
                   <Play className="w-3 h-3" />
                   <span>{t.rh_remote_build}</span>
                 </div>
@@ -414,7 +414,7 @@ export default function RemoteHub() {
                   />
                   <button
                     onClick={handleCompile}
-                    className="bg-cyan-800/50 hover:bg-cyan-700 border border-cyan-700/50 text-cyan-300 text-[9px] px-2 py-1 rounded transition-colors"
+                    className="bg-cyan-800/50 hover:bg-cyan-700 border border-cyan-700/50 text-cyan-300 text-[10px] px-2 py-1 rounded transition-colors"
                   >
                     {t.rh_execute}
                   </button>
@@ -428,7 +428,7 @@ export default function RemoteHub() {
 
               {/* Git 快照 */}
               <div className="border border-cs-border rounded bg-black/20 p-2 space-y-2">
-                <div className="flex items-center space-x-1 text-[9px] text-zinc-500">
+                <div className="flex items-center space-x-1 text-[10px] text-zinc-500">
                   <Camera className="w-3 h-3" />
                   <span>{t.rh_git_snapshot}</span>
                 </div>
@@ -441,7 +441,7 @@ export default function RemoteHub() {
                   />
                   <button
                     onClick={handleSnapshot}
-                    className="bg-amber-800/50 hover:bg-amber-700 border border-amber-700/50 text-amber-300 text-[9px] px-2 py-1 rounded transition-colors"
+                    className="bg-amber-800/50 hover:bg-amber-700 border border-amber-700/50 text-amber-300 text-[10px] px-2 py-1 rounded transition-colors"
                   >
                     {t.rh_snapshot_btn}
                   </button>
@@ -464,7 +464,7 @@ export default function RemoteHub() {
                       ) as HTMLInputElement;
                       if (input) handleRewind(input.value);
                     }}
-                    className="flex items-center space-x-1 bg-red-950/30 hover:bg-red-900/40 border border-red-800/30 text-red-400 text-[9px] px-2 py-1 rounded transition-colors"
+                    className="flex items-center space-x-1 bg-red-950/30 hover:bg-red-900/40 border border-red-800/30 text-red-400 text-[10px] px-2 py-1 rounded transition-colors"
                   >
                     <RotateCcw className="w-3 h-3" /> {t.rh_rollback}
                   </button>
@@ -479,7 +479,7 @@ export default function RemoteHub() {
               ) : (
                 <div className="text-center space-y-2 max-w-xs">
                   <span className="text-[11px] font-bold text-zinc-400">远程服务器集群</span>
-                  <div className="bg-black/40 border border-cs-border rounded p-2 text-[9px] text-zinc-500 text-left space-y-1">
+                  <div className="bg-black/40 border border-cs-border rounded p-2 text-[10px] text-zinc-500 text-left space-y-1">
                     <div className="text-cyan-400 font-bold">{t.rh_quick_start}</div>
                     <div>1. {t.rh_qs1} <span className="text-white">{t.rh_add_server}</span></div>
                     <div>2. {t.rh_qs2}</div>

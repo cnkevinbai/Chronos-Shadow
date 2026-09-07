@@ -17,6 +17,9 @@ export interface LocaleDict {
   dock_remote: string;
   dock_explorer: string;
   dock_approval: string;
+  safety_expand: string;
+  safety_collapse: string;
+  safety_panel: string;
   dock_orchestrator: string;
   pe_snapshot_btn: string;
   pe_snapshot_ph: string;
@@ -561,6 +564,9 @@ const zh: LocaleDict = {
   dock_remote: "远程服务器",
   dock_explorer: "项目时光机",
   dock_approval: "审批门禁",
+  safety_expand: "展开安全风控面板",
+  safety_collapse: "收起安全风控面板",
+  safety_panel: "安全风控",
   dock_orchestrator: "任务编排",
   pe_snapshot_btn: "快照",
   pe_snapshot_ph: "快照标签",
@@ -1092,6 +1098,9 @@ const en: LocaleDict = {
   dock_remote: "Remote Servers",
   dock_explorer: "Project Time Machine",
   dock_approval: "Approval Gate",
+  safety_expand: "Expand safety panel",
+  safety_collapse: "Collapse safety panel",
+  safety_panel: "Safety",
   dock_orchestrator: "Task Orchestration",
   pe_snapshot_btn: "Snapshot",
   pe_snapshot_ph: "Snapshot label",

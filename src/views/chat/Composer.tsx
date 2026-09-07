@@ -63,7 +63,7 @@ export default function Composer({
           {/* 弹窗 A：快捷斜杠宏命令菜单 */}
           {showSlashMenu && (
             <div className="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-cs-header/95 border border-cs-border rounded shadow-2xl z-30 backdrop-blur-md max-h-44 overflow-y-auto animate-slideLeft">
-              <div className="px-3 py-1.5 text-[9px] text-zinc-500 font-bold uppercase tracking-wider border-b border-zinc-900">
+              <div className="px-3 py-1.5 text-[10px] text-zinc-500 font-bold uppercase tracking-wider border-b border-zinc-900">
                 快捷斜杠宏命令 (Slash Macros)
               </div>
               {slashCommands.map((sc) => (
@@ -86,7 +86,7 @@ export default function Composer({
           {/* 弹窗 B：@ 特种兵子智能体精准靶向选择菜单 */}
           {showAtMenu && (
             <div className="absolute bottom-full left-0 right-0 mb-2 mx-4 bg-cs-header/95 border border-cs-border rounded shadow-2xl z-30 backdrop-blur-md max-h-44 overflow-y-auto animate-slideLeft">
-              <div className="px-3 py-1.5 text-[9px] text-zinc-500 font-bold uppercase tracking-wider border-b border-zinc-900">
+              <div className="px-3 py-1.5 text-[10px] text-zinc-500 font-bold uppercase tracking-wider border-b border-zinc-900">
                 唤醒专业特种子智能体 (Target Subagent)
               </div>
               {subAgents.map((sa) => (

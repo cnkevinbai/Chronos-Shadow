@@ -114,11 +114,11 @@ export default function AppGlueBinder() {
         </div>
         <div className="flex items-center space-x-1.5">
           <button onClick={async () => { const n = !buddyOn; setBuddyOn(n); try { await toggleBuddyScan(n); } catch {} }}
-            className={`text-[8px] px-1 py-0.5 rounded border transition-colors ${buddyOn ? "bg-cyan-950/40 border-cyan-500/50 text-cyan-400" : "bg-black border-cs-border text-zinc-500 hover:border-zinc-500"}`}>
+            className={`text-[10px] px-1 py-0.5 rounded border transition-colors ${buddyOn ? "bg-cyan-950/40 border-cyan-500/50 text-cyan-400" : "bg-black border-cs-border text-zinc-500 hover:border-zinc-500"}`}>
             {buddyOn ? "👁️ Scan ON" : "🔍 Scan OFF"}
           </button>
           <button onClick={async () => { const n = !glueOn; setGlueOn(n); try { await toggleContextGlue(n); await saveContextGlueBindings(); } catch {} }}
-            className={`text-[8px] px-1 py-0.5 rounded border transition-colors ${glueOn ? "bg-purple-950/40 border-purple-500/50 text-purple-400" : "bg-black border-cs-border text-zinc-500 hover:border-zinc-500"}`}>
+            className={`text-[10px] px-1 py-0.5 rounded border transition-colors ${glueOn ? "bg-purple-950/40 border-purple-500/50 text-purple-400" : "bg-black border-cs-border text-zinc-500 hover:border-zinc-500"}`}>
             {glueOn ? "🔗 Glue ON" : "🧩 Glue OFF"}
           </button>
         </div>
@@ -149,7 +149,7 @@ export default function AppGlueBinder() {
         {/* ── 窗口卡片视图 ── */}
         {viewMode === "cards" && (
           <div className="h-full overflow-y-auto p-2 space-y-2">
-            <div className="text-[9px] text-zinc-500 flex justify-between px-1">
+            <div className="text-[10px] text-zinc-500 flex justify-between px-1">
               <span>{t.win32_bound_windows}</span>
               <span>{t.active_links}: <b className="text-cyan-400">{activeWindows}</b></span>
             </div>
@@ -158,12 +158,12 @@ export default function AppGlueBinder() {
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center space-x-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full ${win.status === "syncing" ? "bg-cyan-400 animate-pulse" : win.status === "active" ? "bg-emerald-400" : "bg-zinc-600"}`} />
-                    <span className="font-bold text-zinc-300 uppercase text-[9px]">{win.processName}</span>
+                    <span className="font-bold text-zinc-300 uppercase text-[10px]">{win.processName}</span>
                   </div>
-                  <span className="text-[8px] text-zinc-600">PID:{win.pid}</span>
+                  <span className="text-[10px] text-zinc-600">PID:{win.pid}</span>
                 </div>
                 <h4 className="text-zinc-200 truncate mb-1.5">{win.title}</h4>
-                <div className="flex items-center justify-between border-t border-zinc-900/60 pt-1.5 text-[9px]">
+                <div className="flex items-center justify-between border-t border-zinc-900/60 pt-1.5 text-[10px]">
                   <span className="text-zinc-500">{t.handle_hijack_label}</span>
                   <button onClick={() => toggleHijack(win.id)}
                     className={`w-7 h-4 rounded-full p-0.5 transition-colors ${win.handleHijacked ? "bg-cyan-500" : "bg-[#27272a]"}`}>
@@ -178,7 +178,7 @@ export default function AppGlueBinder() {
                 <span className="text-emerald-400 font-bold">{t.buddy_scan_benefit}</span>
                 <span className="text-emerald-400 font-bold">¥{(scanStats?.estimated_cost_saved ?? 0.52).toFixed(2)}</span>
               </div>
-              <div className="text-[9px] text-emerald-600 mt-0.5">{t.vlm_screenshot_saved} · {t.pixel_correction_saved}</div>
+              <div className="text-[10px] text-emerald-600 mt-0.5">{t.vlm_screenshot_saved} · {t.pixel_correction_saved}</div>
             </div>
           </div>
         )}
@@ -186,7 +186,7 @@ export default function AppGlueBinder() {
         {/* ── 拓扑画布视图 ── */}
         {viewMode === "canvas" && (
           <div className="h-full flex flex-col">
-            <div className="text-[9px] text-zinc-500 px-2 py-1.5 border-b border-cs-border/50">
+            <div className="text-[10px] text-zinc-500 px-2 py-1.5 border-b border-cs-border/50">
               {t.app_conn_matrix} · {bindings.length} IPC | {streams.filter((s) => s.isActive).length} {t.streams_active}
             </div>
             <div className="flex-1 relative overflow-hidden bg-[radial-gradient(#1c1c1f_1px,transparent_1px)] [background-size:12px_12px]">
@@ -235,7 +235,7 @@ export default function AppGlueBinder() {
             <div className="border-t border-cs-border max-h-20 overflow-y-auto">
               {streams.map((str) => (
                 <div key={str.id} onClick={() => setSelectedStream(str)}
-                  className={`flex items-center justify-between px-2 py-1 text-[9px] cursor-pointer hover:bg-cs-header/30 ${selectedStream?.id === str.id ? "bg-cyan-950/20 text-cyan-400" : "text-zinc-400"}`}>
+                  className={`flex items-center justify-between px-2 py-1 text-[10px] cursor-pointer hover:bg-cs-header/30 ${selectedStream?.id === str.id ? "bg-cyan-950/20 text-cyan-400" : "text-zinc-400"}`}>
                   <span>{windows.find((w) => w.id === str.fromNode)?.processName} → {windows.find((w) => w.id === str.toNode)?.processName}</span>
                   <span className={str.isActive ? "text-cyan-400" : "text-zinc-600"}>{str.isActive ? t.stream_on : t.stream_off}</span>
                 </div>
@@ -250,13 +250,13 @@ export default function AppGlueBinder() {
             {selectedStream ? (
               <>
                 <div className="p-2 border border-cs-border rounded bg-black/20 space-y-1.5">
-                  <span className="text-[9px] text-zinc-500 uppercase">{t.current_route}</span>
+                  <span className="text-[10px] text-zinc-500 uppercase">{t.current_route}</span>
                   <div className="font-bold text-white text-[11px]">
                     {windows.find((w) => w.id === selectedStream.fromNode)?.processName}
                     {" → "}
                     {windows.find((w) => w.id === selectedStream.toNode)?.processName}
                   </div>
-                  <div className="grid grid-cols-2 gap-1 text-[9px] text-zinc-400">
+                  <div className="grid grid-cols-2 gap-1 text-[10px] text-zinc-400">
                     <div><span className="text-cyan-400">{t.route_status}:</span> {selectedStream.isActive ? t.route_running : t.route_shutdown}</div>
                     <div><span className="text-cyan-400">{t.data_schema}:</span> {selectedStream.dataType}</div>
                     <div><span className="text-cyan-400">{t.memory_speed}:</span> {selectedStream.isActive ? t.memory_speed_active : t.memory_speed_idle}</div>
@@ -266,15 +266,15 @@ export default function AppGlueBinder() {
 
                 <div className="p-2 border border-emerald-950 bg-emerald-950/20 rounded flex justify-between">
                   <div>
-                    <div className="text-[9px] text-emerald-400 font-bold">{t.buddy_scan_benefit}</div>
-                    <div className="text-[8px] text-emerald-600">{t.vlm_screenshot_saved}</div>
+                    <div className="text-[10px] text-emerald-400 font-bold">{t.buddy_scan_benefit}</div>
+                    <div className="text-[10px] text-emerald-600">{t.vlm_screenshot_saved}</div>
                   </div>
                   <span className="text-emerald-400 font-bold text-sm">¥{(scanStats?.estimated_cost_saved ?? 0.52).toFixed(2)}</span>
                 </div>
 
                 <div>
-                  <span className="text-[9px] text-zinc-500 uppercase">{t.workbuddy_audit_log}</span>
-                  <div className="mt-1 bg-black border border-cs-border rounded p-1.5 space-y-0.5 max-h-40 overflow-y-auto text-[8px] font-mono">
+                  <span className="text-[10px] text-zinc-500 uppercase">{t.workbuddy_audit_log}</span>
+                  <div className="mt-1 bg-black border border-cs-border rounded p-1.5 space-y-0.5 max-h-40 overflow-y-auto text-[10px] font-mono">
                     {logs.map((log, i) => (
                       <div key={i} className="flex space-x-1">
                         <span className="text-zinc-600 shrink-0">[{log.time}]</span>
@@ -298,10 +298,10 @@ export default function AppGlueBinder() {
             <div className="flex items-center justify-between px-2 py-1.5 border-b border-cs-border bg-cs-surface shrink-0">
               <div className="flex items-center space-x-1.5">
                 <Palette className="w-3 h-3 text-purple-400" />
-                <span className="text-[9px] font-bold text-zinc-300">OmniDesign-Matrix</span>
-                <span className="text-[7px] bg-purple-950/40 border border-purple-500/30 text-purple-400 px-1 rounded">ACTIVE</span>
+                <span className="text-[10px] font-bold text-zinc-300">OmniDesign-Matrix</span>
+                <span className="text-[10px] bg-purple-950/40 border border-purple-500/30 text-purple-400 px-1 rounded">ACTIVE</span>
               </div>
-              <div className="flex items-center space-x-1 text-[8px]">
+              <div className="flex items-center space-x-1 text-[10px]">
                 {(["vercel_monochrome", "linear_metallic", "apple_fluid"] as const).map((t) => (
                   <button key={t} onClick={() => setDesignTheme(t)}
                     className={`px-1.5 py-0.5 rounded border transition-colors ${
@@ -317,10 +317,10 @@ export default function AppGlueBinder() {
             <div className="flex-1 grid grid-cols-2 gap-2 p-2 overflow-hidden">
               {/* PC 桌面端 */}
               <div className="flex flex-col border border-cs-border rounded bg-black/20 overflow-hidden">
-                <div className="flex items-center space-x-1 px-2 py-1 bg-cs-header border-b border-cs-border text-[8px] text-zinc-500">
+                <div className="flex items-center space-x-1 px-2 py-1 bg-cs-header border-b border-cs-border text-[10px] text-zinc-500">
                   <PcIcon className="w-2.5 h-2.5" />
                   <span>PC 桌面端 (Tauri/Win32)</span>
-                  <span className="ml-auto text-[7px] text-zinc-600">1920×1080</span>
+                  <span className="ml-auto text-[10px] text-zinc-600">1920×1080</span>
                 </div>
                 <div className="flex-1 p-2 flex items-center justify-center relative overflow-hidden">
                   <div className={`w-full h-full rounded border transition-all ${
@@ -336,7 +336,7 @@ export default function AppGlueBinder() {
                         <div className="flex-1 bg-zinc-900/20 rounded" />
                       </div>
                       {designTheme === "apple_fluid" && (
-                        <div className="absolute top-2 right-2 w-16 h-4 bg-purple-500/10 border border-purple-500/20 rounded-full flex items-center justify-center text-[6px] text-purple-400">灵动岛</div>
+                        <div className="absolute top-2 right-2 w-16 h-4 bg-purple-500/10 border border-purple-500/20 rounded-full flex items-center justify-center text-[10px] text-purple-400">灵动岛</div>
                       )}
                     </div>
                   </div>
@@ -355,10 +355,10 @@ export default function AppGlueBinder() {
 
               {/* 移动端 */}
               <div className="flex flex-col border border-cs-border rounded bg-black/20 overflow-hidden">
-                <div className="flex items-center space-x-1 px-2 py-1 bg-cs-header border-b border-cs-border text-[8px] text-zinc-500">
+                <div className="flex items-center space-x-1 px-2 py-1 bg-cs-header border-b border-cs-border text-[10px] text-zinc-500">
                   <Smartphone className="w-2.5 h-2.5" />
                   <span>移动端 (React Native)</span>
-                  <span className="ml-auto text-[7px] text-zinc-600">390×844</span>
+                  <span className="ml-auto text-[10px] text-zinc-600">390×844</span>
                 </div>
                 <div className="flex-1 flex items-center justify-center p-2">
                   <div className={`w-24 h-40 rounded-2xl border-2 transition-all flex flex-col overflow-hidden ${
@@ -392,7 +392,7 @@ export default function AppGlueBinder() {
             </div>
 
             {/* ONNX 扫描状态栏 */}
-            <div className={`px-2 py-1.5 border-t text-[8px] flex items-center justify-between shrink-0 ${
+            <div className={`px-2 py-1.5 border-t text-[10px] flex items-center justify-between shrink-0 ${
               scanStatus.pass ? "border-emerald-500/20 bg-emerald-950/10" : "border-red-500/20 bg-red-950/10"
             }`}>
               <div className="flex items-center space-x-1.5">
@@ -404,7 +404,7 @@ export default function AppGlueBinder() {
               <div className="flex items-center space-x-3 text-zinc-500">
                 <span>像素纠偏已省: <span className="text-emerald-400 font-bold">¥{scanStatus.saved.toFixed(2)}</span></span>
                 <button onClick={() => setScanStatus({ pass: true, score: 98 + Math.random() * 2, saved: scanStatus.saved + 0.15 })}
-                  className="text-[7px] bg-purple-800/30 border border-purple-700/30 text-purple-400 px-1 rounded hover:bg-purple-700/40">
+                  className="text-[10px] bg-purple-800/30 border border-purple-700/30 text-purple-400 px-1 rounded hover:bg-purple-700/40">
                   重新扫描
                 </button>
               </div>
@@ -414,7 +414,7 @@ export default function AppGlueBinder() {
       </div>
 
       {/* Bottom bar */}
-      <div className="h-6 border-t border-cs-border bg-cs-bg px-2.5 flex items-center text-[9px] text-cs-muted shrink-0">
+      <div className="h-6 border-t border-cs-border bg-cs-bg px-2.5 flex items-center text-[10px] text-cs-muted shrink-0">
         <span>{t.active_bindings}: <b className="text-cyan-400">{glueStats?.active_bindings ?? activeWindows}</b></span>
         <span className="ml-auto">{t.buddy_saved}: <b className="text-emerald-400">¥{(scanStats?.estimated_cost_saved ?? 0.52).toFixed(2)}</b></span>
       </div>
