@@ -18,6 +18,43 @@ export interface LocaleDict {
   dock_explorer: string;
   dock_approval: string;
   dock_orchestrator: string;
+  rh_online: string;
+  rh_add_server: string;
+  rh_server_id_ph: string;
+  rh_host_ph: string;
+  rh_port_ph: string;
+  rh_user_ph: string;
+  rh_root_ph: string;
+  rh_register: string;
+  rh_cancel: string;
+  rh_nodes: string;
+  rh_projects: string;
+  rh_builds: string;
+  rh_empty: string;
+  rh_empty_hint: string;
+  rh_servers: string;
+  rh_refresh_status: string;
+  rh_connect: string;
+  rh_remove: string;
+  rh_remote_files: string;
+  rh_refresh: string;
+  rh_files_hint: string;
+  rh_file_content: string;
+  rh_remote_build: string;
+  rh_execute: string;
+  rh_git_snapshot: string;
+  rh_tag_ph: string;
+  rh_snapshot_btn: string;
+  rh_rollback_tag_ph: string;
+  rh_rollback: string;
+  rh_select_hint: string;
+  rh_cluster_title: string;
+  rh_quick_start: string;
+  rh_qs1: string;
+  rh_qs2: string;
+  rh_qs3: string;
+  rh_qs_note: string;
+  rh_registered: string;
   stream_stop: string;
   cmd_orchestrator: string;
   cmd_orchestrator_desc: string;
@@ -463,6 +500,43 @@ const zh: LocaleDict = {
   dock_explorer: "项目时光机",
   dock_approval: "审批门禁",
   dock_orchestrator: "任务编排",
+  rh_online: "在线",
+  rh_add_server: "添加服务器",
+  rh_server_id_ph: "服务器 ID (如 srv-1)",
+  rh_host_ph: "主机 IP 或域名",
+  rh_port_ph: "SSH 端口",
+  rh_user_ph: "用户名",
+  rh_root_ph: "远程项目根路径",
+  rh_register: "注册并连接",
+  rh_cancel: "取消",
+  rh_nodes: "服务器节点",
+  rh_projects: "项目",
+  rh_builds: "编译",
+  rh_empty: "暂无已注册服务器",
+  rh_empty_hint: "点击 「+ 添加服务器」 注册",
+  rh_servers: "服务器",
+  rh_refresh_status: "刷新状态",
+  rh_connect: "连接",
+  rh_remove: "移除",
+  rh_remote_files: "远程文件",
+  rh_refresh: "刷新",
+  rh_files_hint: "点击 「刷新」 加载文件列表",
+  rh_file_content: "文件内容",
+  rh_remote_build: "远程编译",
+  rh_execute: "执行",
+  rh_git_snapshot: "Git 时空快照",
+  rh_tag_ph: "标签名 (如 v1.0-checkpoint)",
+  rh_snapshot_btn: "快照",
+  rh_rollback_tag_ph: "回滚标签名",
+  rh_rollback: "回滚",
+  rh_select_hint: "选择左侧服务器查看详情",
+  rh_cluster_title: "远程服务器集群",
+  rh_quick_start: "快速开始",
+  rh_qs1: "1. 点击",
+  rh_qs2: "2. 填入 SSH 信息",
+  rh_qs3: "3. 连接后即可浏览文件/编译",
+  rh_qs_note: "前提：目标服务器已开启 SSH",
+  rh_registered: "已注册",
   stream_stop: "停止",
   settings: "全局配置",
   auto_rule: "自动全局规则",
@@ -895,6 +969,43 @@ const en: LocaleDict = {
   dock_explorer: "Project Time Machine",
   dock_approval: "Approval Gate",
   dock_orchestrator: "Task Orchestration",
+  rh_online: "online",
+  rh_add_server: "Add Server",
+  rh_server_id_ph: "Server ID (e.g. srv-1)",
+  rh_host_ph: "Host IP or domain",
+  rh_port_ph: "SSH Port",
+  rh_user_ph: "Username",
+  rh_root_ph: "Remote project root",
+  rh_register: "Register & Connect",
+  rh_cancel: "Cancel",
+  rh_nodes: "Server Nodes",
+  rh_projects: "projects",
+  rh_builds: "builds",
+  rh_empty: "No registered servers",
+  rh_empty_hint: "Click \"+ Add Server\" to register",
+  rh_servers: "Servers",
+  rh_refresh_status: "Refresh Status",
+  rh_connect: "Connect",
+  rh_remove: "Remove",
+  rh_remote_files: "Remote Files",
+  rh_refresh: "Refresh",
+  rh_files_hint: "Click \"Refresh\" to load files",
+  rh_file_content: "File Content",
+  rh_remote_build: "Remote Build",
+  rh_execute: "Execute",
+  rh_git_snapshot: "Git Time Snapshot",
+  rh_tag_ph: "Tag name (e.g. v1.0-checkpoint)",
+  rh_snapshot_btn: "Snapshot",
+  rh_rollback_tag_ph: "Rollback tag name",
+  rh_rollback: "Rollback",
+  rh_select_hint: "Select a server on the left",
+  rh_cluster_title: "Remote Server Cluster",
+  rh_quick_start: "Quick Start",
+  rh_qs1: "1. Click",
+  rh_qs2: "2. Fill in SSH details",
+  rh_qs3: "3. Browse files / build after connecting",
+  rh_qs_note: "Prerequisite: SSH enabled on target",
+  rh_registered: "registered",
   stream_stop: "Stop",
   settings: "Settings",
   auto_rule: "Auto-Matrix",
