@@ -164,7 +164,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
           <div className="flex items-center space-x-1">
             <button onClick={() => setShowSnapshot(!showSnapshot)}
               className="text-[9px] bg-black border border-amber-500/30 hover:border-amber-400 text-amber-400 px-1.5 py-0.5 rounded transition-all" title="手动快照">
-              <Camera className="w-2.5 h-2.5 inline mr-0.5" />快照</button>
+              <Camera className="w-2.5 h-2.5 inline mr-0.5" />{t.pe_snapshot_btn}</button>
             <button onClick={() => setShowNewProject(!showNewProject)}
               className="text-[10px] bg-black border border-cs-border hover:border-zinc-500 text-white px-1.5 py-0.5 rounded font-bold transition-all active:scale-95">
               <Plus className="w-2.5 h-2.5 inline mr-0.5" />{t.new_button}</button>
@@ -174,7 +174,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
         {showSnapshot && (
           <div className="flex space-x-1 animate-fadeIn">
             <input value={snapshotLabel} onChange={(e) => setSnapshotLabel(e.target.value)}
-              placeholder="快照标签" className="flex-1 bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white outline-none focus:border-amber-500" />
+              placeholder={t.pe_snapshot_ph} className="flex-1 bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white outline-none focus:border-amber-500" />
             <button onClick={handleCaptureCheckpoint}
               className="bg-amber-800/50 hover:bg-amber-700 border border-amber-700/50 text-amber-300 text-[9px] px-2 py-1 rounded">捕获</button>
           </div>
@@ -183,11 +183,11 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
         {showNewProject && (
           <div className="space-y-1 animate-fadeIn">
             <input value={newProjId} onChange={(e) => setNewProjId(e.target.value)}
-              placeholder="项目 ID" className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white outline-none focus:border-cyan-500" />
+              placeholder={t.pe_project_id_ph} className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white outline-none focus:border-cyan-500" />
             <input value={newProjPath} onChange={(e) => setNewProjPath(e.target.value)}
-              placeholder="物理路径" className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white outline-none focus:border-cyan-500" />
+              placeholder={t.pe_path_ph} className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-white outline-none focus:border-cyan-500" />
             <button onClick={handleCreateProject}
-              className="w-full bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 text-[9px] py-1 rounded font-bold">创建项目并锁定 Scope</button>
+              className="w-full bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 text-[9px] py-1 rounded font-bold">{t.pe_create_scope}</button>
           </div>
         )}
 
@@ -196,7 +196,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
           className="bg-black border border-cs-border rounded px-2 py-1 text-xs text-white outline-none cursor-pointer w-full">
           {displayProjects.length > 0 ? displayProjects.map(p => (
             <option key={p.id} value={p.id}>{p.name} [{p.path.slice(0, 30)}]</option>
-          )) : <option value="">暂无项目 — 点击 + 新建</option>}
+          )) : <option value="">{t.pe_no_projects}</option>}
         </select>
 
         <div className="flex items-center justify-between text-[9px] text-zinc-500">
@@ -217,9 +217,9 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
       {/* 2. Tab 切换：文件 / 检查点 / 健康 */}
       <div className="flex border-b border-cs-border bg-cs-surface shrink-0">
         {([
-          { id: "files" as const, icon: FolderTree, label: "文件" },
-          { id: "checkpoints" as const, icon: Clock, label: `检查点(${checkpoints.length})` },
-          { id: "health" as const, icon: Activity, label: "健康" },
+          { id: "files" as const, icon: FolderTree, label: t.pe_tab_files },
+          { id: "checkpoints" as const, icon: Clock, label: `${t.pe_tab_checkpoints}(${checkpoints.length})` },
+          { id: "health" as const, icon: Activity, label: t.pe_tab_health },
         ]).map(tab => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -242,7 +242,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
             {vfsTree.length === 0 ? (
               <div className="text-center text-zinc-600 py-4 text-[10px]">
                 <FolderTree className="w-4 h-4 mx-auto mb-1 opacity-50" />
-                {currentProject === "default" ? "创建项目后显示文件树" : "加载中..."}
+                {currentProject === "default" ? t.pe_no_filetree : t.pe_loading}
               </div>
             ) : (
               vfsTree.map((node, idx) => (
@@ -267,7 +267,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
             {checkpoints.length === 0 ? (
               <div className="text-center text-zinc-600 py-4 text-[10px]">
                 <Camera className="w-4 h-4 mx-auto mb-1 opacity-50" />
-                暂无检查点 — 点击 📸 创建
+                {t.pe_no_checkpoints}
               </div>
             ) : (
               checkpoints.map(cp => (
@@ -281,10 +281,10 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                   <div className="flex space-x-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => handleRestore(cp.id)}
                       className="text-[8px] bg-amber-950/50 border border-amber-700/40 text-amber-400 px-1 py-0.5 rounded hover:bg-amber-900/50">
-                      <RotateCcw className="w-2 h-2 inline mr-0.5" />恢复</button>
+                      <RotateCcw className="w-2 h-2 inline mr-0.5" />{t.pe_restore}</button>
                     <button onClick={() => handleDeleteCp(cp.id)}
                       className="text-[8px] bg-red-950/50 border border-red-700/40 text-red-400 px-1 py-0.5 rounded hover:bg-red-900/50">
-                      <Trash2 className="w-2 h-2 inline mr-0.5" />删除</button>
+                      <Trash2 className="w-2 h-2 inline mr-0.5" />{t.pe_delete}</button>
                   </div>
                 </div>
               ))
@@ -299,36 +299,36 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
             {health ? (
               <div className="p-2 border border-cs-border rounded bg-cs-header space-y-1.5 text-[10px]">
                 <div className="flex items-center justify-between">
-                  <span className="text-zinc-400 font-bold">📊 项目健康</span>
+                  <span className="text-zinc-400 font-bold">{t.pe_health_title}</span>
                   <span className={`px-1 py-0.5 rounded text-[9px] ${
                     health.status === "healthy" ? "text-emerald-400 bg-emerald-950/40" : "text-red-400 bg-red-950/40"
                   }`}>{health.status}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-zinc-500">
-                  <span>文件: <b className="text-zinc-300">{health.file_count}</b></span>
-                  <span>大小: <b className="text-zinc-300">{fmtSize(health.total_size_bytes)}</b></span>
+                  <span>{t.pe_files_label}: <b className="text-zinc-300">{health.file_count}</b></span>
+                  <span>{t.pe_size_label}: <b className="text-zinc-300">{fmtSize(health.total_size_bytes)}</b></span>
                   <span>Git: <b className={health.has_git ? "text-emerald-400" : "text-zinc-600"}>{health.has_git ? "✅" : "❌"}</b></span>
-                  <span>检查点: <b className="text-zinc-300">{health.checkpoint_count}</b></span>
+                  <span>{t.pe_checkpoints_label}: <b className="text-zinc-300">{health.checkpoint_count}</b></span>
                 </div>
                 {health.last_checkpoint && (
-                  <div className="text-[9px] text-zinc-600">最近检查点: {health.last_checkpoint}</div>
+                  <div className="text-[9px] text-zinc-600">{t.pe_last_checkpoint}: {health.last_checkpoint}</div>
                 )}
               </div>
             ) : (
-              <div className="text-center text-zinc-600 py-4 text-[10px]">创建项目后显示健康状态</div>
+              <div className="text-center text-zinc-600 py-4 text-[10px]">{t.pe_health_empty}</div>
             )}
 
             {/* Worktree 面板 */}
             <div className="p-2 border border-cs-border rounded bg-cs-header space-y-1.5 text-[10px]">
               <div className="flex items-center justify-between">
                 <span className="text-zinc-400 font-bold">🌿 Worktrees</span>
-                <span className="text-zinc-600 text-[9px]">{wtStats.total} 总计</span>
+                <span className="text-zinc-600 text-[9px]">{wtStats.total} {t.pe_total}</span>
               </div>
               <div className="flex space-x-2 text-[9px] text-zinc-500">
-                <span className="text-cyan-400">{wtStats.active} 活跃</span>
-                <span className="text-emerald-400">{wtStats.completed} 完成</span>
-                <span className="text-purple-400">{wtStats.merged} 已合并</span>
-                {wtStats.errors > 0 && <span className="text-red-400">{wtStats.errors} 错误</span>}
+                <span className="text-cyan-400">{wtStats.active} {t.pe_active}</span>
+                <span className="text-emerald-400">{wtStats.completed} {t.pe_completed}</span>
+                <span className="text-purple-400">{wtStats.merged} {t.pe_merged}</span>
+                {wtStats.errors > 0 && <span className="text-red-400">{wtStats.errors} {t.pe_errors}</span>}
               </div>
               {worktrees.length > 0 ? (
                 <div className="space-y-1 max-h-32 overflow-y-auto">
@@ -340,13 +340,13 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                         <button onClick={() => handleMergeWorktree(wt.id)}
                           className="opacity-0 group-hover:opacity-100 text-[8px] bg-purple-950/50 border border-purple-700/40 text-purple-400 px-1 py-0.5 rounded hover:bg-purple-900/50 transition-all"
                           title="合并到主分支">
-                          <GitMerge className="w-2 h-2 inline mr-0.5" />合并</button>
+                          <GitMerge className="w-2 h-2 inline mr-0.5" />{t.pe_merge}</button>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-zinc-600 text-[9px]">无活跃 Worktree</div>
+                <div className="text-zinc-600 text-[9px]">{t.pe_no_worktree}</div>
               )}
             </div>
           </div>

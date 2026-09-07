@@ -18,6 +18,68 @@ export interface LocaleDict {
   dock_explorer: string;
   dock_approval: string;
   dock_orchestrator: string;
+  pe_snapshot_btn: string;
+  pe_snapshot_ph: string;
+  pe_project_id_ph: string;
+  pe_path_ph: string;
+  pe_create_scope: string;
+  pe_no_projects: string;
+  pe_tab_files: string;
+  pe_tab_checkpoints: string;
+  pe_tab_health: string;
+  pe_no_filetree: string;
+  pe_loading: string;
+  pe_no_checkpoints: string;
+  pe_restore: string;
+  pe_delete: string;
+  pe_health_title: string;
+  pe_files_label: string;
+  pe_size_label: string;
+  pe_checkpoints_label: string;
+  pe_last_checkpoint: string;
+  pe_health_empty: string;
+  pe_total: string;
+  pe_active: string;
+  pe_completed: string;
+  pe_merged: string;
+  pe_errors: string;
+  pe_merge: string;
+  pe_no_worktree: string;
+  ap_tab_pending: string;
+  ap_tab_log: string;
+  ap_tab_rules: string;
+  ap_tab_suggest: string;
+  ap_submit_show: string;
+  ap_submit_hide: string;
+  ap_opt_wtm: string;
+  ap_opt_pa: string;
+  ap_opt_rc: string;
+  ap_opt_co: string;
+  ap_opt_fd: string;
+  ap_opt_cc: string;
+  ap_target_ph: string;
+  ap_desc_ph: string;
+  ap_cost_ph: string;
+  ap_submit: string;
+  ap_all_clear: string;
+  ap_comment_ph: string;
+  ap_approve: string;
+  ap_reject: string;
+  ap_no_audit: string;
+  ap_status_auto: string;
+  ap_status_approved: string;
+  ap_status_rejected: string;
+  ap_status_expired: string;
+  ap_add_rule: string;
+  ap_threshold_below: string;
+  ap_timeout: string;
+  ap_no_suggestions: string;
+  ap_no_suggestions_hint: string;
+  ap_sugg_threshold: string;
+  ap_n_rules: string;
+  ap_n_audit: string;
+  ap_n_pending: string;
+  ap_all_pass: string;
   rh_online: string;
   rh_add_server: string;
   rh_server_id_ph: string;
@@ -500,6 +562,68 @@ const zh: LocaleDict = {
   dock_explorer: "项目时光机",
   dock_approval: "审批门禁",
   dock_orchestrator: "任务编排",
+  pe_snapshot_btn: "快照",
+  pe_snapshot_ph: "快照标签",
+  pe_project_id_ph: "项目 ID",
+  pe_path_ph: "物理路径",
+  pe_create_scope: "创建项目并锁定 Scope",
+  pe_no_projects: "暂无项目 — 点击 + 新建",
+  pe_tab_files: "文件",
+  pe_tab_checkpoints: "检查点",
+  pe_tab_health: "健康",
+  pe_no_filetree: "创建项目后显示文件树",
+  pe_loading: "加载中...",
+  pe_no_checkpoints: "暂无检查点 — 点击 📸 创建",
+  pe_restore: "恢复",
+  pe_delete: "删除",
+  pe_health_title: "项目健康",
+  pe_files_label: "文件",
+  pe_size_label: "大小",
+  pe_checkpoints_label: "检查点",
+  pe_last_checkpoint: "最近检查点",
+  pe_health_empty: "创建项目后显示健康状态",
+  pe_total: "总计",
+  pe_active: "活跃",
+  pe_completed: "完成",
+  pe_merged: "已合并",
+  pe_errors: "错误",
+  pe_merge: "合并",
+  pe_no_worktree: "无活跃 Worktree",
+  ap_tab_pending: "待审批",
+  ap_tab_log: "审计",
+  ap_tab_rules: "规则",
+  ap_tab_suggest: "建议",
+  ap_submit_show: "提交审批请求",
+  ap_submit_hide: "收起",
+  ap_opt_wtm: "Worktree 合并",
+  ap_opt_pa: "流水线跃迁",
+  ap_opt_rc: "远程命令",
+  ap_opt_co: "资费超限",
+  ap_opt_fd: "文件删除",
+  ap_opt_cc: "配置变更",
+  ap_target_ph: "目标 ID (如 wt-0001)",
+  ap_desc_ph: "描述 (如: 合并 feature-x 到 main)",
+  ap_cost_ph: "预估费用 ¥ (可选)",
+  ap_submit: "提交审批",
+  ap_all_clear: "所有操作已放行",
+  ap_comment_ph: "审批备注",
+  ap_approve: "通过",
+  ap_reject: "驳回",
+  ap_no_audit: "暂无审计记录",
+  ap_status_auto: "自动",
+  ap_status_approved: "通过",
+  ap_status_rejected: "驳回",
+  ap_status_expired: "过期",
+  ap_add_rule: "添加规则",
+  ap_threshold_below: "阈值 ≤",
+  ap_timeout: "超时",
+  ap_no_suggestions: "暂无优化建议",
+  ap_no_suggestions_hint: "积累更多审批数据后自动生成",
+  ap_sugg_threshold: "阈值",
+  ap_n_rules: "规则",
+  ap_n_audit: "审计",
+  ap_n_pending: "待处理",
+  ap_all_pass: "全部放行",
   rh_online: "在线",
   rh_add_server: "添加服务器",
   rh_server_id_ph: "服务器 ID (如 srv-1)",
@@ -969,6 +1093,68 @@ const en: LocaleDict = {
   dock_explorer: "Project Time Machine",
   dock_approval: "Approval Gate",
   dock_orchestrator: "Task Orchestration",
+  pe_snapshot_btn: "Snapshot",
+  pe_snapshot_ph: "Snapshot label",
+  pe_project_id_ph: "Project ID",
+  pe_path_ph: "Physical path",
+  pe_create_scope: "Create project & lock scope",
+  pe_no_projects: "No projects — click + to create",
+  pe_tab_files: "Files",
+  pe_tab_checkpoints: "Checkpoints",
+  pe_tab_health: "Health",
+  pe_no_filetree: "File tree appears after project creation",
+  pe_loading: "Loading...",
+  pe_no_checkpoints: "No checkpoints — click 📸 to create",
+  pe_restore: "Restore",
+  pe_delete: "Delete",
+  pe_health_title: "Project Health",
+  pe_files_label: "Files",
+  pe_size_label: "Size",
+  pe_checkpoints_label: "Checkpoints",
+  pe_last_checkpoint: "Last checkpoint",
+  pe_health_empty: "Health appears after project creation",
+  pe_total: "total",
+  pe_active: "active",
+  pe_completed: "completed",
+  pe_merged: "merged",
+  pe_errors: "errors",
+  pe_merge: "Merge",
+  pe_no_worktree: "No active worktrees",
+  ap_tab_pending: "Pending",
+  ap_tab_log: "Audit",
+  ap_tab_rules: "Rules",
+  ap_tab_suggest: "Suggest",
+  ap_submit_show: "Submit Request",
+  ap_submit_hide: "Collapse",
+  ap_opt_wtm: "Worktree Merge",
+  ap_opt_pa: "Pipeline Advance",
+  ap_opt_rc: "Remote Command",
+  ap_opt_co: "Cost Override",
+  ap_opt_fd: "File Delete",
+  ap_opt_cc: "Config Change",
+  ap_target_ph: "Target ID (e.g. wt-0001)",
+  ap_desc_ph: "Description (e.g. merge feature-x to main)",
+  ap_cost_ph: "Est. cost ¥ (optional)",
+  ap_submit: "Submit",
+  ap_all_clear: "All operations auto-approved",
+  ap_comment_ph: "Review comment",
+  ap_approve: "Approve",
+  ap_reject: "Reject",
+  ap_no_audit: "No audit records",
+  ap_status_auto: "Auto",
+  ap_status_approved: "Approved",
+  ap_status_rejected: "Rejected",
+  ap_status_expired: "Expired",
+  ap_add_rule: "Add Rule",
+  ap_threshold_below: "Auto-below ≤",
+  ap_timeout: "Timeout",
+  ap_no_suggestions: "No suggestions yet",
+  ap_no_suggestions_hint: "Generated after more approval data accumulates",
+  ap_sugg_threshold: "Threshold",
+  ap_n_rules: "rules",
+  ap_n_audit: "audits",
+  ap_n_pending: "pending",
+  ap_all_pass: "All approved",
   rh_online: "online",
   rh_add_server: "Add Server",
   rh_server_id_ph: "Server ID (e.g. srv-1)",

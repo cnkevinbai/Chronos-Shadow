@@ -2,6 +2,7 @@
 // 字段名已对齐 Rust ApprovalRequest 序列化 (risk_level / submitted_at / decided_by / decision_comment)
 
 import { useState, useEffect, useCallback } from "react";
+import { useT } from "@/lib/i18n-context";
 import {
   listPendingApprovals,
   getApprovalAuditLog,
@@ -56,6 +57,7 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 export default function ApprovalPanel() {
+  const t = useT();
   const [pending, setPending] = useState<ApprovalRequest[]>([]);
   const [auditLog, setAuditLog] = useState<ApprovalRequest[]>([]);
   const [rules, setRules] = useState<ApprovalRule[]>([]);
@@ -159,10 +161,10 @@ export default function ApprovalPanel() {
       {/* Tabs */}
       <div className="flex border-b border-cs-border bg-cs-surface shrink-0">
         {([
-          { id: "pending" as const, icon: Clock, label: "待审批" },
-          { id: "log" as const, icon: History, label: "审计" },
-          { id: "rules" as const, icon: Shield, label: "规则" },
-          { id: "suggest" as const, icon: Sparkles, label: "建议" },
+          { id: "pending" as const, icon: Clock, label: t.ap_tab_pending },
+          { id: "log" as const, icon: History, label: t.ap_tab_log },
+          { id: "rules" as const, icon: Shield, label: t.ap_tab_rules },
+          { id: "suggest" as const, icon: Sparkles, label: t.ap_tab_suggest },
         ]).map(tab => {
           const Icon = tab.icon;
           const active = view === tab.id;
@@ -181,31 +183,31 @@ export default function ApprovalPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
-        {/* ── 提交审批表单 ── */}
+        {/* ── {t.ap_submit}表单 ── */}
         <button onClick={() => setShowSubmitForm(!showSubmitForm)}
           className="w-full flex items-center justify-center space-x-1 py-1.5 border border-dashed border-red-500/30 rounded text-[10px] text-red-400 hover:bg-red-950/20 transition-colors">
           <Shield className="w-3 h-3" />
-          <span>{showSubmitForm ? "收起" : "提交审批请求"}</span>
+          <span>{showSubmitForm ? t.ap_submit_hide : t.ap_submit_show}</span>
         </button>
         {showSubmitForm && (
           <div className="p-2 border border-red-500/20 rounded bg-red-950/5 space-y-1.5">
             <select value={submitAction} onChange={e => setSubmitAction(e.target.value)}
               className="w-full bg-cs-bg border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-200">
-              <option value="worktree_merge">Worktree 合并</option>
-              <option value="pipeline_advance">流水线跃迁</option>
-              <option value="ssh_exec">远程命令</option>
-              <option value="cost_override">资费超限</option>
-              <option value="file_delete">文件删除</option>
-              <option value="config_change">配置变更</option>
+              <option value="worktree_merge">{t.ap_opt_wtm}</option>
+              <option value="pipeline_advance">{t.ap_opt_pa}</option>
+              <option value="ssh_exec">{t.ap_opt_rc}</option>
+              <option value="cost_override">{t.ap_opt_co}</option>
+              <option value="file_delete">{t.ap_opt_fd}</option>
+              <option value="config_change">{t.ap_opt_cc}</option>
             </select>
-            <input type="text" placeholder="目标 ID (如 wt-0001)" value={submitTarget}
+            <input type="text" placeholder={t.ap_target_ph} value={submitTarget}
               onChange={e => setSubmitTarget(e.target.value)}
               className="w-full bg-cs-bg border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-200 placeholder-zinc-600" />
-            <input type="text" placeholder="描述 (如: 合并 feature-x 到 main)" value={submitDesc}
+            <input type="text" placeholder={t.ap_desc_ph} value={submitDesc}
               onChange={e => setSubmitDesc(e.target.value)}
               className="w-full bg-cs-bg border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-200 placeholder-zinc-600" />
             <div className="flex space-x-1">
-              <input type="number" placeholder="预估费用 ¥ (可选)" value={submitCost}
+              <input type="number" placeholder={t.ap_cost_ph} value={submitCost}
                 onChange={e => setSubmitCost(e.target.value)}
                 className="flex-1 bg-cs-bg border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-200 placeholder-zinc-600" />
               <button onClick={handleSubmitApproval}
@@ -221,7 +223,7 @@ export default function ApprovalPanel() {
           pending.length === 0 ? (
             <div className="text-center text-zinc-600 py-10">
               <Check className="w-5 h-5 mx-auto mb-2 text-emerald-600" />
-              <span className="text-[11px]">所有操作已放行</span>
+              <span className="text-[11px]">{t.ap_all_clear}</span>
             </div>
           ) : (
             pending.map(req => {
@@ -279,16 +281,16 @@ export default function ApprovalPanel() {
                         )}
                       </div>
                       <div className="flex items-center space-x-2 pt-1 border-t border-[#1a1a1e]">
-                        <input type="text" placeholder="审批备注" value={comment}
+                        <input type="text" placeholder={t.ap_comment_ph} value={comment}
                           onChange={e => setComment(e.target.value)}
                           onClick={e => e.stopPropagation()}
                           className="flex-1 bg-cs-bg border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-300 placeholder-zinc-600" />
                         <button onClick={e => { e.stopPropagation(); handleDecide(req.id, "Approve"); }}
                           className="px-2.5 py-1 bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 rounded text-[10px] hover:bg-emerald-900/60">
-                          <Check className="w-3 h-3 inline mr-0.5" />通过</button>
+                          <Check className="w-3 h-3 inline mr-0.5" />{t.ap_approve}</button>
                         <button onClick={e => { e.stopPropagation(); handleDecide(req.id, "Reject"); }}
                           className="px-2.5 py-1 bg-red-950/60 border border-red-500/40 text-red-400 rounded text-[10px] hover:bg-red-900/60">
-                          <X className="w-3 h-3 inline mr-0.5" />驳回</button>
+                          <X className="w-3 h-3 inline mr-0.5" />{t.ap_reject}</button>
                       </div>
                     </>
                   )}
@@ -301,7 +303,7 @@ export default function ApprovalPanel() {
         {/* ── 审计日志 ── */}
         {view === "log" && (
           auditLog.length === 0 ? (
-            <div className="text-center text-zinc-600 py-10"><History className="w-5 h-5 mx-auto mb-2" /><span>暂无审计记录</span></div>
+            <div className="text-center text-zinc-600 py-10"><History className="w-5 h-5 mx-auto mb-2" /><span>{t.ap_no_audit}</span></div>
           ) : (
             auditLog.map(req => {
               const isOk = req.status === "Approved" || req.status === "AutoApproved";
@@ -320,8 +322,8 @@ export default function ApprovalPanel() {
                       req.status === "Expired" ? "text-zinc-500 bg-zinc-950/30" :
                       "text-yellow-400 bg-yellow-950/30"
                     }`}>
-                      {req.status === "AutoApproved" ? "自动" : req.status === "Approved" ? "通过" :
-                       req.status === "Rejected" ? "驳回" : req.status === "Expired" ? "过期" : req.status}
+                      {req.status === "AutoApproved" ? t.ap_status_auto : req.status === "Approved" ? t.ap_status_approved :
+                       req.status === "Rejected" ? t.ap_status_rejected : req.status === "Expired" ? t.ap_status_expired : req.status}
                     </span>
                   </div>
                   <p className="text-zinc-500 truncate">{req.description}</p>
@@ -340,7 +342,7 @@ export default function ApprovalPanel() {
           <>
             <button onClick={handleAddRule}
               className="w-full flex items-center justify-center space-x-1 py-1.5 border border-dashed border-cs-border rounded text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors">
-              <Plus className="w-3 h-3" /><span>添加规则</span>
+              <Plus className="w-3 h-3" /><span>{t.ap_add_rule}</span>
             </button>
             {rules.map(rule => (
               <div key={rule.id} className={`p-2 border rounded text-[10px] ${
@@ -354,9 +356,9 @@ export default function ApprovalPanel() {
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-x-2 text-[9px] text-zinc-500">
-                  <span>阈值 ≤{rule.auto_approve_below_risk}</span>
+                  <span>{t.ap_threshold_below}{rule.auto_approve_below_risk}</span>
                   <span>·</span>
-                  <span>超时 {rule.timeout_secs}s</span>
+                  <span>{t.ap_timeout} {rule.timeout_secs}s</span>
                   {rule.project_scope && <><span>·</span><span className="text-cyan-500">🏷️ {rule.project_scope}</span></>}
                   {rule.enable_auditor_prescreen && <><span>·</span><span className="text-amber-500">🔍 Auditor预检</span></>}
                 </div>
@@ -370,7 +372,7 @@ export default function ApprovalPanel() {
           suggestions.length === 0 ? (
             <div className="text-center text-zinc-600 py-10">
               <Sparkles className="w-5 h-5 mx-auto mb-2" />
-              <span className="text-[11px]">暂无优化建议<br/>积累更多审批数据后自动生成</span>
+              <span className="text-[11px]">{t.ap_no_suggestions}<br/>{t.ap_no_suggestions_hint}</span>
             </div>
           ) : (
             suggestions.map((s, i) => (
@@ -383,7 +385,7 @@ export default function ApprovalPanel() {
                 </div>
                 <p className="text-zinc-400 text-[10px]">{s.reason}</p>
                 <div className="flex items-center space-x-1 text-[9px] text-zinc-500">
-                  <span>阈值 {s.current_threshold} → {s.suggested_threshold}</span>
+                  <span>{t.ap_sugg_threshold} {s.current_threshold} → {s.suggested_threshold}</span>
                 </div>
               </div>
             ))
@@ -394,12 +396,12 @@ export default function ApprovalPanel() {
       <div className="px-3 py-1.5 border-t border-cs-border bg-cs-header text-[9px] text-zinc-600 flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-3">
           <Settings className="w-2.5 h-2.5" />
-          <span>{rules.length} 规则</span>
+          <span>{rules.length} {t.ap_n_rules}</span>
           <span>·</span>
-          <span>{auditLog.length} 审计</span>
+          <span>{auditLog.length} {t.ap_n_audit}</span>
         </div>
         <span className={pendingCount > 0 ? "text-red-400" : "text-zinc-600"}>
-          {pendingCount > 0 ? `${pendingCount} 待处理` : "全部放行"}
+          {pendingCount > 0 ? `${pendingCount} ${t.ap_n_pending}` : t.ap_all_pass}
         </span>
       </div>
     </div>
