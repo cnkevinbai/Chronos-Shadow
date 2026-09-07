@@ -403,12 +403,12 @@ function AppInner() {
             <span className="text-zinc-300">{greeting}</span>
           </div>
           {heartbeat && (
-            <div className="flex items-center space-x-1.5 text-[10px] text-zinc-600 shrink-0">
+            <div className="flex items-center space-x-1.5 text-[10px] text-zinc-500 shrink-0">
               <span className={`w-1.5 h-1.5 rounded-full ${
                 heartbeat.energy === "high" ? "bg-emerald-400" : heartbeat.energy === "medium" ? "bg-amber-400" : "bg-zinc-600"
               }`} />
               <span>🔥 连续 {heartbeat.streak} 天</span>
-              <span className="text-zinc-700">·</span>
+              <span className="text-zinc-500">·</span>
               <span>今日 {heartbeat.today} 次</span>
             </div>
           )}

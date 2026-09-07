@@ -6,10 +6,11 @@
 // 若未配置 API Key 则降级为本地 mock 演示
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { MessageSquare, Coins, Upload, Save, Search, Lightbulb, RefreshCw, Link2, Zap, FolderOpen, FileText, Image as LucideImage, Copy } from "lucide-react";
+import { MessageSquare, Coins, Upload, Save, Search, Link2, Zap, FolderOpen } from "lucide-react";
 import { useT } from "@/lib/i18n-context";
 import ArtifactPanel from "@/views/chat/ArtifactPanel";
 import Composer from "@/views/chat/Composer";
+import MessageList from "@/views/chat/MessageList";
 import SessionSidebar from "@/views/chat/SessionSidebar";
 import { useToast } from "@/lib/use-toast";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -45,34 +46,9 @@ let dialogOpen: ((options: {
     /* browser dev — mock 模式 */
   }
 })();
-import type { SessionMetaManifest, Attachment } from "@/lib/types";
-import { renderMarkdown } from "@/lib/utils";
-import { createElement, type ReactNode } from "react";
+import type { SessionMetaManifest, Attachment, Message } from "@/lib/types";
 
 
-interface Message {
-  id: string;
-  sender:
-    | "User"
-    | "PM"
-    | "UI Designer"
-    | "Coder"
-    | "System"
-    | "Explore"
-    | "Auditor"
-    | "Scout"
-    | "Compaction";
-  model: string;
-  content: string;
-  /** 挂载的多模态文档或图片附件 */
-  attachments?: Attachment[];
-  thinking?: string;
-  costTokens?: number;
-  isCached?: boolean;
-  timestamp: string;
-  /** Rust 端 SHA256 链式累积缓存特征哈希（加载历史会话时回传） */
-  cachingMarkerHash?: string;
-}
 
 interface ChatPanelProps {
   selectedModel: string;
@@ -96,33 +72,6 @@ function deriveTitle(messages: Message[]): string {
   return "未命名研发 Quest";
 }
 
-// ─── Markdown 渲染辅助组件 ──────────────────────────────────────
-
-type MdNode = string | { type: string; props: Record<string, unknown> };
-
-function renderMdNode(node: MdNode): ReactNode {
-  if (typeof node === "string") return node;
-  if (!node || typeof node !== "object") return null;
-  const { type, props } = node;
-  const { children, ...rest } = props as Record<string, unknown>;
-  const childNodes = Array.isArray(children)
-    ? children.map((c, i) => (
-        <React.Fragment key={i}>{renderMdNode(c as MdNode)}</React.Fragment>
-      ))
-    : (children as ReactNode);
-  return createElement(type as string, rest, childNodes);
-}
-
-function MarkdownContent({ text }: { text: string }) {
-  const nodes = renderMarkdown(text);
-  return (
-    <div className="whitespace-pre-wrap font-medium">
-      {nodes.map((node, i) => (
-        <React.Fragment key={i}>{renderMdNode(node)}</React.Fragment>
-      ))}
-    </div>
-  );
-}
 
 // ─── 组件 ──────────────────────────────────────────────────────────
 
@@ -1114,20 +1063,6 @@ export default function ChatPanel({
     return () => window.removeEventListener("chronos:command", handleCommand);
   }, []);
 
-  const getSenderStyle = (sender: string) => {
-    switch (sender) {
-      case "PM":
-        return "border-cyan-500/30 bg-cyan-950/10 text-cyan-400";
-      case "UI Designer":
-        return "border-purple-500/30 bg-purple-950/10 text-purple-400";
-      case "Coder":
-        return "border-emerald-500/30 bg-emerald-950/10 text-emerald-400";
-      case "System":
-        return "border-zinc-800 bg-zinc-900/40 text-zinc-400 text-xs";
-      default:
-        return "border-zinc-700 bg-black text-cs-text";
-    }
-  };
 
   return (
     <div className="flex h-full bg-cs-bg font-mono text-xs text-cs-text overflow-hidden select-none">
@@ -1285,7 +1220,7 @@ export default function ChatPanel({
             </button>
             <button
               onClick={() => setSearchOpen(false)}
-              className="text-[10px] text-zinc-600 hover:text-zinc-400 px-1"
+              className="text-[10px] text-zinc-500 hover:text-zinc-400 px-1"
             >
               ✕
             </button>
@@ -1294,150 +1229,19 @@ export default function ChatPanel({
 
         {/* ── 消息区 + 文件面板 ── */}
         <div className="flex-1 flex overflow-hidden">
-        {/* Messages */}
-        <div
-          ref={msgContainerRef}
-          onScroll={() => {
-            const el = msgContainerRef.current;
-            if (el) {
-              isNearBottomRef.current =
-                el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-            }
-          }}
-          className={`${showFileExplorer ? 'flex-[3]' : 'flex-1'} p-4 space-y-4 overflow-y-auto scrollbar-thin`}
-        >
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              id={`msg-${msg.id}`}
-              className={`flex flex-col space-y-1 max-w-[85%] group ${
-                messages.length > 50 ? "chat-msg-virtual" : ""
-              } ${
-                // 最后一条消息淡入动画
-                msg.id === messages[messages.length - 1]?.id &&
-                msg.sender !== "System"
-                  ? "animate-msg-in"
-                  : ""
-              } ${
-                searchMatches.includes(
-                  messages.findIndex((m) => m.id === msg.id),
-                )
-                  ? "ring-1 ring-amber-500/30 rounded-lg"
-                  : ""
-              } ${
-                msg.sender === "User"
-                  ? "ml-auto items-end"
-                  : "mr-auto items-start"
-              }`}
-            >
-              <div className="flex items-center space-x-1.5 text-[10px] text-zinc-500 px-1">
-                <span className="font-bold text-zinc-400">
-                  {msg.sender}
-                </span>
-                <span>•</span>
-                <span className="bg-cs-header border border-cs-border px-1 rounded text-[10px] text-zinc-300">
-                  {msg.model}
-                </span>
-                {msg.costTokens != null && msg.costTokens > 0 && (
-                  <span className="text-zinc-600">
-                    ({msg.costTokens}t
-                    {msg.isCached && (
-                      <span className="ml-1 text-[10px] text-emerald-400 font-bold border border-emerald-500/30 bg-emerald-950/20 px-1 rounded animate-pulse">
-                        [Cache-Aligned]
-                      </span>
-                    )}
-                    <span className="text-emerald-600 ml-0.5">
-                      ¥{(msg.costTokens * 0.000001).toFixed(4)}
-                    </span>
-                    )
-                  </span>
-                )}
-                {/* 🔥 显式呈现特征哈希对齐标记，赋予极客绝对的高能效掌控爽感 */}
-                {msg.cachingMarkerHash && (
-                  <span className="text-emerald-500 font-bold border border-emerald-950 bg-emerald-950/20 px-1 rounded scale-90 select-none">
-                    [Cache-Aligned]
-                  </span>
-                )}
-                {msg.cachingMarkerHash && (
-                  <span className="hidden group-hover:inline text-[10px] text-zinc-600 font-light">
-                    Hash: {msg.cachingMarkerHash.substring(0, 6)}
-                  </span>
-                )}
-                <span className="text-[10px] text-zinc-600">
-                  {msg.timestamp}
-                </span>
-              </div>
-              <div
-                className={`border p-3 rounded-lg text-xs leading-relaxed tracking-wide shadow-sm max-w-full relative ${getSenderStyle(msg.sender)}`}
-              >
-                {/* 复制按钮 */}
-                <button
-                  onClick={() => handleCopyMessage(msg.content)}
-                  className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded text-[10px] text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/50 opacity-0 group-hover:opacity-100 transition-all"
-                  title="复制内容"
-                >
-                  <Copy size={10} aria-hidden="true" />
-                </button>
-                {/* 多模态附件胶囊标签 */}
-                {msg.attachments && msg.attachments.length > 0 && (
-                  <div className="mb-2.5 flex flex-wrap gap-1.5 border-b border-zinc-900 pb-2">
-                    {msg.attachments.map((att, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center space-x-1.5 bg-black/60 border border-zinc-800/80 px-2 py-1 rounded text-[10px]"
-                      >
-                        <span>
-                          {att.type === "doc" ? <FileText size={10} aria-hidden="true" /> : <LucideImage size={10} aria-hidden="true" />}
-                        </span>
-                        <span className="text-zinc-300 truncate max-w-[120px] font-medium">
-                          {att.name}
-                        </span>
-                        <span className="text-[10px] text-zinc-600">
-                          ({att.sizeOrPath})
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {msg.thinking && (
-                  <details className="mb-2.5 border-l-2 border-zinc-700 pl-2 text-zinc-500 bg-black/30 p-1.5 rounded transition-all group">
-                    <summary className="cursor-pointer text-[10px] text-zinc-400 select-none outline-none font-bold hover:text-zinc-300">
-                      <Lightbulb size={10} className="inline mr-0.5 -mt-0.5" aria-hidden="true" />
-                      {t.view_thinking}
-                    </summary>
-                    <p className="mt-1.5 text-[11px] font-light leading-normal text-zinc-500 italic whitespace-pre-line animate-fadeIn">
-                      {msg.thinking}
-                    </p>
-                  </details>
-                )}
-                <MarkdownContent text={msg.content} />
-                {msg.sender === "System" && msg.model === "Error" && retryCount < 2 && (
-                  <button
-                    onClick={handleRetry}
-                    className="mt-2 flex items-center space-x-1 text-[10px] bg-amber-800/30 hover:bg-amber-700/40 border border-amber-700/40 text-amber-300 px-2 py-0.5 rounded transition-colors"
-                  >
-                    <RefreshCw size={9} className="inline mr-0.5 -mt-0.5" aria-hidden="true" />
-                    重试 ({2 - retryCount} 次)
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {isThinking && (
-            <div className="flex flex-col space-y-1.5 mr-auto items-start animate-pulse">
-              <div className="text-[10px] text-zinc-500">
-                {t.pipeline_dispatching}
-              </div>
-              <div className="border border-zinc-800 bg-zinc-900/20 px-4 py-2.5 rounded-lg text-xs text-zinc-500 italic flex items-center space-x-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce [animation-delay:-0.3s]" />
-                <div className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce [animation-delay:-0.15s]" />
-                <div className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce" />
-                <span>{t.syncing_blackboard}</span>
-              </div>
-            </div>
-          )}
-          <div ref={chatEndRef} />
+        {/* Messages（拆分至 chat/MessageList） */}
+        <MessageList
+          messages={messages}
+          searchMatches={searchMatches}
+          isThinking={isThinking}
+          retryCount={retryCount}
+          onCopyMessage={handleCopyMessage}
+          onRetry={handleRetry}
+          msgContainerRef={msgContainerRef}
+          chatEndRef={chatEndRef}
+          isNearBottomRef={isNearBottomRef}
+                  showFileExplorer={showFileExplorer}
+/>
         </div>
 
         {/* 文件浏览器 (右侧面板) */}
@@ -1445,7 +1249,7 @@ export default function ChatPanel({
           <div className="w-48 border-l border-cs-border bg-cs-surface flex flex-col shrink-0 overflow-y-auto">
             <div className="px-2 py-1.5 border-b border-cs-border text-[10px] text-zinc-500 flex items-center justify-between">
               <span className="flex items-center gap-0.5"><FolderOpen size={9} aria-hidden="true" />{currentProject}</span>
-              <button onClick={() => setShowFileExplorer(false)} className="text-zinc-600 hover:text-zinc-400">✕</button>
+              <button onClick={() => setShowFileExplorer(false)} className="text-zinc-500 hover:text-zinc-400">✕</button>
             </div>
             <div className="p-1 space-y-0.5">
               {projectFiles.map((f) => {
@@ -1468,7 +1272,7 @@ export default function ChatPanel({
                 );
               })}
               {projectFiles.length === 0 && (
-                <div className="text-[10px] text-zinc-600 text-center py-2">
+                <div className="text-[10px] text-zinc-500 text-center py-2">
                   空项目 — AI创建文件后出现
                 </div>
               )}
@@ -1522,7 +1326,7 @@ ${content}`);
           />
 
           {/* 状态栏：会话统计 + 审批指示 */}
-          <div className="flex items-center justify-between px-4 py-1 border-t border-[#1a1a1e] bg-cs-surface text-[10px] text-zinc-600 select-none">
+          <div className="flex items-center justify-between px-4 py-1 border-t border-[#1a1a1e] bg-cs-surface text-[10px] text-zinc-500 select-none">
             <div className="flex items-center space-x-3">
               <span className="flex items-center gap-0.5"><MessageSquare size={9} aria-hidden="true" />{messages.length} 条</span>
               <span>|</span>
@@ -1541,7 +1345,7 @@ ${content}`);
           </div>
 
           {/* 键盘快捷提示 + Token 计数器 */}
-          <div className="flex items-center justify-between px-4 pb-2 text-[10px] text-zinc-700 select-none">
+          <div className="flex items-center justify-between px-4 pb-2 text-[10px] text-zinc-500 select-none">
             <div className="flex items-center space-x-3">
               <span>
                 <kbd className="px-1 py-0.5 bg-cs-header border border-cs-border rounded text-[10px] text-zinc-500 mr-1">
@@ -1580,7 +1384,7 @@ ${content}`);
                 关闭
               </span>
             </div>
-            <div className="text-zinc-600">
+            <div className="text-zinc-500">
               {input.length > 0 && (
                 <>
                   {input.length} 字符 ≈{" "}
@@ -1590,6 +1394,5 @@ ${content}`);
             </div>
           </div>
         </div>
-      </div>
   );
 }

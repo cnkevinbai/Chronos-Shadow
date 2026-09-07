@@ -47,7 +47,7 @@ export default function ArtifactPanel({
 
                 <span className="font-bold text-zinc-400 flex items-center gap-1"><Package size={10} aria-hidden="true" />本会话成品 ({artifacts.length})</span>
 
-                  <button onClick={onClear} className="text-zinc-600 hover:text-zinc-400">清空</button>
+                  <button onClick={onClear} className="text-zinc-500 hover:text-zinc-400">清空</button>
 
                 </div>
 
@@ -81,7 +81,7 @@ export default function ArtifactPanel({
 
                         ><Pencil size={9} aria-hidden="true" /></button>
 
-                        <span className="text-zinc-600">v{a.versions}</span>
+                        <span className="text-zinc-500">v{a.versions}</span>
 
                       </div>
 

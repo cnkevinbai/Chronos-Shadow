@@ -300,14 +300,14 @@ export default function RemoteHub() {
                     <WifiOff className="w-3 h-3 text-red-400" />
                   )}
                 </div>
-                <div className="text-[10px] text-zinc-600 mt-0.5">{node.host}</div>
-                <div className="text-[10px] text-zinc-700 mt-0.5">
+                <div className="text-[10px] text-zinc-500 mt-0.5">{node.host}</div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">
                   {node.projects.length} {t.rh_projects} · {t.rh_builds} {node.builds_triggered}
                 </div>
               </div>
             ))}
             {activeNodes.length === 0 && (
-              <div className="p-3 text-[10px] text-zinc-600 italic text-center">
+              <div className="p-3 text-[10px] text-zinc-500 italic text-center">
                 {t.rh_empty}
                 <br />
                 <span className="text-[10px]">{t.rh_empty_hint}</span>
@@ -317,7 +317,7 @@ export default function RemoteHub() {
 
           {/* 集群统计 */}
           {clusterStats && (
-            <div className="p-2 border-t border-cs-border text-[10px] text-zinc-600 space-y-0.5">
+            <div className="p-2 border-t border-cs-border text-[10px] text-zinc-500 space-y-0.5">
               <div className="flex justify-between">
                 <span>{t.rh_servers}</span>
                 <span className="text-zinc-400">{clusterStats.total_servers}</span>
@@ -328,7 +328,7 @@ export default function RemoteHub() {
               </div>
               <button
                 onClick={refreshCluster}
-                className="w-full mt-1 text-[10px] text-zinc-600 hover:text-cyan-400 transition-colors"
+                className="w-full mt-1 text-[10px] text-zinc-500 hover:text-cyan-400 transition-colors"
               >
                 <RefreshCw className="w-3 h-3 inline mr-0.5 -mt-0.5" aria-hidden="true" />{t.rh_refresh_status}
               </button>
@@ -357,7 +357,7 @@ export default function RemoteHub() {
                     <FolderOpen className="w-3 h-3" />
                     <span>{t.rh_remote_files}</span>
                   </div>
-                  <button onClick={handleListFiles} className="text-zinc-600 hover:text-cyan-400 transition-colors">
+                  <button onClick={handleListFiles} className="text-zinc-500 hover:text-cyan-400 transition-colors">
                     {t.rh_refresh}
                   </button>
                 </div>
@@ -375,12 +375,12 @@ export default function RemoteHub() {
                           {f.is_dir ? "📁" : "📄"} {f.name}
                         </span>
                         {!f.is_dir && (
-                          <span className="text-[10px] text-zinc-600 ml-2">{f.size} B</span>
+                          <span className="text-[10px] text-zinc-500 ml-2">{f.size} B</span>
                         )}
                       </div>
                     ))
                   ) : (
-                    <div className="p-3 text-[10px] text-zinc-600 italic text-center">
+                    <div className="p-3 text-[10px] text-zinc-500 italic text-center">
                       {t.rh_files_hint}
                     </div>
                   )}
@@ -392,7 +392,7 @@ export default function RemoteHub() {
                 <div className="border border-cs-border rounded bg-black/40">
                   <div className="px-2 py-1 border-b border-cs-border text-[10px] text-zinc-500 flex justify-between">
                     <span>{t.rh_file_content}</span>
-                    <button onClick={() => setFileContent(null)} className="text-zinc-600 hover:text-zinc-400">✕</button>
+                    <button onClick={() => setFileContent(null)} className="text-zinc-500 hover:text-zinc-400">✕</button>
                   </div>
                   <pre className="p-2 text-[10px] text-zinc-300 font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
                     {fileContent}
@@ -472,7 +472,7 @@ export default function RemoteHub() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-zinc-600 space-y-3 p-4">
+            <div className="flex flex-col items-center justify-center h-full text-zinc-500 space-y-3 p-4">
               <Server className="w-10 h-10 text-zinc-800" />
               {activeNodes.length > 0 ? (
                 <span className="text-[11px]">{t.rh_select_hint}</span>
@@ -484,7 +484,7 @@ export default function RemoteHub() {
                     <div>1. {t.rh_qs1} <span className="text-white">{t.rh_add_server}</span></div>
                     <div>2. {t.rh_qs2}</div>
                     <div>3. {t.rh_qs3}</div>
-                    <div className="border-t border-cs-border pt-1 mt-1 text-zinc-600">
+                    <div className="border-t border-cs-border pt-1 mt-1 text-zinc-500">
                       {t.rh_qs_note}
                     </div>
                   </div>
@@ -496,9 +496,9 @@ export default function RemoteHub() {
                     <Activity className="w-3 h-3 text-emerald-400" />
                     <span>{clusterStats.connected_servers} {t.rh_online}</span>
                   </span>
-                  <span className="text-zinc-700">·</span>
+                  <span className="text-zinc-500">·</span>
                   <span>{clusterStats.total_servers} {t.rh_registered}</span>
-                  <span className="text-zinc-700">·</span>
+                  <span className="text-zinc-500">·</span>
                   <span>{clusterStats.total_projects} {t.rh_projects}</span>
                 </div>
               )}

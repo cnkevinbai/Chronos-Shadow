@@ -160,7 +160,7 @@ export default function AppGlueBinder() {
                     <span className={`w-1.5 h-1.5 rounded-full ${win.status === "syncing" ? "bg-cyan-400 animate-pulse" : win.status === "active" ? "bg-emerald-400" : "bg-zinc-600"}`} />
                     <span className="font-bold text-zinc-300 uppercase text-[10px]">{win.processName}</span>
                   </div>
-                  <span className="text-[10px] text-zinc-600">PID:{win.pid}</span>
+                  <span className="text-[10px] text-zinc-500">PID:{win.pid}</span>
                 </div>
                 <h4 className="text-zinc-200 truncate mb-1.5">{win.title}</h4>
                 <div className="flex items-center justify-between border-t border-zinc-900/60 pt-1.5 text-[10px]">
@@ -237,7 +237,7 @@ export default function AppGlueBinder() {
                 <div key={str.id} onClick={() => setSelectedStream(str)}
                   className={`flex items-center justify-between px-2 py-1 text-[10px] cursor-pointer hover:bg-cs-header/30 ${selectedStream?.id === str.id ? "bg-cyan-950/20 text-cyan-400" : "text-zinc-400"}`}>
                   <span>{windows.find((w) => w.id === str.fromNode)?.processName} → {windows.find((w) => w.id === str.toNode)?.processName}</span>
-                  <span className={str.isActive ? "text-cyan-400" : "text-zinc-600"}>{str.isActive ? t.stream_on : t.stream_off}</span>
+                  <span className={str.isActive ? "text-cyan-400" : "text-zinc-500"}>{str.isActive ? t.stream_on : t.stream_off}</span>
                 </div>
               ))}
             </div>
@@ -277,7 +277,7 @@ export default function AppGlueBinder() {
                   <div className="mt-1 bg-black border border-cs-border rounded p-1.5 space-y-0.5 max-h-40 overflow-y-auto text-[10px] font-mono">
                     {logs.map((log, i) => (
                       <div key={i} className="flex space-x-1">
-                        <span className="text-zinc-600 shrink-0">[{log.time}]</span>
+                        <span className="text-zinc-500 shrink-0">[{log.time}]</span>
                         <span className={`shrink-0 font-bold ${TAG_COLORS[log.tag] ?? "text-zinc-500"}`}>[{log.tag}]</span>
                         <span className="text-zinc-400 truncate">{log.message}</span>
                       </div>
@@ -286,7 +286,7 @@ export default function AppGlueBinder() {
                 </div>
               </>
             ) : (
-              <div className="flex items-center justify-center h-full text-zinc-600">{t.click_stream_hint}</div>
+              <div className="flex items-center justify-center h-full text-zinc-500">{t.click_stream_hint}</div>
             )}
           </div>
         )}
@@ -320,7 +320,7 @@ export default function AppGlueBinder() {
                 <div className="flex items-center space-x-1 px-2 py-1 bg-cs-header border-b border-cs-border text-[10px] text-zinc-500">
                   <PcIcon className="w-2.5 h-2.5" />
                   <span>PC 桌面端 (Tauri/Win32)</span>
-                  <span className="ml-auto text-[10px] text-zinc-600">1920×1080</span>
+                  <span className="ml-auto text-[10px] text-zinc-500">1920×1080</span>
                 </div>
                 <div className="flex-1 p-2 flex items-center justify-center relative overflow-hidden">
                   <div className={`w-full h-full rounded border transition-all ${
@@ -358,7 +358,7 @@ export default function AppGlueBinder() {
                 <div className="flex items-center space-x-1 px-2 py-1 bg-cs-header border-b border-cs-border text-[10px] text-zinc-500">
                   <Smartphone className="w-2.5 h-2.5" />
                   <span>移动端 (React Native)</span>
-                  <span className="ml-auto text-[10px] text-zinc-600">390×844</span>
+                  <span className="ml-auto text-[10px] text-zinc-500">390×844</span>
                 </div>
                 <div className="flex-1 flex items-center justify-center p-2">
                   <div className={`w-24 h-40 rounded-2xl border-2 transition-all flex flex-col overflow-hidden ${

@@ -240,7 +240,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
         {activeTab === "files" && (
           <div className="p-2 space-y-0.5">
             {vfsTree.length === 0 ? (
-              <div className="text-center text-zinc-600 py-4 text-[10px]">
+              <div className="text-center text-zinc-500 py-4 text-[10px]">
                 <FolderTree className="w-4 h-4 mx-auto mb-1 opacity-50" />
                 {currentProject === "default" ? t.pe_no_filetree : t.pe_loading}
               </div>
@@ -253,7 +253,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                   </div>
                   <div className="flex items-center space-x-1 shrink-0">
                     {node.is_locked && <span className="text-[10px] bg-amber-950 text-amber-400 border border-amber-900/40 px-1 rounded">LOCKED</span>}
-                    <span className="text-zinc-600 text-[10px]">{node.relative_path}</span>
+                    <span className="text-zinc-500 text-[10px]">{node.relative_path}</span>
                   </div>
                 </div>
               ))
@@ -265,7 +265,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
         {activeTab === "checkpoints" && (
           <div className="p-2 space-y-2">
             {checkpoints.length === 0 ? (
-              <div className="text-center text-zinc-600 py-4 text-[10px]">
+              <div className="text-center text-zinc-500 py-4 text-[10px]">
                 <Camera className="w-4 h-4 mx-auto mb-1 opacity-50" />
                 {t.pe_no_checkpoints}
               </div>
@@ -275,7 +275,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                   <span className="absolute -left-[4.5px] top-1.5 w-2 h-2 rounded-full bg-zinc-800 group-hover:bg-cyan-400 transition-all" />
                   <div className="flex items-center justify-between text-[10px]">
                     <span className="font-bold text-zinc-300 group-hover:text-cyan-400">{cp.title}</span>
-                    <span className="text-zinc-600 text-[10px]">{cp.time}</span>
+                    <span className="text-zinc-500 text-[10px]">{cp.time}</span>
                   </div>
                   <p className="text-[10px] text-zinc-500 mt-0.5">{cp.desc}</p>
                   <div className="flex space-x-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -307,22 +307,22 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-zinc-500">
                   <span>{t.pe_files_label}: <b className="text-zinc-300">{health.file_count}</b></span>
                   <span>{t.pe_size_label}: <b className="text-zinc-300">{fmtSize(health.total_size_bytes)}</b></span>
-                  <span>Git: <b className={health.has_git ? "text-emerald-400" : "text-zinc-600"}>{health.has_git ? "✅" : "❌"}</b></span>
+                  <span>Git: <b className={health.has_git ? "text-emerald-400" : "text-zinc-500"}>{health.has_git ? "✅" : "❌"}</b></span>
                   <span>{t.pe_checkpoints_label}: <b className="text-zinc-300">{health.checkpoint_count}</b></span>
                 </div>
                 {health.last_checkpoint && (
-                  <div className="text-[10px] text-zinc-600">{t.pe_last_checkpoint}: {health.last_checkpoint}</div>
+                  <div className="text-[10px] text-zinc-500">{t.pe_last_checkpoint}: {health.last_checkpoint}</div>
                 )}
               </div>
             ) : (
-              <div className="text-center text-zinc-600 py-4 text-[10px]">{t.pe_health_empty}</div>
+              <div className="text-center text-zinc-500 py-4 text-[10px]">{t.pe_health_empty}</div>
             )}
 
             {/* Worktree 面板 */}
             <div className="p-2 border border-cs-border rounded bg-cs-header space-y-1.5 text-[10px]">
               <div className="flex items-center justify-between">
                 <span className="text-zinc-400 font-bold">🌿 Worktrees</span>
-                <span className="text-zinc-600 text-[10px]">{wtStats.total} {t.pe_total}</span>
+                <span className="text-zinc-500 text-[10px]">{wtStats.total} {t.pe_total}</span>
               </div>
               <div className="flex space-x-2 text-[10px] text-zinc-500">
                 <span className="text-cyan-400">{wtStats.active} {t.pe_active}</span>
@@ -336,7 +336,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                     <div key={wt.id} className="flex items-center justify-between text-[10px] px-1.5 py-0.5 rounded bg-[#0a0a0c] group">
                       <span className="text-zinc-400 truncate">{wt.id}</span>
                       <div className="flex items-center space-x-1">
-                        <span className="text-zinc-600">{wt.branch}</span>
+                        <span className="text-zinc-500">{wt.branch}</span>
                         <button onClick={() => handleMergeWorktree(wt.id)}
                           className="opacity-0 group-hover:opacity-100 text-[10px] bg-purple-950/50 border border-purple-700/40 text-purple-400 px-1 py-0.5 rounded hover:bg-purple-900/50 transition-all"
                           title="合并到主分支">
@@ -346,7 +346,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                   ))}
                 </div>
               ) : (
-                <div className="text-zinc-600 text-[10px]">{t.pe_no_worktree}</div>
+                <div className="text-zinc-500 text-[10px]">{t.pe_no_worktree}</div>
               )}
             </div>
           </div>

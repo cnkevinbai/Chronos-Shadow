@@ -374,7 +374,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                 {typeof ollamaStatus === "object" && "err" in ollamaStatus && (
                   <div>
                     <span className="text-red-400 flex items-center gap-0.5"><XIcon size={9} aria-hidden="true" />{ollamaStatus.err}</span>
-                    <div className="text-zinc-600 mt-1">
+                    <div className="text-zinc-500 mt-1">
                       请确认 Ollama 已安装并运行：<code className="text-zinc-500">ollama serve</code>
                     </div>
                   </div>
@@ -414,7 +414,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
               <label className="text-[11px] font-medium text-zinc-400">{t.settings_healing_label}</label>
               <input type="number" value={maxHealing} onChange={(e) => setMaxHealing(Number(e.target.value))}
                 className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none w-20" />
-              <span className="text-[10px] text-zinc-600">{t.settings_healing_desc}</span>
+              <span className="text-[10px] text-zinc-500">{t.settings_healing_desc}</span>
             </div>
             <ToggleRow label={t.settings_ast_label} sub={t.settings_ast_desc} enabled={astAudit} onChange={setAstAudit} />
             <ToggleRow label={t.settings_gpl_label} sub={t.settings_gpl_desc} enabled={blockGpl} onChange={setBlockGpl} />
@@ -507,7 +507,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                 <span className="text-zinc-500">—</span>
                 <input type="number" min={1} max={24} value={workHoursEnd} onChange={(e) => setWorkHoursEnd(Number(e.target.value))}
                   className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none w-20" />
-                <span className="text-[10px] text-zinc-600">时</span>
+                <span className="text-[10px] text-zinc-500">时</span>
               </div>
             </div>
 
@@ -539,7 +539,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
             <div className="pt-2 border-t border-cs-border/50">
               <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2"><Trophy size={10} className="inline mr-0.5" aria-hidden="true" />成就</div>
               {achievements.length === 0 ? (
-                <div className="text-[11px] text-zinc-600">使用 Chronos-Shadow 后，成就将在此点亮。</div>
+                <div className="text-[11px] text-zinc-500">使用 Chronos-Shadow 后，成就将在此点亮。</div>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
                   {achievements.map((a) => (
@@ -583,7 +583,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
             {/* Apache 2.0 许可 */}
             <div className="space-y-1.5">
               <h4 className="font-bold text-white">开源授权 (Apache 2.0)</h4>
-              <div className="bg-black border border-zinc-900 p-2.5 rounded h-28 overflow-y-auto font-mono text-[10px] text-zinc-600 leading-normal whitespace-pre-wrap select-text">
+              <div className="bg-black border border-zinc-900 p-2.5 rounded h-28 overflow-y-auto font-mono text-[10px] text-zinc-500 leading-normal whitespace-pre-wrap select-text">
 {`Copyright 2026 Chronos-Shadow Open Source Team.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -715,7 +715,7 @@ function ModelMatrix() {
                       </div>
                       <div className="flex items-center space-x-1.5 shrink-0">
                         <span className={`text-[10px] px-1.5 py-0.5 rounded border ${tb.cls}`}>{tb.label}</span>
-                        <span className="text-[10px] text-zinc-600" title="上下文窗口 (tokens)">{(m.contextWindow / 1000).toFixed(0)}K ctx</span>
+                        <span className="text-[10px] text-zinc-500" title="上下文窗口 (tokens)">{(m.contextWindow / 1000).toFixed(0)}K ctx</span>
                         {m.supportsCache && (
                           <span className="text-[10px] text-emerald-400" title="支持 Context Caching">⚡缓存</span>
                         )}

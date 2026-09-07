@@ -27,6 +27,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **审批请求全局角标**：App 层 10s 轮询 `list_pending_approvals`，dock 审批按钮红点角标 + Footer 常驻「审批门禁 · N」提示——待审批不再需要主动进面板才能发现
 - **拖拽上传**：Tauri 原生 `onDragDropEvent` 监听，文件拖入窗口自动进入多模态挂载缓冲区（按扩展名分流 doc/image 类型）
 
+### Refactor — ChatPanel 组件拆分（第四批，最终完成）
+- 消息流渲染拆分为 `src/views/chat/MessageList.tsx`（216 行）：消息卡片（Cache-Aligned 徽章/附件胶囊/thinking 折叠/复制/重试）+ Markdown 渲染辅助（renderMdNode/MarkdownContent）整体迁移；滚动定位 refs（msgContainerRef/chatEndRef/isNearBottomRef）经 props 共享；**ChatPanel 2029 → 1398 行（累计 -31%）**，四子组件合计 834 行
+
 ### Refactor — ChatPanel 组件拆分（第三批，完成）
 - 输入区拆分为 `src/views/chat/Composer.tsx`（210 行）：斜杠宏/@特种兵弹窗、多模态挂载看板、发送/停止按钮；附件挂载逻辑（dialogOpen 依赖）提取为父组件 `handleAttachDoc/handleAttachImage` 回调；`Attachment` 类型上移至 `@/lib/types` 共享；**ChatPanel 2029 → 1575 行（累计 -22%）**，行为零改动
 

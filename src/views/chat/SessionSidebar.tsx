@@ -110,7 +110,7 @@ export default function SessionSidebar({
               <div key={project} className="space-y-0.5">
                 <div className="px-1.5 py-0.5 text-[10px] bg-black border border-zinc-900 rounded font-bold text-zinc-400 flex items-center justify-between">
                   <span className="truncate">📁 {project}</span>
-                  <span className="text-zinc-600 font-light text-[10px] shrink-0 ml-1">
+                  <span className="text-zinc-500 font-light text-[10px] shrink-0 ml-1">
                     {sessions.length}会话
                   </span>
                 </div>
@@ -153,18 +153,18 @@ export default function SessionSidebar({
                     {m.title}
                   </div>
                 )}
-                <div className="text-[10px] text-zinc-600 mt-1 flex items-center justify-between font-light">
+                <div className="text-[10px] text-zinc-500 mt-1 flex items-center justify-between font-light">
                   <span>🗂️ {m.bound_project}</span>
                   <span className="text-emerald-500 font-medium">
                     ¥{m.total_accumulated_cost.toFixed(3)}
                   </span>
                 </div>
                 {m.last_message_preview && (
-                  <div className="text-[10px] text-zinc-600 mt-1 truncate font-light italic">
+                  <div className="text-[10px] text-zinc-500 mt-1 truncate font-light italic">
                     {m.last_message_preview}
                   </div>
                 )}
-                <div className="text-[10px] text-zinc-700 mt-0.5 font-light text-right">
+                <div className="text-[10px] text-zinc-500 mt-0.5 font-light text-right">
                   条数: {m.total_messages_count} |{" "}
                   {m.last_updated.substring(11, 19)}
                 </div>
@@ -196,7 +196,7 @@ export default function SessionSidebar({
                     }
                   }
                 }}
-                className="absolute top-1.5 right-1.5 w-4 h-4 flex items-center justify-center rounded text-[10px] text-zinc-600 hover:text-red-400 hover:bg-red-950/30 opacity-0 group-hover/session:opacity-100 transition-all"
+                className="absolute top-1.5 right-1.5 w-4 h-4 flex items-center justify-center rounded text-[10px] text-zinc-500 hover:text-red-400 hover:bg-red-950/30 opacity-0 group-hover/session:opacity-100 transition-all"
                 title="删除会话"
               >
                 ✕
@@ -208,12 +208,12 @@ export default function SessionSidebar({
             ));
           })()}
           {filteredManifests.length === 0 && manifests.length > 0 && (
-            <div className="p-3 text-[10px] text-zinc-600 italic text-center">
+            <div className="p-3 text-[10px] text-zinc-500 italic text-center">
               无匹配会话
             </div>
           )}
           {manifests.length === 0 && (
-            <div className="p-3 text-[10px] text-zinc-600 italic text-center">
+            <div className="p-3 text-[10px] text-zinc-500 italic text-center">
               尚无历史会话轨道 —
               <br />
               发送第一条消息后自动建档
@@ -223,7 +223,7 @@ export default function SessionSidebar({
 
         {/* 侧栏统计摘要 */}
         {manifests.length > 0 && (
-          <div className="p-2 border-t border-cs-border text-[10px] text-zinc-600 space-y-0.5 shrink-0">
+          <div className="p-2 border-t border-cs-border text-[10px] text-zinc-500 space-y-0.5 shrink-0">
             <div className="flex justify-between">
               <span className="flex items-center gap-1"><MessageSquare size={9} aria-hidden="true" />会话</span>
               <span className="text-zinc-500">{manifests.length}</span>
@@ -245,7 +245,7 @@ export default function SessionSidebar({
             </div>
             <button
               onClick={onClearAll}
-              className="w-full mt-1 flex items-center justify-center gap-1 text-[10px] text-zinc-700 hover:text-red-400 transition-colors text-center"
+              className="w-full mt-1 flex items-center justify-center gap-1 text-[10px] text-zinc-500 hover:text-red-400 transition-colors text-center"
             >
               <Trash2 size={9} aria-hidden="true" />
               清空全部会话

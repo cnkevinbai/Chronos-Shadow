@@ -386,3 +386,27 @@ export interface Attachment {
   name: string;
   sizeOrPath: string;
 }
+
+export interface Message {
+  id: string;
+  sender:
+    | "User"
+    | "PM"
+    | "UI Designer"
+    | "Coder"
+    | "System"
+    | "Explore"
+    | "Auditor"
+    | "Scout"
+    | "Compaction";
+  model: string;
+  content: string;
+  /** 挂载的多模态文档或图片附件 */
+  attachments?: Attachment[];
+  thinking?: string;
+  costTokens?: number;
+  isCached?: boolean;
+  timestamp: string;
+  /** Rust 端 SHA256 链式累积缓存特征哈希（加载历史会话时回传） */
+  cachingMarkerHash?: string;
+}

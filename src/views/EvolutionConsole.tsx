@@ -160,7 +160,7 @@ export default function EvolutionConsole() {
                 <span className={`font-bold ${log.source === "User Override" ? "text-cyan-400" : log.source === "Verifier Self-Healing" ? "text-purple-400" : "text-amber-400"}`}>
                   {log.source}
                 </span>
-                <span className="text-zinc-600">{log.timestamp}</span>
+                <span className="text-zinc-500">{log.timestamp}</span>
               </div>
               <h4 className="text-[10px] font-bold text-white truncate">{log.taskName}</h4>
               <div className="flex items-center justify-between text-[10px] mt-2 text-zinc-500">
@@ -193,7 +193,7 @@ export default function EvolutionConsole() {
       <div className="flex-1 flex flex-col bg-cs-bg overflow-hidden relative">
         <div className="p-3 border-b border-cs-border bg-cs-surface flex items-center justify-between text-[11px] z-10 shrink-0">
           <span className="font-bold text-zinc-300">{t.evo_skill_tree}</span>
-          <span className="text-[10px] text-zinc-600">{t.evo_aura_connected}</span>
+          <span className="text-[10px] text-zinc-500">{t.evo_aura_connected}</span>
         </div>
         <div className="flex-1 relative overflow-auto bg-[radial-gradient(#1c1c1f_1px,transparent_1px)] [background-size:16px_16px]">
           <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ minWidth: "620px", minHeight: "450px" }}>
@@ -289,7 +289,7 @@ export default function EvolutionConsole() {
                   <span>{t.evo_export_skill}</span>
                 </button>
               </div>
-              <div className="flex items-center space-x-2 text-[10px] text-zinc-600 pt-1">
+              <div className="flex items-center space-x-2 text-[10px] text-zinc-500 pt-1">
                 <Shield className="w-2.5 h-2.5" />
                 <span>{t.evo_source}: {selectedLog.source}</span>
                 <Cpu className="w-2.5 h-2.5 ml-auto" />
@@ -315,13 +315,13 @@ export default function EvolutionConsole() {
                           <span className={`font-mono ${parseInt(eng.advancement_score) > 80 ? 'text-emerald-400' : parseInt(eng.advancement_score) > 60 ? 'text-amber-400' : 'text-red-400'}`}>
                             {eng.advancement_score}
                           </span>
-                          <span className="text-zinc-600">×{eng.evolution_count}</span>
+                          <span className="text-zinc-500">×{eng.evolution_count}</span>
                           {eng.is_degrading && <Zap className="w-2 h-2 text-red-400" />}
                         </div>
                       </div>
                     ))}
                     {evoHealth.engines.length > 5 && (
-                      <div className="text-[10px] text-zinc-600 text-center pt-0.5">
+                      <div className="text-[10px] text-zinc-500 text-center pt-0.5">
                         +{evoHealth.engines.length - 5} more engines
                       </div>
                     )}
@@ -375,7 +375,7 @@ export default function EvolutionConsole() {
                         <span className={Number(m.hit_rate) > 50 ? "text-emerald-400 font-bold" : Number(m.hit_rate) > 20 ? "text-amber-400" : "text-zinc-500"}>
                           {m.hit_rate}%
                         </span>
-                        <span className="text-zinc-600">{m.cache_hits}/{m.total_requests}</span>
+                        <span className="text-zinc-500">{m.cache_hits}/{m.total_requests}</span>
                       </div>
                       <div className="w-full h-1 bg-[#121214] rounded overflow-hidden">
                         <div className="h-full bg-emerald-500/60 rounded transition-all" style={{ width: `${Math.min(Number(m.hit_rate), 100)}%` }} />
@@ -400,7 +400,7 @@ export default function EvolutionConsole() {
               )}
             </>
           ) : (
-            <div className="flex items-center justify-center h-full text-zinc-600 text-[10px]">
+            <div className="flex items-center justify-center h-full text-zinc-500 text-[10px]">
               {t.evo_click_to_inspect}
             </div>
           )}

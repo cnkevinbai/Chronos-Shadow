@@ -125,7 +125,7 @@ export default function Composer({
                         prev.filter((_, idx) => idx !== i),
                       )
                     }
-                    className="text-zinc-600 hover:text-zinc-400 ml-1 font-bold"
+                    className="text-zinc-500 hover:text-zinc-400 ml-1 font-bold"
                   >
                     ✕
                   </button>
@@ -166,7 +166,7 @@ export default function Composer({
               >
                 <Lightbulb size={12} aria-hidden="true" />
               </button>
-              <span className="text-zinc-600 text-sm font-bold mr-2 select-none">
+              <span className="text-zinc-500 text-sm font-bold mr-2 select-none">
                 $
               </span>
               <input
@@ -199,7 +199,7 @@ export default function Composer({
                 className="bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 active:scale-95 text-black font-bold text-sm px-4 py-2.5 rounded-lg transition-all duration-150 flex items-center space-x-1 outline-none shadow-sm shrink-0"
               >
                 <span>{t.execute}</span>
-                <span className="text-[10px] bg-zinc-300 px-1 rounded text-zinc-700 ml-0.5">
+                <span className="text-[10px] bg-zinc-300 px-1 rounded text-zinc-500 ml-0.5">
                   ↵
                 </span>
               </button>

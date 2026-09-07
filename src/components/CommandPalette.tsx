@@ -43,10 +43,10 @@ export default function CommandPalette({ commands, open, onClose }: Props) {
           <Search className="w-4 h-4 text-zinc-500 mr-3 shrink-0" />
           <input ref={inputRef} value={query} onChange={e => { setQuery(e.target.value); setSel(0); }} onKeyDown={handleKey}
             placeholder={t.cmd_search_placeholder} className="flex-1 bg-transparent text-sm text-white placeholder-zinc-600 outline-none" />
-          <kbd className="text-[10px] text-zinc-600 bg-cs-bg border border-cs-border px-1.5 py-0.5 rounded ml-2">ESC</kbd>
+          <kbd className="text-[10px] text-zinc-500 bg-cs-bg border border-cs-border px-1.5 py-0.5 rounded ml-2">ESC</kbd>
         </div>
         <div ref={listRef} className="max-h-[360px] overflow-y-auto p-2">
-          {filtered.length===0 && <div className="text-center py-8 text-zinc-600 text-sm">{t.cmd_no_results}</div>}
+          {filtered.length===0 && <div className="text-center py-8 text-zinc-500 text-sm">{t.cmd_no_results}</div>}
           {cats.map(cat => {
             const items = filtered.filter(c => c.category===cat);
             if (!items.length) return null;
@@ -57,14 +57,14 @@ export default function CommandPalette({ commands, open, onClose }: Props) {
                 return <button key={cmd.id} onClick={()=>{cmd.action();onClose()}} onMouseEnter={()=>setSel(idx)}
                   className={`w-full flex items-center px-2 py-2 rounded-md text-left transition-colors ${isSel?"bg-zinc-800/80 text-white":"text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200"}`}>
                   <Icon className="w-4 h-4 mr-3 shrink-0" />
-                  <div className="flex-1 min-w-0"><div className="text-sm font-medium truncate">{cmd.label}</div><div className="text-[10px] text-zinc-600 truncate">{cmd.description}</div></div>
+                  <div className="flex-1 min-w-0"><div className="text-sm font-medium truncate">{cmd.label}</div><div className="text-[10px] text-zinc-500 truncate">{cmd.description}</div></div>
                   {isSel && <kbd className="text-[10px] text-zinc-500 ml-2">↵</kbd>}
                 </button>;
               })}
             </div>;
           })}
         </div>
-        <div className="flex items-center justify-between px-4 py-2 border-t border-cs-border text-[10px] text-zinc-600">
+        <div className="flex items-center justify-between px-4 py-2 border-t border-cs-border text-[10px] text-zinc-500">
           <div className="flex items-center space-x-3"><span>{t.cmd_hint_nav}</span><span>{t.cmd_hint_exec}</span><span>{t.cmd_hint_close}</span></div>
           <span>{filtered.length} {t.cmd_count}</span>
         </div>

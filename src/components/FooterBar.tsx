@@ -139,7 +139,7 @@ export default function FooterBar({
           >
             A⁻
           </button>
-          <span className="text-zinc-600">
+          <span className="text-zinc-500">
             {Math.round(getFontScale() * 100)}%
           </span>
           <button

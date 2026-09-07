@@ -221,7 +221,7 @@ export default function ApprovalPanel() {
         {/* ── 待审批 ── */}
         {view === "pending" && (
           pending.length === 0 ? (
-            <div className="text-center text-zinc-600 py-10">
+            <div className="text-center text-zinc-500 py-10">
               <Check className="w-5 h-5 mx-auto mb-2 text-emerald-600" />
               <span className="text-[11px]">{t.ap_all_clear}</span>
             </div>
@@ -253,7 +253,7 @@ export default function ApprovalPanel() {
                         }`} style={{ width: `${req.risk_level * 10}%` }} />
                       </div>
                       <p className="text-zinc-300 text-[10px] truncate">{req.description}</p>
-                      <div className="flex items-center space-x-2 mt-1 text-[10px] text-zinc-600">
+                      <div className="flex items-center space-x-2 mt-1 text-[10px] text-zinc-500">
                         <span>{req.id}</span>
                         <span>·</span>
                         <span>{new Date(req.submitted_at).toLocaleTimeString()}</span>
@@ -271,7 +271,7 @@ export default function ApprovalPanel() {
 
                   {expanded && (
                     <>
-                      <div className="text-[10px] text-zinc-600 space-y-0.5 border-t border-[#1a1a1e] pt-1.5">
+                      <div className="text-[10px] text-zinc-500 space-y-0.5 border-t border-[#1a1a1e] pt-1.5">
                         <div className="flex space-x-1"><span className="text-zinc-500">target:</span><span className="text-zinc-400">{req.target_id}</span></div>
                         {req.metadata && <div className="flex space-x-1"><span className="text-zinc-500">meta:</span><span className="text-zinc-400 truncate">{req.metadata}</span></div>}
                         {req.auditor_prescreen && (
@@ -303,7 +303,7 @@ export default function ApprovalPanel() {
         {/* ── 审计日志 ── */}
         {view === "log" && (
           auditLog.length === 0 ? (
-            <div className="text-center text-zinc-600 py-10"><History className="w-5 h-5 mx-auto mb-2" /><span>{t.ap_no_audit}</span></div>
+            <div className="text-center text-zinc-500 py-10"><History className="w-5 h-5 mx-auto mb-2" /><span>{t.ap_no_audit}</span></div>
           ) : (
             auditLog.map(req => {
               const isOk = req.status === "Approved" || req.status === "AutoApproved";
@@ -327,7 +327,7 @@ export default function ApprovalPanel() {
                     </span>
                   </div>
                   <p className="text-zinc-500 truncate">{req.description}</p>
-                  <div className="flex justify-between mt-1 text-[10px] text-zinc-600">
+                  <div className="flex justify-between mt-1 text-[10px] text-zinc-500">
                     <span>{req.decided_by ?? "—"}{req.decision_comment ? ` · ${req.decision_comment}` : ""}</span>
                     <span>{req.decided_at ? new Date(req.decided_at).toLocaleTimeString() : ""}</span>
                   </div>
@@ -351,7 +351,7 @@ export default function ApprovalPanel() {
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-zinc-300 font-bold">{rule.name}</span>
                   <button onClick={() => handleRemoveRule(rule.id)}
-                    className="text-zinc-600 hover:text-red-400 transition-colors">
+                    className="text-zinc-500 hover:text-red-400 transition-colors">
                     <Trash2 className="w-3 h-3" />
                   </button>
                 </div>
@@ -370,7 +370,7 @@ export default function ApprovalPanel() {
         {/* ── 演化建议 ── */}
         {view === "suggest" && (
           suggestions.length === 0 ? (
-            <div className="text-center text-zinc-600 py-10">
+            <div className="text-center text-zinc-500 py-10">
               <Sparkles className="w-5 h-5 mx-auto mb-2" />
               <span className="text-[11px]">{t.ap_no_suggestions}<br/>{t.ap_no_suggestions_hint}</span>
             </div>
@@ -393,14 +393,14 @@ export default function ApprovalPanel() {
         )}
       </div>
 
-      <div className="px-3 py-1.5 border-t border-cs-border bg-cs-header text-[10px] text-zinc-600 flex items-center justify-between shrink-0">
+      <div className="px-3 py-1.5 border-t border-cs-border bg-cs-header text-[10px] text-zinc-500 flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-3">
           <Settings className="w-2.5 h-2.5" />
           <span>{rules.length} {t.ap_n_rules}</span>
           <span>·</span>
           <span>{auditLog.length} {t.ap_n_audit}</span>
         </div>
-        <span className={pendingCount > 0 ? "text-red-400" : "text-zinc-600"}>
+        <span className={pendingCount > 0 ? "text-red-400" : "text-zinc-500"}>
           {pendingCount > 0 ? `${pendingCount} ${t.ap_n_pending}` : t.ap_all_pass}
         </span>
       </div>
