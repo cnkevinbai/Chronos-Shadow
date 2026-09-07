@@ -27,6 +27,7 @@ import {
   cvfsListProjectFiles,
   cvfsGetProjects,
   cvfsReadFile,
+  cancelChatStream,
 } from "@/lib/tauri";
 
 // 真实文件对话框（Tauri 环境可用，浏览器降级为 mock）
@@ -1001,6 +1002,13 @@ export default function ChatPanel({
   };
 
   // ── 重试上次消息 ──────────────────────────────────────────
+  // 请求取消当前流式对话 — 后端流循环检查取消标志并提前返回，
+  // handleSend 尾部的 setIsThinking(false) 随之自然复位
+  const handleCancelStream = () => {
+    cancelChatStream().catch(() => {});
+    toast.showToast("info", "STREAM CANCEL", t.stream_stop);
+  };
+
   const handleRetry = () => {
     if (!lastUserInput || retryCount >= 2) return;
     setRetryCount((c) => c + 1);
@@ -1861,16 +1869,27 @@ export default function ChatPanel({
                 disabled={isThinking}
               />
             </div>
-            <button
-              type="submit"
-              disabled={isThinking}
-              className="bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 active:scale-95 text-black font-bold text-sm px-4 py-2.5 rounded-lg transition-all duration-150 flex items-center space-x-1 outline-none shadow-sm disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed shrink-0"
-            >
-              <span>{t.execute}</span>
-              <span className="text-[10px] bg-zinc-300 px-1 rounded text-zinc-700 ml-0.5">
-                ↵
-              </span>
-            </button>
+            {isThinking ? (
+              <button
+                type="button"
+                onClick={handleCancelStream}
+                aria-label={t.stream_stop}
+                className="bg-red-500/90 hover:bg-red-500 active:scale-95 text-white font-bold text-sm px-4 py-2.5 rounded-lg transition-all duration-150 flex items-center space-x-1 outline-none shadow-sm shrink-0 animate-pulse"
+              >
+                <span className="inline-block w-2.5 h-2.5 bg-white rounded-[2px]" aria-hidden="true" />
+                <span>{t.stream_stop}</span>
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 active:scale-95 text-black font-bold text-sm px-4 py-2.5 rounded-lg transition-all duration-150 flex items-center space-x-1 outline-none shadow-sm shrink-0"
+              >
+                <span>{t.execute}</span>
+                <span className="text-[10px] bg-zinc-300 px-1 rounded text-zinc-700 ml-0.5">
+                  ↵
+                </span>
+              </button>
+            )}
           </form>
 
           {/* 成品文件面板 */}

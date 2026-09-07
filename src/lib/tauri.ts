@@ -973,6 +973,13 @@ export async function chatApiStream(
 }
 
 /**
+ * 请求取消当前进行中的流式对话 — 后端在流循环中检查取消标志并提前返回
+ */
+export function cancelChatStream(): Promise<void> {
+  return invoke<void>("cancel_chat_stream");
+}
+
+/**
  * 监听流式 chunk 事件
  * 返回 unsubscribe 函数
  */

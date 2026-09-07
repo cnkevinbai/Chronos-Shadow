@@ -14,6 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 前端首个 views 层测试：`SettingsPanel.test.tsx` 5 用例（Tab 渲染 / 设置加载 / key 状态回调 / 保存链路 / 凭据入库回调），全仓 34/34 通过
 - CI 新增 `v*` tag 触发发布流水线；补打 `v0.3.0` / `v0.4.0` / `v0.5.0` 标签
 
+### Changed — 易用性与可访问性
+- **流式对话可中止**：前端接入后端 `cancel_chat_stream`（此前从未暴露），`isThinking` 时发送按钮切换为红色"停止"按钮，后端流循环检查取消标志提前返回
+- **DockButton 可访问性**：9 个导航按钮补齐 `aria-label` + `aria-current`（全应用首批 aria 属性）
+- **dock tooltip 全部入 i18n 字典**：新增 `dock_*` 9 键 + `stream_stop`（zh/en 双语），消除导航层硬编码中文
+
 ## [0.5.0] — 2026-08-17
 
 ### Changed — 七核心引擎 v2 升级（科学化/系统化/创新化）

@@ -428,10 +428,10 @@ function AppInner() {
             {/* 左侧垂直 Dock 导航 */}
             <nav className="w-12 border-r border-cs-border bg-cs-surface flex flex-col items-center py-3 space-y-1.5 shrink-0 overflow-y-auto">
               {/* 核心面板 */}
-              <DockButton active={dockView === "chat"} tip="沉浸对话" onClick={() => setDockView("chat")}>
+              <DockButton active={dockView === "chat"} tip={t.dock_chat} onClick={() => setDockView("chat")}>
                 <ChatIcon size={18} className={dockView === "chat" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
-              <DockButton active={dockView === "pipeline"} tip="调度流水线" onClick={() => setDockView("pipeline")}>
+              <DockButton active={dockView === "pipeline"} tip={t.dock_pipeline} onClick={() => setDockView("pipeline")}>
                 <PipelineIcon size={18} className={dockView === "pipeline" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
 
@@ -439,20 +439,20 @@ function AppInner() {
               <div className="w-6 h-px bg-[#27272a] my-1" />
 
               {/* 智能引擎 */}
-              <DockButton active={dockView === "skills"} tip="技能中枢" onClick={() => setDockView("skills")}>
+              <DockButton active={dockView === "skills"} tip={t.dock_skills} onClick={() => setDockView("skills")}>
                 <McpIcon size={18} className={dockView === "skills" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
-              <DockButton active={dockView === "webintel"} tip="Web智能搜索" onClick={() => setDockView("webintel")}>
+              <DockButton active={dockView === "webintel"} tip={t.dock_webintel} onClick={() => setDockView("webintel")}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={dockView === "webintel" ? "stroke-cyan-400" : "stroke-zinc-500"}>
                   <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M11 8a3 3 0 0 0-3 3"/>
                 </svg>
               </DockButton>
-              <DockButton active={dockView === "autoroute"} tip="自动路由中枢" onClick={() => setDockView("autoroute")}>
+              <DockButton active={dockView === "autoroute"} tip={t.dock_autoroute} onClick={() => setDockView("autoroute")}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={dockView === "autoroute" ? "stroke-purple-400" : "stroke-zinc-500"}>
                   <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
                 </svg>
               </DockButton>
-              <DockButton active={dockView === "glue"} tip="跨软件粘合" onClick={() => setDockView("glue")}>
+              <DockButton active={dockView === "glue"} tip={t.dock_glue} onClick={() => setDockView("glue")}>
                 <GlueIcon size={18} className={dockView === "glue" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
 
@@ -460,13 +460,13 @@ function AppInner() {
               <div className="w-6 h-px bg-[#27272a] my-1" />
 
               {/* 基础设施 */}
-              <DockButton active={dockView === "remote"} tip="远程服务器" onClick={() => setDockView("remote")}>
+              <DockButton active={dockView === "remote"} tip={t.dock_remote} onClick={() => setDockView("remote")}>
                 <RemoteIcon size={18} className={dockView === "remote" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
-              <DockButton active={dockView === "explorer"} tip="项目时光机" onClick={() => setDockView("explorer")}>
+              <DockButton active={dockView === "explorer"} tip={t.dock_explorer} onClick={() => setDockView("explorer")}>
                 <ChronosFolderIcon size={18} className={dockView === "explorer" ? "stroke-white" : "stroke-zinc-500"} />
               </DockButton>
-              <DockButton active={dockView === "approval"} tip="审批门禁" onClick={() => setDockView("approval")}>
+              <DockButton active={dockView === "approval"} tip={t.dock_approval} onClick={() => setDockView("approval")}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={dockView === "approval" ? "stroke-red-400" : "stroke-zinc-500"}>
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                   <path d="M9 12l2 2 4-4"/>
@@ -594,6 +594,8 @@ function DockButton({
     <button
       onClick={onClick}
       title={tip}
+      aria-label={tip}
+      aria-current={active ? "page" : undefined}
       className={`w-9 h-9 flex items-center justify-center rounded transition-all duration-150 active:scale-90 ${
         active
           ? "bg-[#27272a] text-white border border-zinc-700 shadow-sm"

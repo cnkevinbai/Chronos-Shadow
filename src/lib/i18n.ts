@@ -8,6 +8,16 @@ export interface LocaleDict {
   app_title: string;
   workbench: string;
   settings: string;
+  dock_chat: string;
+  dock_pipeline: string;
+  dock_glue: string;
+  dock_skills: string;
+  dock_webintel: string;
+  dock_autoroute: string;
+  dock_remote: string;
+  dock_explorer: string;
+  dock_approval: string;
+  stream_stop: string;
   auto_rule: string;
   manual_control: string;
   text_llm: string;
@@ -440,6 +450,16 @@ export interface LocaleDict {
 const zh: LocaleDict = {
   app_title: "CHRONOS-SHADOW",
   workbench: "研发工作台",
+  dock_chat: "沉浸对话",
+  dock_pipeline: "调度流水线",
+  dock_glue: "跨软件粘合",
+  dock_skills: "技能中枢",
+  dock_webintel: "Web智能搜索",
+  dock_autoroute: "自动路由中枢",
+  dock_remote: "远程服务器",
+  dock_explorer: "项目时光机",
+  dock_approval: "审批门禁",
+  stream_stop: "停止",
   settings: "全局配置",
   auto_rule: "自动全局规则",
   manual_control: "手动控制",
@@ -859,6 +879,16 @@ const zh: LocaleDict = {
 const en: LocaleDict = {
   app_title: "CHRONOS-SHADOW",
   workbench: "Workbench",
+  dock_chat: "Immersive Chat",
+  dock_pipeline: "SDLC Pipeline",
+  dock_glue: "App Glue",
+  dock_skills: "Skill Hub",
+  dock_webintel: "Web Intelligence",
+  dock_autoroute: "Auto Routing",
+  dock_remote: "Remote Servers",
+  dock_explorer: "Project Time Machine",
+  dock_approval: "Approval Gate",
+  stream_stop: "Stop",
   settings: "Settings",
   auto_rule: "Auto-Matrix",
   manual_control: "Manual",
