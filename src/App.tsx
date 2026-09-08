@@ -2,10 +2,12 @@
 // 白皮书 6.1 + 6.7 最终联调版本
 
 import { useState, useEffect, useCallback } from "react";
-import { I18nProvider, useT } from "@/lib/i18n-context";
+import { I18nProvider, useT, useLang } from "@/lib/i18n-context";
 import { ShieldHalf, ShieldCheck } from "lucide-react";
 import OrchestrationPanel from "@/views/OrchestrationPanel";
+import ContextOverview from "@/views/chat/ContextOverview";
 import { getModel, getLLMs, getVLMs, classifyModelKeys } from "@/lib/models";
+import type { PruneStats } from "@/lib/tauri";
 import CommandPalette from "@/components/CommandPalette";
 import { buildPaletteCommands } from "@/lib/palette-commands";
 import Modal from "@/components/Modal";
@@ -73,11 +75,17 @@ function modelLabel(m: string): string {
 
 function AppInner() {
   const t = useT();
+  const { lang } = useLang();
   const toast = useToast();
   // ── 全局视图路由 ────────────────────────────────────────────────
   const [activeView, setActiveView] = useState<"workbench" | "settings" | "evolution">("workbench");
   // Dock 导航
   const [safetyCollapsed, setSafetyCollapsed] = useState(false);
+  const [safetyTab, setSafetyTab] = useState<"safety" | "context">("safety");
+  const [ctxPressure, setCtxPressure] = useState<number | null>(null);
+  const [ctxHistory, setCtxHistory] = useState<number[]>([]);
+  const [ctxLastStats, setCtxLastStats] = useState<PruneStats | null>(null);
+  const [ctxDistribution, setCtxDistribution] = useState<{ sender: string; tokens: number }[] | null>(null);
   // 窄屏自动折叠安全侧栏（<1200px）
   useEffect(() => {
     const onResize = () => { if (window.innerWidth < 1200) setSafetyCollapsed(true); };
@@ -204,9 +212,23 @@ function AppInner() {
     const t1 = setInterval(refreshCosts, 2000);
     const t2 = setInterval(refreshStatus, 3000);
     const t3 = setInterval(() => { listPendingApprovals().then((l) => setPendingApprovalCount(l.length)).catch(() => {}); }, 10000);
+    const onPressure = (e: Event) => {
+      const d = (e as CustomEvent<{ pressure: number; stats: PruneStats; distribution?: { sender: string; tokens: number }[] }>).detail;
+      setCtxPressure(d.pressure);
+      setCtxHistory((prev) => [...prev.slice(-29), d.pressure]);
+      if (d.stats.stage_reached !== "None") setCtxLastStats(d.stats);
+      setCtxDistribution(d.distribution ?? null);
+    };
+    window.addEventListener("chronos:pressure", onPressure);
     let unlisten: (() => void) | undefined;
+    const onOpenCtx = () => { setSafetyCollapsed(false); setSafetyTab("context"); };
+    window.addEventListener("chronos:open-context", onOpenCtx);
     onPipelineEvent(() => refreshStatus()).then((fn) => { unlisten = fn; });
-    return () => { clearInterval(t1); clearInterval(t2); clearInterval(t3); unlisten?.(); };
+    return () => {
+      clearInterval(t1); clearInterval(t2); clearInterval(t3); unlisten?.();
+      window.removeEventListener("chronos:pressure", onPressure);
+      window.removeEventListener("chronos:open-context", onOpenCtx);
+    };
   }, [refreshCosts, refreshStatus]);
 
   // ── 模型路由同步 ────────────────────────────────────────────────
@@ -555,12 +577,34 @@ toast.showToast("error", " 审批门禁", msg);
                   <ShieldHalf size={12} aria-hidden="true" />
                 </button>
               </div>
-              <div className="flex-1 border-b border-cs-border overflow-hidden">
-                <RedlineGuardPanel redlineStatus={redlineStatus} />
+              <div className="flex border-b border-cs-border shrink-0">
+                <button onClick={() => setSafetyTab("safety")}
+                  aria-selected={safetyTab === "safety"}
+                  className={`flex-1 py-1 text-[9px] font-bold uppercase tracking-wider transition-colors ${safetyTab === "safety" ? "text-cyan-300 border-b-2 border-cyan-400" : "text-zinc-500 hover:text-zinc-300"}`}>{lang === "zh" ? "安全风控" : "Safety"}</button>
+                <button onClick={() => setSafetyTab("context")}
+                  aria-selected={safetyTab === "context"}
+                  className={`flex-1 py-1 text-[9px] font-bold uppercase tracking-wider transition-colors ${safetyTab === "context" ? "text-cyan-300 border-b-2 border-cyan-400" : "text-zinc-500 hover:text-zinc-300"}`}>{lang === "zh" ? "上下文概览" : "Context"}</button>
               </div>
-              <div className="flex-1 overflow-hidden">
-                <SecurityShieldPanel redlineStatus={redlineStatus} />
-              </div>
+              {safetyTab === "safety" ? (
+                <>
+                  <div className="flex-1 border-b border-cs-border overflow-hidden">
+                    <RedlineGuardPanel redlineStatus={redlineStatus} />
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <SecurityShieldPanel redlineStatus={redlineStatus} />
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 overflow-hidden">
+                  <ContextOverview
+                    pressure={ctxPressure}
+                    history={ctxHistory}
+                    lastStats={ctxLastStats}
+                    distribution={ctxDistribution}
+                    onNewSession={() => window.dispatchEvent(new CustomEvent("chronos:command", { detail: "new-session" }))}
+                  />
+                </div>
+              )}
             </aside>
             )}
           </div>

@@ -32,6 +32,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **消息搜索 O(n²)**：搜索高亮在 map 内对每条消息反复 `findIndex`——改为预建 id→索引映射 + Set 查表（O(n)）
 - 已排查非缺陷：会话切换时流式输出静默丢弃（按 streamMsgId 匹配，无数据损坏）；handleNewSession 无误持久化
 
+### Changed — 右侧安全风控面板 Tab 化（上下文概览专项标签页）
+- 右侧 280px 面板改为**双 Tab**：「安全风控」（红线护/合规雷达/Shadow）与**「上下文概览」**（新专项状态概览标签页）
+- 「上下文概览」Tab 内容：状态词 + 剩余可输入估算（万字）+ 分段计量条（触发线标注）+ 泄压事件时间线 + 压力趋势柱状图（最近 14 次发送）+ 消息占用 Top 5 + 红线逃生按钮
+- 数据链路：ChatPanel 泄压后 `dispatch chronos:pressure` 事件 → App 层采集（pressure/history/stats/distribution）→ 右侧 Tab 实时展示
+- 聊天状态栏点击「上下文 N%」→ 自动展开右侧面板并切换到上下文概览 Tab（`chronos:open-context` 事件）
+- App.tsx effect 结构修复：事件监听并入统一清理函数（修复 unreachable 插入错误）
+
 ### Changed — EMOJI 全面清零（全局图标规范落地）
 - **文案/模板/数据名称中的 emoji 全部移除**（24 文件，计数 290 → 15）：toast 文案、系统消息模板、宏/技能/MCP 名称、欢迎语、i18n 字典——UI 图标全部使用 lucide/SvgIcons 矢量（前批完成）
 - 保留 15 处**功能性数据**：用户头像默认值与 12 个可选头像、成就字段引用（a.emoji）——属用户可选数据而非图标占位
