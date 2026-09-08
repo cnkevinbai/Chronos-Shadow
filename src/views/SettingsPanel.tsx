@@ -487,7 +487,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                       <span className="flex items-center gap-2">
                         <span className="text-cyan-400">{tok.toLocaleString()}</span>
                         <button onClick={() => { const rest = { ...cwOverrides }; delete rest[model]; setCwOverrides(rest); }}
-                          className="text-zinc-600 hover:text-red-400 font-bold">✕</button>
+                          className="text-zinc-500 hover:text-red-400 font-bold">✕</button>
                       </span>
                     </div>
                   ))}
