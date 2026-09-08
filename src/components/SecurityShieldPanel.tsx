@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useT } from "@/lib/i18n-context";
+import { appAlert } from "@/lib/dialogs";
 import { toggleShadow, resetFuse, getShadowStats } from "@/lib/tauri";
 import { Shield, AlertTriangle, CheckCircle, Lock, Eye } from "lucide-react";
 
@@ -91,7 +92,7 @@ export default function SecurityShieldPanel({ redlineStatus }: SecurityShieldPan
         {redlineStatus?.fused && (
           <button
             onClick={async () => {
-              try { await resetFuse(); alert("熔断器已重置。"); } catch(e) { alert(`重置失败: ${e}`); }
+              try { await resetFuse(); await appAlert("熔断器已重置。"); } catch(e) { await appAlert(`重置失败: ${e}`); }
             }}
             className="col-span-2 text-[10px] bg-red-950/30 border border-red-800/40 text-red-400 hover:bg-red-900/40 px-2 py-1 rounded transition-colors font-bold">
             ⚡ 重置熔断器 (人工介入)

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useT } from "@/lib/i18n-context";
+import { appPrompt } from "@/lib/dialogs";
 import { updateCostCap, getBillingDashboard } from "@/lib/tauri";
 import { CoinsIcon, ShieldIcon } from "@/components/SvgIcons";
 
@@ -130,7 +131,7 @@ export default function FooterBar({
         {/* 字体缩放 */}
         <div className="flex items-center space-x-0.5 text-[10px] text-zinc-500">
           <button
-            onClick={() => {
+            onClick={async () => {
               const s = Math.max(0.85, getFontScale() - 0.05);
               setFontScale(s);
             }}
@@ -158,8 +159,8 @@ export default function FooterBar({
           <span className="text-cs-muted">{t.cost_cap}</span>
           <span
             className="text-cs-text bg-black border border-cs-border px-1 py-0.5 rounded font-bold cursor-pointer hover:border-cs-dim transition-colors"
-            onClick={() => {
-              const newLimit = prompt(
+            onClick={async () => {
+              const newLimit = await appPrompt(
                 t.cost_cap_prompt,
                 costLimit.toString(),
               );

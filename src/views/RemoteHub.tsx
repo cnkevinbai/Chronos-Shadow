@@ -9,6 +9,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useT, useLang } from "@/lib/i18n-context";
+import { appConfirm, appAlert } from "@/lib/dialogs";
 import {
   clusterRegisterServer,
   clusterUnregisterServer,
@@ -99,18 +100,18 @@ export default function RemoteHub() {
       setNewServer({ id: "", host: "", port: 22, username: "root", projectRoot: "/root/project" });
       refreshCluster();
     } catch (e) {
-      alert(`${lang === "zh" ? "注册失败" : "Registration failed"}: ${e}`);
+      await appAlert(`${lang === "zh" ? "注册失败" : "Registration failed"}: ${e}`);
     }
   };
 
   const handleRemoveServer = async (id: string) => {
-    if (!confirm(lang === "zh" ? `确定移除服务器 "${id}"？` : `Remove server "${id}"?`)) return;
+    if (!await appConfirm(lang === "zh" ? `确定移除服务器 "${id}"？` : `Remove server "${id}"?`)) return;
     try {
       await clusterUnregisterServer(id);
       if (expanded === id) setExpanded(null);
       refreshCluster();
     } catch (e) {
-      alert(`${lang === "zh" ? "移除失败" : "Removal failed"}: ${e}`);
+      await appAlert(`${lang === "zh" ? "移除失败" : "Removal failed"}: ${e}`);
     }
   };
 
@@ -129,7 +130,7 @@ export default function RemoteHub() {
       });
       refreshCluster();
     } catch (e) {
-      alert(`${lang === "zh" ? "连接失败" : "Connection failed"}: ${e}`);
+      await appAlert(`${lang === "zh" ? "连接失败" : "Connection failed"}: ${e}`);
     }
   };
 
@@ -138,7 +139,7 @@ export default function RemoteHub() {
       const nodes = await remoteListFiles("");
       setFiles(nodes as unknown as RemoteFile[]);
     } catch (e) {
-      alert(`${lang === "zh" ? "文件列表失败" : "Failed to list files"}: ${e}`);
+      await appAlert(`${lang === "zh" ? "文件列表失败" : "Failed to list files"}: ${e}`);
     }
   };
 
@@ -157,7 +158,7 @@ export default function RemoteHub() {
       const req = await submitForApproval("ssh_exec", expanded || "remote",
         lang === "zh" ? `远程编译: ${compileCmd}` : `Remote build: ${compileCmd}`, "{}");
       if (req.status === "Pending") {
-        alert(lang === "zh" ? `⛔ 此远程命令需要审批 (${req.id})。请切换到审批面板审核后重试。` : `⛔ This remote command requires approval (${req.id}). Review it in the Approval panel and retry.`);
+        await appAlert(lang === "zh" ? `⛔ 此远程命令需要审批 (${req.id})。请切换到审批面板审核后重试。` : `⛔ This remote command requires approval (${req.id}). Review it in the Approval panel and retry.`);
         return;
       }
     } catch { /* 审批接口不可用，放行 */ }
@@ -177,26 +178,26 @@ ${e}`);
       const req = await submitForApproval("ssh_exec", expanded || "remote",
         lang === "zh" ? `远程快照: ${snapshotTag}` : `Remote snapshot: ${snapshotTag}`, "{}");
       if (req.status === "Pending") {
-        alert(`⛔ 此远程命令需要审批 (${req.id})。请切换到审批面板审核后重试。`);
+        await appAlert(`⛔ 此远程命令需要审批 (${req.id})。请切换到审批面板审核后重试。`);
         return;
       }
     } catch { /* 审批接口不可用，放行 */ }
     try {
       const result = await remoteSnapshot(snapshotTag);
-      alert(result);
+      await appAlert(result);
       setSnapshotTag("");
     } catch (e) {
-      alert(`${lang === "zh" ? "快照失败" : "Snapshot failed"}: ${e}`);
+      await appAlert(`${lang === "zh" ? "快照失败" : "Snapshot failed"}: ${e}`);
     }
   };
 
   const handleRewind = async (tag: string) => {
-    if (!confirm(lang === "zh" ? `确定回滚到 "${tag}"？此操作不可逆。` : `Roll back to "${tag}"? This is irreversible.`)) return;
+    if (!await appConfirm(lang === "zh" ? `确定回滚到 "${tag}"？此操作不可逆。` : `Roll back to "${tag}"? This is irreversible.`)) return;
     try {
       const result = await remoteRewind(tag);
-      alert(result);
+      await appAlert(result);
     } catch (e) {
-      alert(`${lang === "zh" ? "回滚失败" : "Rollback failed"}: ${e}`);
+      await appAlert(`${lang === "zh" ? "回滚失败" : "Rollback failed"}: ${e}`);
     }
   };
 

@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Palette, Loader2, Stethoscope, X as XIcon, Check as CheckIcon2, Trophy } from "lucide-react";
 import { useLang, useT } from "@/lib/i18n-context";
+import { appConfirm } from "@/lib/dialogs";
 import { APP_VERSION } from "@/lib/version";
 import { useToast } from "@/lib/use-toast";
 import { loadSettings, saveSettings, checkLanHealth, getUserProfile, updateUserProfile, getAchievements } from "@/lib/tauri";
@@ -156,7 +157,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
 
   // ── 恢复默认配置：前端已知默认值常量化 + 确认 + 自动保存 ──
   const handleResetDefaults = async () => {
-    if (!confirm(lang === "zh" ? "确定恢复全部设置为默认值？当前未保存的修改将被覆盖。" : "Reset all settings to defaults? Unsaved changes will be overwritten.")) return;
+    if (!(await appConfirm(lang === "zh" ? "确定恢复全部设置为默认值？当前未保存的修改将被覆盖。" : "Reset all settings to defaults? Unsaved changes will be overwritten."))) return;
     setCostCap(5.0); setCostCapEnabled(true); setCachingPriority(true);
     setOllamaUrl("http://localhost:11434"); setLanModel("deepseek-v4-flash");
     setLanTimeout(3500); setAutoFallback(true); setMaxHealing(3);

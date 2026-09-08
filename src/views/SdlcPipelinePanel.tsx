@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useT } from "@/lib/i18n-context";
+import { appAlert, appPrompt } from "@/lib/dialogs";
 import { getAgentRoster, type AgentRosterEntry, createTask, assignTask, completeTask, failTask, getEventMetrics, taskEstimateEffort } from "@/lib/tauri";
 import { getModelDisplay } from "@/lib/models";
 import {
@@ -121,7 +122,7 @@ export default function SdlcPipelinePanel({
       await assignTask(taskId, pipelineStats?.active_role ?? "Coder");
       setTaskTitle("");
       setShowTaskForm(false);
-    } catch (e) { alert(`创建任务失败: ${e}`); }
+    } catch (e) { await appAlert(`创建任务失败: ${e}`); }
   };
 
   useEffect(() => {
@@ -496,17 +497,17 @@ export default function SdlcPipelinePanel({
           <div className="ml-auto flex items-center space-x-1">
             <button
               onClick={async () => {
-                const taskId = prompt("输入要完成的任务 ID:");
-                if (taskId) try { await completeTask(taskId); } catch(e) { alert(`失败: ${e}`); }
+                const taskId = await appPrompt("输入要完成的任务 ID:");
+                if (taskId) try { await completeTask(taskId); } catch(e) { await appAlert(`失败: ${e}`); }
               }}
               className="text-[10px] bg-emerald-950/30 border border-emerald-800/30 text-emerald-400 px-1.5 py-0.5 rounded hover:bg-emerald-900/40">
               ✅ 完成
             </button>
             <button
               onClick={async () => {
-                const taskId = prompt("输入失败的任务 ID:");
-                const err = prompt("错误信息:");
-                if (taskId) try { await failTask(taskId, err ?? "unknown"); } catch(e) { alert(`失败: ${e}`); }
+                const taskId = await appPrompt("输入失败的任务 ID:");
+                const err = await appPrompt("错误信息:");
+                if (taskId) try { await failTask(taskId, err ?? "unknown"); } catch(e) { await appAlert(`失败: ${e}`); }
               }}
               className="text-[10px] bg-red-950/30 border border-red-800/30 text-red-400 px-1.5 py-0.5 rounded hover:bg-red-900/40">
               ❌ 失败

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { MessageSquare, BarChart3, Coins, Trash2 } from "lucide-react";
 import { useToast } from "@/lib/use-toast";
 import { deleteChatSession, renameChatSession } from "@/lib/tauri";
+import { appConfirm } from "@/lib/dialogs";
 import type { SessionMetaManifest } from "@/lib/types";
 
 interface SessionSidebarProps {
@@ -174,7 +175,7 @@ export default function SessionSidebar({
                 onClick={async (e) => {
                   e.stopPropagation();
                   if (
-                    confirm(`确定删除会话「${m.title}」？\n此操作不可撤销。`)
+                    await appConfirm(`确定删除会话「${m.title}」？\n此操作不可撤销。`)
                   ) {
                     try {
                       await deleteChatSession(m.session_id);

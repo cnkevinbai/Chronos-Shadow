@@ -32,6 +32,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **消息搜索 O(n²)**：搜索高亮在 map 内对每条消息反复 `findIndex`——改为预建 id→索引映射 + Set 查表（O(n)）
 - 已排查非缺陷：会话切换时流式输出静默丢弃（按 streamMsgId 匹配，无数据损坏）；handleNewSession 无误持久化
 
+### Fixed — 原生对话框系统性缺陷（交互逻辑审查发现）
+- **Tauri v2 WebView2 默认禁用 window.alert/confirm/prompt**——8 个文件 46 处调用在桌面端静默失效：删除/回滚确认返回 undefined（危险操作被静默跳过）、错误提示不显示、ApprovalPanel 添加规则（4 连 prompt）完全不可用
+- 修复：新建统一对话框工具 `src/lib/dialogs.ts`（Tauri 下走 plugin-dialog 的 confirm/message——capabilities 已含 dialog:default；浏览器模式降级原生对话框），**46 处调用全部迁移**，涉及函数按需 async 化
+- ApprovalPanel「添加规则」由 4 连 prompt 重写为**内联表单**（操作类型下拉 + 风险/阈值/描述输入 + aria-label）
+
 ### Changed — 长尾收尾：运行时提示消息双语化
 - **RemoteHub / ProjectExplorer 的 alert/confirm/prompt 全部双语化**（23 处）：错误提示、危险操作确认、审批拦截提示均按界面语言输出——英文用户不再收到纯中文系统弹窗
 

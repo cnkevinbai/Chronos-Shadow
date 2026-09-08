@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useT } from "@/lib/i18n-context";
+
 import {
   listPendingApprovals,
   getApprovalAuditLog,
@@ -119,18 +120,18 @@ export default function ApprovalPanel() {
     } catch (e) { console.error(e); }
   };
 
+  const [showRuleForm, setShowRuleForm] = useState(false);
+  const [ruleAction, setRuleAction] = useState("worktree_merge");
+  const [ruleRisk, setRuleRisk] = useState(5);
+  const [ruleAuto, setRuleAuto] = useState(3);
+  const [ruleDesc, setRuleDesc] = useState("");
+
   const handleAddRule = async () => {
-    const at = prompt("操作类型 (worktree_merge / pipeline_advance / ssh_exec / cost_override / file_delete):");
-    if (!at) return;
-    const riskStr = prompt("风险等级 (1-10):", "5");
-    if (!riskStr) return;
-    const autoStr = prompt("自动放行阈值 (低于此风险自动通过):", "3");
-    if (!autoStr) return;
-    const desc = prompt("规则描述:", ACTION_LABEL[at] ?? at) || at;
     try {
-      await addApprovalRule(at, parseInt(riskStr), parseInt(autoStr), desc);
+      await addApprovalRule(ruleAction, ruleRisk, ruleAuto, ruleDesc || (ACTION_LABEL[ruleAction] ?? ruleAction));
       await saveApprovalState();
       refresh();
+      setShowRuleForm(false);
     } catch (e) { console.error(e); }
   };
 
@@ -340,10 +341,34 @@ export default function ApprovalPanel() {
         {/* ── 规则管理 ── */}
         {view === "rules" && (
           <>
-            <button onClick={handleAddRule}
+            <button onClick={() => setShowRuleForm(v => !v)}
               className="w-full flex items-center justify-center space-x-1 py-1.5 border border-dashed border-cs-border rounded text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors">
               <Plus className="w-3 h-3" /><span>{t.ap_add_rule}</span>
             </button>
+            {showRuleForm && (
+            <div className="p-2 mb-2 border border-cs-border rounded bg-black/40 space-y-1.5">
+              <select value={ruleAction} onChange={e => setRuleAction(e.target.value)}
+                className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-300 outline-none focus:border-cyan-500">
+                <option value="worktree_merge">Worktree Merge</option>
+                <option value="pipeline_advance">Pipeline Advance</option>
+                <option value="ssh_exec">SSH Exec</option>
+                <option value="cost_override">Cost Override</option>
+                <option value="file_delete">File Delete</option>
+              </select>
+              <input type="number" min={1} max={10} value={ruleRisk} onChange={e => setRuleRisk(Number(e.target.value))}
+                placeholder="risk 1-10" aria-label="risk"
+                className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-300 outline-none focus:border-cyan-500" />
+              <input type="number" min={1} max={10} value={ruleAuto} onChange={e => setRuleAuto(Number(e.target.value))}
+                placeholder="auto-approve below" aria-label="auto-approve below"
+                className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-300 outline-none focus:border-cyan-500" />
+              <input type="text" value={ruleDesc} onChange={e => setRuleDesc(e.target.value)}
+                placeholder="description" aria-label="description"
+                className="w-full bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-300 outline-none focus:border-cyan-500" />
+              <button onClick={handleAddRule}
+                className="w-full bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 text-[10px] py-1 rounded font-bold transition-colors">
+                {t.ap_submit}</button>
+            </div>
+            )}
             {rules.map(rule => (
               <div key={rule.id} className={`p-2 border rounded text-[10px] ${
                 rule.enabled ? "border-cs-border bg-cs-header" : "border-[#1a1a1e] bg-[#0a0a0c] opacity-60"

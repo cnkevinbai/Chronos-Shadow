@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useT } from "@/lib/i18n-context";
+import { appAlert } from "@/lib/dialogs";
 import { getEvolutionStats, evoValidateExperience, evoInterceptContext, getApprovalSuggestions, getAgentQualityScores, evobusHealthReport, evobusSelfAssess, predictiveDetectChangePoints, getCacheHitStats } from "@/lib/tauri";
 import type { CacheHitStats } from "@/lib/tauri";
 import { Database, TrendingUp, ExternalLink, Shield, Cpu, Activity, Zap } from "lucide-react";
@@ -125,8 +126,8 @@ export default function EvolutionConsole() {
     setLogs((prev) => prev.map((l) => (l.id === logId ? { ...l, status: "Consolidated" as const } : l)));
   };
 
-  const handleExport = () => {
-    alert(t.evo_export_success);
+  const handleExport = async () => {
+    await appAlert(t.evo_export_success);
   };
 
   const getNodeStyle = (status: TechNode["status"]) => {

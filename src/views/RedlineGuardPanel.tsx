@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useT } from "@/lib/i18n-context";
+import { appAlert } from "@/lib/dialogs";
 import { validateModelOutput, resetFuse } from "@/lib/tauri";
 import {
   ShieldAlert,
@@ -157,8 +158,8 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
           onClick={async () => {
             try {
               const result = await validateModelOutput('{"action":"file_read","params":{"path":"src/main.tsx"}}');
-              alert(`校验通过: ${result}`);
-            } catch (e) { alert(`校验拦截: ${e}`); }
+              await appAlert(`校验通过: ${result}`);
+            } catch (e) { await appAlert(`校验拦截: ${e}`); }
           }}
           className="flex items-center space-x-1 text-[10px] bg-purple-950/30 border border-purple-800/30 text-purple-400 hover:bg-purple-900/40 px-2 py-0.5 rounded transition-colors">
           <FlaskConical className="w-2.5 h-2.5" /> 测试校验
@@ -166,7 +167,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
         {redlineStatus?.fused && (
           <button
             onClick={async () => {
-              try { await resetFuse(); alert("熔断器已重置。"); } catch(e) { alert(`失败: ${e}`); }
+              try { await resetFuse(); await appAlert("熔断器已重置。"); } catch(e) { await appAlert(`失败: ${e}`); }
             }}
             className="text-[10px] bg-red-950/30 border border-red-800/30 text-red-400 hover:bg-red-900/40 px-2 py-0.5 rounded transition-colors font-bold">
             ⚡ 重置熔断

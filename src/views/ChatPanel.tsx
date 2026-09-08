@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MessageSquare, Coins, Upload, Save, Search, Link2, Zap, FolderOpen } from "lucide-react";
 import { useT } from "@/lib/i18n-context";
+import { appConfirm } from "@/lib/dialogs";
 import ArtifactPanel from "@/views/chat/ArtifactPanel";
 import Composer from "@/views/chat/Composer";
 import MessageList from "@/views/chat/MessageList";
@@ -293,7 +294,7 @@ export default function ChatPanel({
   // ── 清空所有会话 ──────────────────────────────────────────
   const handleClearAll = async () => {
     if (
-      !confirm(
+      !await appConfirm(
         `确定删除全部 ${manifests.length} 个会话档案？\n此操作不可撤销，所有对话记录将被永久移除。`,
       )
     )

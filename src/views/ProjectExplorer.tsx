@@ -10,6 +10,7 @@ function defaultWorkspace(): string {
   return isWin ? "C:\\Chronos-Workspace" : "~/Chronos-Workspace";
 }
 import { useT, useLang } from "@/lib/i18n-context";
+import { appConfirm, appAlert } from "@/lib/dialogs";
 import {
   cvfsGetCheckpoints,
   cvfsGetProjects,
@@ -101,7 +102,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
       setShowNewProject(false); setNewProjId("");
       onProjectChange(newProjId);
       refresh();
-    } catch (e) { alert(`${lang === "zh" ? "创建失败" : "Creation failed"}: ${e}`); }
+    } catch (e) { await appAlert(`${lang === "zh" ? "创建失败" : "Creation failed"}: ${e}`); }
   };
 
   const handleCaptureCheckpoint = async () => {
@@ -110,32 +111,32 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
       await cvfsCaptureCheckpointV2(currentProject, snapshotLabel, "手动快照");
       setSnapshotLabel(""); setShowSnapshot(false);
       refresh();
-    } catch (e) { alert(`${lang === "zh" ? "快照失败" : "Snapshot failed"}: ${e}`); }
+    } catch (e) { await appAlert(`${lang === "zh" ? "快照失败" : "Snapshot failed"}: ${e}`); }
   };
 
   const handleRestore = async (cpId: string) => {
-    if (!currentProject || !confirm(lang === "zh" ? `确定恢复到检查点 ${cpId}？此操作不可逆。` : `Restore checkpoint ${cpId}? This is irreversible.`)) return;
+    if (!currentProject || !await appConfirm(lang === "zh" ? `确定恢复到检查点 ${cpId}？此操作不可逆。` : `Restore checkpoint ${cpId}? This is irreversible.`)) return;
     try { await cvfsRestoreCheckpoint(currentProject, cpId); refresh(); }
-    catch (e) { alert(`${lang === "zh" ? "恢复失败" : "Restore failed"}: ${e}`); }
+    catch (e) { await appAlert(`${lang === "zh" ? "恢复失败" : "Restore failed"}: ${e}`); }
   };
 
   const handleDeleteCp = async (cpId: string) => {
-    if (!currentProject || !confirm(lang === "zh" ? `删除检查点 ${cpId}？` : `Delete checkpoint ${cpId}?`)) return;
+    if (!currentProject || !await appConfirm(lang === "zh" ? `删除检查点 ${cpId}？` : `Delete checkpoint ${cpId}?`)) return;
     try { await cvfsDeleteCheckpoint(currentProject, cpId); refresh(); }
-    catch (e) { alert(`${lang === "zh" ? "删除失败" : "Delete failed"}: ${e}`); }
+    catch (e) { await appAlert(`${lang === "zh" ? "删除失败" : "Delete failed"}: ${e}`); }
   };
 
   const handleDeleteProject = async () => {
-    if (!currentProject || currentProject === "default" || !confirm(lang === "zh" ? `确认删除项目 ${currentProject}？此操作不可恢复。` : `Delete project ${currentProject}? This cannot be undone.`)) return;
+    if (!currentProject || currentProject === "default" || !await appConfirm(lang === "zh" ? `确认删除项目 ${currentProject}？此操作不可恢复。` : `Delete project ${currentProject}? This cannot be undone.`)) return;
     try { await cvfsDeleteProject(currentProject); onProjectChange("default"); refresh(); }
-    catch (e) { alert(`删除失败: ${e}`); }
+    catch (e) { await appAlert(`删除失败: ${e}`); }
   };
 
   const handleMergeWorktree = async (wtId: string) => {
-    if (!confirm(lang === "zh" ? `确认合并 Worktree ${wtId} 到主分支？` : `Merge Worktree ${wtId} to main?`)) return;
+    if (!await appConfirm(lang === "zh" ? `确认合并 Worktree ${wtId} 到主分支？` : `Merge Worktree ${wtId} to main?`)) return;
     try {
       await mergeWorktree(wtId);
-      alert(lang === "zh" ? `Worktree ${wtId} 合并成功` : `Worktree ${wtId} merged`);
+      await appAlert(lang === "zh" ? `Worktree ${wtId} 合并成功` : `Worktree ${wtId} merged`);
       refresh();
     } catch (e: unknown) {
       const msg = String(e);
@@ -146,10 +147,10 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
         try {
           await submitForApproval("worktree_merge", targetId,
             lang === "zh" ? `合并 Worktree ${targetId} 到主分支` : `Merge Worktree ${targetId} to main`, "{}");
-          alert(`已自动提交审批请求 (${targetId})。请切换到审批面板 (🛡️ 第四红线) 审核后重试合并。`);
-        } catch { alert(`${lang === "zh" ? "审批提交失败" : "Approval submission failed"}: ${msg}`); }
+          await appAlert(`已自动提交审批请求 (${targetId})。请切换到审批面板 (🛡️ 第四红线) 审核后重试合并。`);
+        } catch { await appAlert(`${lang === "zh" ? "审批提交失败" : "Approval submission failed"}: ${msg}`); }
       } else {
-        alert(`${lang === "zh" ? "合并失败" : "Merge failed"}: ${msg}`);
+        await appAlert(`${lang === "zh" ? "合并失败" : "Merge failed"}: ${msg}`);
       }
     }
   };
