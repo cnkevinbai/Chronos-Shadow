@@ -1286,7 +1286,6 @@ summaryText = ` **已执行 ${actionCount} 个操作**`;
           isNearBottomRef={isNearBottomRef}
           showFileExplorer={showFileExplorer}
 />
-        </div>
 
         {/* 文件浏览器 (右侧面板) */}
         {showFileExplorer && currentProject !== "default" && (
@@ -1452,6 +1451,7 @@ ${content}`);
               )}
             </div>
           </div>
+    </div>
         </div>
   );
 }
