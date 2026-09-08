@@ -46,6 +46,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 修复：新建统一对话框工具 `src/lib/dialogs.ts`（Tauri 下走 plugin-dialog 的 confirm/message——capabilities 已含 dialog:default；浏览器模式降级原生对话框），**46 处调用全部迁移**，涉及函数按需 async 化
 - ApprovalPanel「添加规则」由 4 连 prompt 重写为**内联表单**（操作类型下拉 + 风险/阈值/描述输入 + aria-label）
 
+### Changed — 模型能力矩阵按官方模型库核验更新
+- **数据源**（搜索引擎读取官方文档）：DeepSeek api-docs.deepseek.com/news/news260424 + Models & Pricing；Kimi platform.kimi.com/docs/api/models-overview；智谱 docs.bigmodel.cn / docs.z.ai（GLM-5.3-Flash 官方页）
+- **DeepSeek V4 系修正**：官方 2026-04-24 预览、07-31 正式——`deepseek-v4-flash`/`v4-pro` 上下文 **1M 为官方服务默认**（注册表原 65536/131072 均严重低估）；284B-A13B / 1.6T-A49B MoE；legacy deepseek-chat/reasoner 已退役路由至 V4-Flash
+- **Kimi K3 修正**：官方模型参数表确认 **1M 上下文**（2.8T 参数、原生视觉理解、缓存命中 $0.30）——注册表原 65536 严重低估；k2.7-code/highspeed 官方 **256K** + Context Caching
+- **GLM-4.7 修正**：官方 **200K**（204800）+ 上下文缓存——注册表原 32768 低估
+- **新增 glm-5.3-flash**：官方 2026-08 发布的原生多模态 VLM（文/图/视频/文件），**上下文 1M**、max output 128K、320B-A18B MoE（混合稀疏+线性注意力）、context caching——注册表此前无此模型
+- glm-5.2/5.1/5v-turbo 官方模型库暂无对应页面，标注【待核验】保留项目声明值
+- models.test.ts 断言同步（1M 窗口）
+
 ### Added — 上下文管理设置分区 + 压力红线联动建议（第二批）
 - **SettingsPanel 新增「上下文管理」Tab**（dock 第 8 项）：compact_ratio 滑条（30-95%，实时显示触发阈值 token 数）、默认上下文窗口输入、**按模型窗口覆盖列表**（MODELS 注册表预填 contextWindow，添加/删除）；配置经 saveSettings 持久化（serde default 向后兼容旧 config.json）
 - `context_prune_apply` 改为从 AppSettings 读取配置并按 `selected_model` 应用窗口覆盖（前端不再传 config）

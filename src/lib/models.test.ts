@@ -12,7 +12,7 @@ describe("models 注册表", () => {
     const m = getModel("deepseek-v4-pro");
     expect(m?.provider).toBe("deepseek");
     expect(m?.supportsCache).toBe(true);
-    expect(m?.contextWindow).toBe(131072);
+    expect(m?.contextWindow).toBe(1000000); // 官方 V4 系默认 1M 窗口（api-docs.deepseek.com/news/news260424）
   });
 
   it("getModel 对未知 key 返回 undefined", () => {
