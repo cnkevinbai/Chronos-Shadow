@@ -6,7 +6,7 @@
 // 若未配置 API Key 则降级为本地 mock 演示
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { MessageSquare, Coins, Upload, Save, Search, Link2, Zap, FolderOpen } from "lucide-react";
+import { MessageSquare, Coins, Upload, Save, Search, Link2, Zap, FolderOpen, FileText } from "lucide-react";
 import { useT, useLang } from "@/lib/i18n-context";
 import { appConfirm } from "@/lib/dialogs";
 import ArtifactPanel from "@/views/chat/ArtifactPanel";
@@ -1284,7 +1284,7 @@ summaryText = ` **已执行 ${actionCount} 个操作**`;
           msgContainerRef={msgContainerRef}
           chatEndRef={chatEndRef}
           isNearBottomRef={isNearBottomRef}
-                  showFileExplorer={showFileExplorer}
+          showFileExplorer={showFileExplorer}
 />
         </div>
 
@@ -1304,13 +1304,13 @@ summaryText = ` **已执行 ${actionCount} 个操作**`;
                   className={`flex items-center space-x-1 px-1 py-0.5 rounded text-[10px] cursor-default transition-colors ${
                     isModified ? 'bg-emerald-950/20 border border-emerald-900/30 animate-pulse' : 'hover:bg-zinc-800/40'
                   }`}>
- <span className="shrink-0">{f.is_dir ? '' : ''}</span>
+ <span className="shrink-0">{f.is_dir ? <FolderOpen size={9} aria-hidden="true" /> : <FileText size={9} aria-hidden="true" />}</span>
                   <span className={`truncate ${
                     isContract ? 'text-amber-400 font-bold' :
                     isModified ? 'text-emerald-400 font-bold' :
                     f.is_dir ? 'text-cyan-400/70' : 'text-zinc-400'
                   }`} title={f.relative_path}>{f.name}</span>
- {isContract && <span className="text-[10px] text-amber-500 border border-amber-500/30 bg-amber-950/20 px-0.5 rounded shrink-0"></span>}
+ {isContract && <span className="text-[10px] text-amber-500 border border-amber-500/30 bg-amber-950/20 px-0.5 rounded shrink-0">MD</span>}
                   {isModified && <span className="text-[10px] text-emerald-400 shrink-0">●</span>}
                 </div>
                 );

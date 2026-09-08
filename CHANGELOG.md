@@ -37,6 +37,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 保留 15 处**功能性数据**：用户头像默认值与 12 个可选头像、成就字段引用（a.emoji）——属用户可选数据而非图标占位
 - 功能性符号（✕ 关闭/✓ 已配置/● 动画点/↵ 回车）不受影响
 
+### Fixed — 主界面布局散架修复（聊天输入框不贴底）
+- **根因**：MessageList 拆分时容器闭合错位——`</div>` 多放了一处在 MessageList 调用后，导致主栏 `flex-col` 容器提前闭合，Composer/成品面板/状态栏全部散落到容器外（聊天输入框不贴底、元素散离）
+- 修复：移除多余闭合、恢复主栏层级（Header → 搜索 → 消息+文件行 → Composer → 成品面板 → 状态栏 → 快捷提示），层级扫描验证 depth 平衡；同时补回文件树 lucide 图标与契约徽章（git checkout 误回滚的部分）
+
 ### Fixed — 原生对话框系统性缺陷（交互逻辑审查发现）
 - **Tauri v2 WebView2 默认禁用 window.alert/confirm/prompt**——8 个文件 46 处调用在桌面端静默失效：删除/回滚确认返回 undefined（危险操作被静默跳过）、错误提示不显示、ApprovalPanel 添加规则（4 连 prompt）完全不可用
 - 修复：新建统一对话框工具 `src/lib/dialogs.ts`（Tauri 下走 plugin-dialog 的 confirm/message——capabilities 已含 dialog:default；浏览器模式降级原生对话框），**46 处调用全部迁移**，涉及函数按需 async 化
