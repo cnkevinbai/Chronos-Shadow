@@ -32,7 +32,19 @@ pub struct AppSettings {
     has_key_glm: bool,
     #[serde(default = "default_project")]
     current_project: String,
+    /// 上下文管理：压力触发比（compact_ratio）
+    #[serde(default = "default_compact_ratio")]
+    pub context_compact_ratio: f64,
+    /// 上下文管理：默认模型上下文窗口（tokens）
+    #[serde(default = "default_context_window")]
+    pub context_window_tokens: u64,
+    /// 上下文管理：按模型窗口覆盖（模型 ID → tokens）
+    #[serde(default)]
+    pub context_window_overrides: std::collections::HashMap<String, u64>,
 }
+
+fn default_compact_ratio() -> f64 { 0.80 }
+fn default_context_window() -> u64 { 65_536 }
 
 fn default_project() -> String { "Chronos-Core-Demo".into() }
 
@@ -59,6 +71,9 @@ impl Default for AppSettings {
             has_key_kimi: false,
             has_key_glm: false,
             current_project: "Chronos-Core-Demo".into(),
+            context_compact_ratio: 0.80,
+            context_window_tokens: 65_536,
+            context_window_overrides: std::collections::HashMap::new(),
         }
     }
 }

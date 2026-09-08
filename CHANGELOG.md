@@ -42,6 +42,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 修复：新建统一对话框工具 `src/lib/dialogs.ts`（Tauri 下走 plugin-dialog 的 confirm/message——capabilities 已含 dialog:default；浏览器模式降级原生对话框），**46 处调用全部迁移**，涉及函数按需 async 化
 - ApprovalPanel「添加规则」由 4 连 prompt 重写为**内联表单**（操作类型下拉 + 风险/阈值/描述输入 + aria-label）
 
+### Added — 上下文管理设置分区 + 压力红线联动建议（第二批）
+- **SettingsPanel 新增「上下文管理」Tab**（dock 第 8 项）：compact_ratio 滑条（30-95%，实时显示触发阈值 token 数）、默认上下文窗口输入、**按模型窗口覆盖列表**（MODELS 注册表预填 contextWindow，添加/删除）；配置经 saveSettings 持久化（serde default 向后兼容旧 config.json）
+- `context_prune_apply` 改为从 AppSettings 读取配置并按 `selected_model` 应用窗口覆盖（前端不再传 config）
+- **压力红线联动自动新建会话建议条**：PressureEscalation 时消息区顶部出现红色建议条（双语 + 「新建会话」一键操作 + 可关闭），正常泄压自动清除
+
 ### Added — 历史会话上下文管理机制（工具输出剪枝 + 滑窗截断 + 压力红线泄压）
 - **新后端模块 `agent/context_pruning.rs`**：发送给 LLM 前的 chatMessages 自动泄压——
   - **工具输出剪枝（Tool Result Pruning）**：超长工具/命令输出（>8192 字符）压缩为 head 4096 + 省略标记（含被剪字符数）+ tail 1024，完整内容仍随会话分块归档于 Vault

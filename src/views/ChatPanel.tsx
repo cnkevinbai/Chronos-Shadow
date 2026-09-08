@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MessageSquare, Coins, Upload, Save, Search, Link2, Zap, FolderOpen } from "lucide-react";
-import { useT } from "@/lib/i18n-context";
+import { useT, useLang } from "@/lib/i18n-context";
 import { appConfirm } from "@/lib/dialogs";
 import ArtifactPanel from "@/views/chat/ArtifactPanel";
 import Composer from "@/views/chat/Composer";
@@ -89,6 +89,7 @@ export default function ChatPanel({
   const anyKey = hasKeys.deepseek || hasKeys.kimi || hasKeys.glm;
   const availableProvider = hasKeys.deepseek ? "DeepSeek" : hasKeys.kimi ? "Kimi" : hasKeys.glm ? "GLM" : null;
   const t = useT();
+  const { lang } = useLang();
   const toast = useToast();
 
   // ── 会话侧栏状态（Chunked V2）─────────────────────────────────
@@ -159,6 +160,7 @@ export default function ChatPanel({
 
   const [isThinking, setIsThinking] = useState(false);
   const [contextPressure, setContextPressure] = useState<number | null>(null);
+  const [pressureSuggestion, setPressureSuggestion] = useState(false);
   const [flowStage, setFlowStage] = useState<"idle"|"connecting"|"thinking"|"streaming"|"researching">("idle");
   const [flowStartMs, setFlowStartMs] = useState(0);
   const [flowTick, setFlowTick] = useState(0);
@@ -680,11 +682,14 @@ content: " 黑板已擦除。会话元数据与分块档案完整保留。",
       // ── 上下文压力泄压：工具输出剪枝 + 历史滑窗截断（失败降级为原始消息） ──
       let outboundMessages = chatMessages;
       try {
-        const pruned = await contextPruneApply(chatMessages);
+        const pruned = await contextPruneApply(chatMessages, selectedModel);
         outboundMessages = pruned.messages.map((m) => ({ role: m.role, content: m.content }));
         setContextPressure(pruned.stats.pressure_ratio);
         if (pruned.stats.stage_reached === "PressureEscalation") {
+          setPressureSuggestion(true);
           toast.showToast("warning", "CONTEXT PRESSURE", "上下文达到压力红线且无法进一步泄压 — 建议新建会话。");
+        } else {
+          setPressureSuggestion(false);
         }
       } catch {
         setContextPressure(null);
@@ -1245,6 +1250,29 @@ summaryText = ` **已执行 ${actionCount} 个操作**`;
 
         {/* ── 消息区 + 文件面板 ── */}
         <div className="flex-1 flex overflow-hidden">
+        {pressureSuggestion && (
+          <div className="mx-4 mt-2 flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-red-500/30 bg-red-950/20 animate-fadeIn" role="alert">
+            <span className="text-[11px] text-red-300">
+              {lang === "zh"
+                ? "上下文已达到压力红线且无法进一步泄压 — 建议新建会话以恢复完整的上下文质量。"
+                : "Context has hit the pressure red line and cannot be relieved further — start a new session to restore full context quality."}
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => { handleNewSession(); setPressureSuggestion(false); }}
+                className="text-[10px] bg-red-500/80 hover:bg-red-500 text-white font-bold px-2.5 py-1 rounded transition-colors">
+                {lang === "zh" ? "新建会话" : "New Session"}
+              </button>
+              <button
+                onClick={() => setPressureSuggestion(false)}
+                aria-label={lang === "zh" ? "关闭建议" : "Dismiss suggestion"}
+                className="w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors">
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Messages（拆分至 chat/MessageList） */}
         <MessageList
           messages={messages}

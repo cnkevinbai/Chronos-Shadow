@@ -914,6 +914,9 @@ export interface AppSettings {
   api_key_deepseek?: string;
   api_key_kimi?: string;
   api_key_glm?: string;
+  context_compact_ratio?: number;
+  context_window_tokens?: number;
+  context_window_overrides?: Record<string, number>;
   has_key_deepseek?: boolean;
   has_key_kimi?: boolean;
   has_key_glm?: boolean;
@@ -1060,11 +1063,11 @@ export interface PruneResult { messages: PruneMessage[]; stats: PruneStats; }
 
 export async function contextPruneApply(
   messages: { role: string; content: string }[],
-  config?: Partial<PruneConfig>,
+  selectedModel?: string,
 ): Promise<PruneResult> {
   return await invoke<PruneResult>("context_prune_apply", {
+    selectedModel: selectedModel ?? null,
     messages: messages.map((m) => ({ role: m.role, content: m.content, tool_result: false })),
-    config: config ?? null,
   });
 }
 

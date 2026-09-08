@@ -271,12 +271,24 @@ pub fn apply_context_pruning(messages: &[PruneMessage], cfg: &PruneConfig) -> Pr
 // ─── Tauri Command ───────────────────────────────────────────────
 
 /// 对发送给 LLM 的 chatMessages 应用压力泄压（工具剪枝 + 滑窗截断）
+/// 配置读取自 AppSettings（SettingsPanel「上下文管理」分区），按 selected_model 应用窗口覆盖
 #[tauri::command]
 pub async fn context_prune_apply(
+    state: tauri::State<'_, crate::state::AppState>,
+    selected_model: Option<String>,
     messages: Vec<PruneMessage>,
-    config: Option<PruneConfig>,
 ) -> Result<PruneResult, String> {
-    let cfg = config.unwrap_or_default();
+    let _ = &state; // AppState 预留（泄压为纯函数，无共享态依赖）
+    let s = crate::agent::settings::ensure_settings_loaded();
+    let window = selected_model
+        .as_ref()
+        .and_then(|m| s.context_window_overrides.get(m).copied())
+        .unwrap_or(s.context_window_tokens) as usize;
+    let cfg = PruneConfig {
+        context_window_tokens: window,
+        compact_ratio: s.context_compact_ratio,
+        ..Default::default()
+    };
     Ok(apply_context_pruning(&messages, &cfg))
 }
 

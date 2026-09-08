@@ -4,7 +4,7 @@
 // 配置持久化 + Tauri IPC 实时广播到 Rust 后端
 
 import { useState, useEffect, useRef } from "react";
-import { Palette, Loader2, Stethoscope, X as XIcon, Check as CheckIcon2, Trophy } from "lucide-react";
+import { Palette, Loader2, Stethoscope, X as XIcon, Check as CheckIcon2, Trophy, Gauge } from "lucide-react";
 import { useLang, useT } from "@/lib/i18n-context";
 import { appConfirm } from "@/lib/dialogs";
 import { APP_VERSION } from "@/lib/version";
@@ -14,7 +14,7 @@ import { ChronosLogo, KeyIcon, GlobeIcon, ShieldIcon, CoinsIcon } from "@/compon
 import { MODELS } from "@/lib/models";
 import type { Achievement } from "@/lib/types";
 
-type Tab = "api" | "cost" | "lan" | "security" | "lang" | "personalization" | "about";
+type Tab = "api" | "cost" | "lan" | "security" | "context" | "lang" | "personalization" | "about";
 
 interface SettingsPanelProps {
   hasKeys: { deepseek: boolean; kimi: boolean; glm: boolean };
@@ -67,10 +67,16 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
   onKeyChangeRef.current = onKeyChange;
 
   // ── 未保存更改检测（dirty）：与最近一次加载/保存的快照对比 ──
+  const [contextCompactRatio, setContextCompactRatio] = useState(0.80);
+  const [contextWindowTokens, setContextWindowTokens] = useState(65536);
+  const [cwOverrides, setCwOverrides] = useState<Record<string, number>>({});
+  const [cwModel, setCwModel] = useState("deepseek-v4-pro");
+  const [cwTokens, setCwTokens] = useState(131072);
   const [savedSnapshot, setSavedSnapshot] = useState("");
   const isDirty = savedSnapshot !== "" && savedSnapshot !== JSON.stringify([
     costCap, costCapEnabled, ollamaUrl, lanModel, lanTimeout,
     autoFallback, maxHealing, astAudit, blockGpl, privacyBlur,
+    contextCompactRatio, contextWindowTokens, cwOverrides,
   ]);
   useEffect(() => {
     if (!isDirty) return;
@@ -97,9 +103,13 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
       setAstAudit(s.ast_audit);
       setBlockGpl(s.block_gpl);
       setPrivacyBlur(s.privacy_blur);
+      setContextCompactRatio(s.context_compact_ratio ?? 0.80);
+      setContextWindowTokens(s.context_window_tokens ?? 65536);
+      setCwOverrides(s.context_window_overrides ?? {});
       setSavedSnapshot(JSON.stringify([
         s.cost_cap, s.cost_cap_enabled, s.ollama_url, s.lan_model, s.lan_timeout,
         s.auto_fallback, s.max_healing, s.ast_audit, s.block_gpl, s.privacy_blur,
+        s.context_compact_ratio, s.context_window_tokens, s.context_window_overrides,
       ]));
       // Restore key presence flags from vault
       if (s.has_key_deepseek) onKeyChangeRef.current("deepseek", true);
@@ -135,6 +145,9 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
         auto_fallback: autoFallback, max_healing: maxHealing,
         ast_audit: astAudit, block_gpl: blockGpl, privacy_blur: privacyBlur,
         caching_priority: cachingPriority, accumulated_cost: 0,
+        context_compact_ratio: contextCompactRatio,
+        context_window_tokens: contextWindowTokens,
+        context_window_overrides: cwOverrides,
         api_key_deepseek: "", api_key_kimi: "", api_key_glm: "",
       });
       // 个性化画像（独立于 config.json，存内存 + 重启恢复）
@@ -146,6 +159,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
       setSavedSnapshot(JSON.stringify([
         costCap, costCapEnabled, ollamaUrl, lanModel, lanTimeout,
         autoFallback, maxHealing, astAudit, blockGpl, privacyBlur,
+        contextCompactRatio, contextWindowTokens, cwOverrides,
       ]));
       toast.showToast("success", "CONFIG SAVED", result);
     } catch (e) {
@@ -162,6 +176,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
     setOllamaUrl("http://localhost:11434"); setLanModel("deepseek-v4-flash");
     setLanTimeout(3500); setAutoFallback(true); setMaxHealing(3);
     setAstAudit(true); setBlockGpl(true); setPrivacyBlur(true);
+    setContextCompactRatio(0.80); setContextWindowTokens(65536); setCwOverrides({});
     await handleSave();
     toast.showToast("success", "RESET DONE", lang === "zh" ? "已恢复默认配置并保存。" : "Defaults restored and saved.");
   };
@@ -171,6 +186,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
     { id: "cost", icon: <CoinsIcon size={14} className="stroke-current" />, label: t.settings_cost_risk },
     { id: "lan", icon: <GlobeIcon size={14} className="stroke-current" />, label: t.settings_lan_gateway },
     { id: "security", icon: <ShieldIcon size={14} className="stroke-current" />, label: t.settings_security },
+    { id: "context", icon: <Gauge size={14} className="text-cyan-300" aria-hidden="true" />, label: lang === "zh" ? "上下文管理" : "Context" },
     { id: "lang", icon: <GlobeIcon size={14} className="stroke-current" />, label: t.settings_language },
     { id: "personalization", icon: <Palette size={12} aria-hidden="true" />, label: "个性化" },
     { id: "about", icon: <ChronosLogo size={14} className="stroke-current" />, label: "关于 & 开源隐私" },
@@ -423,6 +439,63 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
           </SettingsSection>
         )}
 
+        {activeTab === "context" && (
+          <SettingsSection title={lang === "zh" ? "上下文压力管理" : "Context Pressure Management"} desc={lang === "zh" ? "发送给大模型前自动泄压：超长工具输出剪枝（head+tail）→ 仍超压则滑动窗口截断最旧前缀（成对保护）。触发阈值 = 窗口 × 触发比。" : "Auto pressure relief before LLM calls: prune long tool outputs (head+tail), then sliding-window truncate the oldest prefix (pair-protected). Trigger = window × ratio."}>
+            <div className="flex flex-col space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-medium text-zinc-400">{lang === "zh" ? "压力触发比 (compact_ratio)" : "Trigger ratio (compact_ratio)"}</label>
+                <span className="text-[10px] text-cyan-400 font-bold">{(contextCompactRatio * 100).toFixed(0)}%</span>
+              </div>
+              <input type="range" min={30} max={95} step={5} value={Math.round(contextCompactRatio * 100)}
+                onChange={(e) => setContextCompactRatio(Number(e.target.value) / 100)}
+                className="w-full accent-cyan-500" aria-label="compact_ratio" />
+              <div className="text-[10px] text-zinc-500">
+                {lang === "zh" ? "触发阈值：" : "Trigger: "}
+                <b className="text-zinc-300">{Math.floor(contextWindowTokens * contextCompactRatio).toLocaleString()}</b>
+                {" tokens (context_window × ratio)"}
+              </div>
+            </div>
+            <div className="flex flex-col space-y-1">
+              <label className="text-[11px] font-medium text-zinc-400">{lang === "zh" ? "默认上下文窗口 (tokens)" : "Default context window (tokens)"}</label>
+              <input type="number" min={8192} step={1024} value={contextWindowTokens}
+                onChange={(e) => { const v = Number(e.target.value); if (!Number.isNaN(v) && v >= 8192) setContextWindowTokens(v); }}
+                aria-label="context window tokens"
+                className="bg-black border border-cs-border rounded px-3 py-1.5 text-xs text-white focus:border-zinc-500 outline-none w-44" />
+            </div>
+            <div className="flex flex-col space-y-1.5">
+              <label className="text-[11px] font-medium text-zinc-400">{lang === "zh" ? "按模型窗口覆盖" : "Per-model window overrides"}</label>
+              <div className="flex gap-1.5">
+                <select value={cwModel} onChange={(e) => { setCwModel(e.target.value); const reg = MODELS.find((m) => m.key === e.target.value); if (reg) setCwTokens(reg.contextWindow); }}
+                  aria-label="model"
+                  className="flex-1 bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-300 outline-none focus:border-cyan-500">
+                  {MODELS.filter((m) => !m.isVision).map((m) => (
+                    <option key={m.key} value={m.key}>{m.display} · {m.contextWindow.toLocaleString()}</option>
+                  ))}
+                </select>
+                <input type="number" min={8192} step={1024} value={cwTokens} onChange={(e) => { const v = Number(e.target.value); if (!Number.isNaN(v) && v >= 8192) setCwTokens(v); }}
+                  aria-label="override tokens"
+                  className="w-36 bg-black border border-cs-border rounded px-2 py-1 text-[10px] text-zinc-300 outline-none focus:border-cyan-500" />
+                <button onClick={() => setCwOverrides({ ...cwOverrides, [cwModel]: cwTokens })}
+                  className="px-2 py-1 text-[10px] bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 rounded font-bold transition-colors">
+                  {lang === "zh" ? "覆盖" : "Set"}</button>
+              </div>
+              {Object.keys(cwOverrides).length > 0 && (
+                <div className="space-y-0.5">
+                  {Object.entries(cwOverrides).map(([model, tok]) => (
+                    <div key={model} className="flex items-center justify-between text-[10px] bg-black/40 border border-cs-border rounded px-2 py-1">
+                      <span className="text-zinc-300 font-mono truncate">{model}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-cyan-400">{tok.toLocaleString()}</span>
+                        <button onClick={() => { const rest = { ...cwOverrides }; delete rest[model]; setCwOverrides(rest); }}
+                          className="text-zinc-600 hover:text-red-400 font-bold">✕</button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </SettingsSection>
+        )}
         {activeTab === "lang" && (
           <SettingsSection title={lang === "zh" ? "界面语言" : "Language"} desc={lang === "zh" ? "切换 Chronos-Shadow 全局界面显示语言。" : "Switch Chronos-Shadow global UI language."}>
             <div className="space-y-2">
