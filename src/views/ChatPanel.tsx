@@ -32,6 +32,7 @@ import {
   cvfsListProjectFiles,
   cvfsGetProjects,
   cancelChatStream,
+  contextPruneApply,
 } from "@/lib/tauri";
 
 // 真实文件对话框（Tauri 环境可用，浏览器降级为 mock）
@@ -157,6 +158,7 @@ export default function ChatPanel({
   }, [anyKey, t]);
 
   const [isThinking, setIsThinking] = useState(false);
+  const [contextPressure, setContextPressure] = useState<number | null>(null);
   const [flowStage, setFlowStage] = useState<"idle"|"connecting"|"thinking"|"streaming"|"researching">("idle");
   const [flowStartMs, setFlowStartMs] = useState(0);
   const [flowTick, setFlowTick] = useState(0);
@@ -675,6 +677,19 @@ content: " 黑板已擦除。会话元数据与分块档案完整保留。",
         }));
       chatMessages.push({ role: "user", content: userText });
 
+      // ── 上下文压力泄压：工具输出剪枝 + 历史滑窗截断（失败降级为原始消息） ──
+      let outboundMessages = chatMessages;
+      try {
+        const pruned = await contextPruneApply(chatMessages);
+        outboundMessages = pruned.messages.map((m) => ({ role: m.role, content: m.content }));
+        setContextPressure(pruned.stats.pressure_ratio);
+        if (pruned.stats.stage_reached === "PressureEscalation") {
+          toast.showToast("warning", "CONTEXT PRESSURE", "上下文达到压力红线且无法进一步泄压 — 建议新建会话。");
+        }
+      } catch {
+        setContextPressure(null);
+      }
+
       const endpoint = await getModelEndpoint(selectedModel);
 
       setFlowStage("thinking");
@@ -713,7 +728,7 @@ content: " 黑板已擦除。会话元数据与分块档案完整保留。",
           endpoint,
           apiKey,
           selectedModel,
-          chatMessages,
+          outboundMessages,
           4096,
         );
       } finally {
@@ -1338,6 +1353,21 @@ ${content}`);
                   <span className="text-cyan-500 flex items-center gap-0.5"><FolderOpen size={9} aria-hidden="true" />{currentProject}</span>
                 </>
               )}
+                <>
+                  <span>|</span>
+                  <span
+                    className={`flex items-center gap-0.5 ${
+                      contextPressure! >= 0.95
+                        ? "text-red-400"
+                        : contextPressure! >= 0.8
+                          ? "text-amber-400"
+                          : "text-zinc-500"
+                    }`}
+                    title="上下文压力（tokens / context_window）"
+                  >
+                    上下文 {Math.round(contextPressure! * 100)}%
+                  </span>
+                </>
             </div>
             {/* 审批门禁状态指示 */}
  <span className="text-red-400" title="审批门禁已激活，请通过左侧 Dock 的 图标访问审批面板">

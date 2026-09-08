@@ -1041,6 +1041,33 @@ export async function chatApiStream(
 /**
  * 请求取消当前进行中的流式对话 — 后端在流循环中检查取消标志并提前返回
  */
+/**
+ * 上下文压力泄压：工具输出剪枝 + 历史滑窗截断（发送前调用）
+ * 返回泄压后的消息视图与统计（压力比 / 阶段 / 节省量）
+ */
+export interface PruneMessage { role: string; content: string; tool_result?: boolean; }
+export interface PruneConfig {
+  context_window_tokens: number; compact_ratio: number; tool_result_max_chars: number;
+  head_chars: number; tail_chars: number; keep_recent_ratio: number; max_pressure_runs: number;
+}
+export interface PruneStats {
+  tokens_before: number; tokens_after: number; trigger_tokens: number;
+  tool_results_pruned: number; messages_dropped: number; chars_saved: number;
+  stage_reached: "None" | "ToolPruned" | "HistoryTruncated" | "PressureEscalation";
+  pressure_ratio: number;
+}
+export interface PruneResult { messages: PruneMessage[]; stats: PruneStats; }
+
+export async function contextPruneApply(
+  messages: { role: string; content: string }[],
+  config?: Partial<PruneConfig>,
+): Promise<PruneResult> {
+  return await invoke<PruneResult>("context_prune_apply", {
+    messages: messages.map((m) => ({ role: m.role, content: m.content, tool_result: false })),
+    config: config ?? null,
+  });
+}
+
 export function cancelChatStream(): Promise<void> {
   return invoke<void>("cancel_chat_stream");
 }

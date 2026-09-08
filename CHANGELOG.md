@@ -42,6 +42,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 修复：新建统一对话框工具 `src/lib/dialogs.ts`（Tauri 下走 plugin-dialog 的 confirm/message——capabilities 已含 dialog:default；浏览器模式降级原生对话框），**46 处调用全部迁移**，涉及函数按需 async 化
 - ApprovalPanel「添加规则」由 4 连 prompt 重写为**内联表单**（操作类型下拉 + 风险/阈值/描述输入 + aria-label）
 
+### Added — 历史会话上下文管理机制（工具输出剪枝 + 滑窗截断 + 压力红线泄压）
+- **新后端模块 `agent/context_pruning.rs`**：发送给 LLM 前的 chatMessages 自动泄压——
+  - **工具输出剪枝（Tool Result Pruning）**：超长工具/命令输出（>8192 字符）压缩为 head 4096 + 省略标记（含被剪字符数）+ tail 1024，完整内容仍随会话分块归档于 Vault
+  - **滑动窗口截断（History Truncation）**：超压时删除最旧前缀，原样保留最新 16% 预算；删除边界对齐 user/assistant 成对（assistant 永不孤立截断）；首条 System 开场永不删除
+  - **压力红线阀**：`trigger = floor(context_window × compact_ratio)`（默认 64K×0.80），两级泄压最多 2 轮，仍超压上报 `PressureEscalation`（前端 Toast 建议新建会话）
+- **发送链路接入**：`handleSend` 构造 chatMessages 后调用 `context_prune_apply`（失败降级原始消息），实际请求使用泄压后的 `outboundMessages`
+- **压力可视化**：状态栏实时显示「上下文 N%」（<80% 灰 / ≥80% 琥珀 / ≥95% 红）
+- 9 个单元测试（压力触发/成对保护/幂等/升级路径/配置钳制）；配置参数（compact_ratio 0.30-0.95、窗口、head/tail）支持前端按模型覆盖
+
 ### Changed — 长尾收尾：运行时提示消息双语化
 - **RemoteHub / ProjectExplorer 的 alert/confirm/prompt 全部双语化**（23 处）：错误提示、危险操作确认、审批拦截提示均按界面语言输出——英文用户不再收到纯中文系统弹窗
 

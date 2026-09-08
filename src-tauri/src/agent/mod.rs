@@ -77,6 +77,7 @@ pub mod web_intelligence;
 pub mod indomitable_fetcher;
 pub mod pptx_engine;
 pub mod context_cache;
+pub mod context_pruning;
 pub mod kimi_glm_optimizer;
 pub mod env_checker;
 

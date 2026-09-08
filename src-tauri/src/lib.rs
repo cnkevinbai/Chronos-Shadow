@@ -253,6 +253,7 @@ pub fn run() {
             rename_chat_session,
             import_chat_session,
             // web intelligence
+                        agent::context_pruning::context_prune_apply,
             agent::web_intelligence::web_intel_search,
             agent::web_intelligence::web_intel_fetch,
             agent::web_intelligence::web_intel_research,
