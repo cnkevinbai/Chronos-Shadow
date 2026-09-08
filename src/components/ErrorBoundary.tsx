@@ -1,6 +1,7 @@
 // ErrorBoundary — 全局崩溃边界，防止单组件渲染错误导致整个应用白屏
 
 import { Component, type ReactNode } from "react";
+import { AlertOctagon } from "lucide-react";
 
 interface Props {
   children: ReactNode;
@@ -31,7 +32,7 @@ export default class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex flex-col items-center justify-center h-screen bg-cs-bg text-cs-text font-mono select-none">
           <div className="flex flex-col items-center space-y-6 max-w-md text-center px-6">
- <div className="text-4xl"></div>
+ <div className="text-4xl flex items-center justify-center"><AlertOctagon className="w-10 h-10 text-red-500" aria-hidden="true" /></div>
             <h1 className="text-lg font-bold text-red-400">界面渲染异常</h1>
             <p className="text-sm text-zinc-400 leading-relaxed">
               应用遇到了一个未预期的渲染错误。请尝试刷新页面。

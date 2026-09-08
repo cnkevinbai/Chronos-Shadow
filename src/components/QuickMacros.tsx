@@ -8,11 +8,11 @@ interface QuickMacrosProps {
 }
 
 const MACROS = [
- { id: "login", icon: "", label: "帮我重构登录面板并跑通本地 CI/CD" },
- { id: "kanban", icon: "", label: "为当前项目生成一个看板管理组件" },
- { id: "api", icon: "", label: "帮我封装后端 RESTful 接口并生成 OpenAPI 文档" },
- { id: "audit", icon: "", label: "对项目执行一次全量安全审计扫描" },
- { id: "deploy", icon: "", label: "打包 Docker 镜像并推送到私有仓库" },
+ { id: "login", label: "帮我重构登录面板并跑通本地 CI/CD" },
+ { id: "kanban", label: "为当前项目生成一个看板管理组件" },
+ { id: "api", label: "帮我封装后端 RESTful 接口并生成 OpenAPI 文档" },
+ { id: "audit", label: "对项目执行一次全量安全审计扫描" },
+ { id: "deploy", label: "打包 Docker 镜像并推送到私有仓库" },
 ];
 
 export default function QuickMacros({ onSelect, visible }: QuickMacrosProps) {
@@ -32,7 +32,7 @@ export default function QuickMacros({ onSelect, visible }: QuickMacrosProps) {
               onClick={() => onSelect(m.label)}
               className="flex items-center space-x-1.5 bg-black border border-cs-border hover:border-emerald-500/50 hover:bg-emerald-950/20 text-zinc-300 hover:text-emerald-400 text-[11px] px-3 py-1.5 rounded-lg transition-all"
             >
-              <span>{m.icon}</span>
+              
               <span className="text-left">{m.label}</span>
             </button>
           ))}

@@ -11,7 +11,6 @@ import type { Attachment } from "@/lib/types";
 interface SlashCommand {
   cmd: string;
   desc: string;
-  icon: string;
 }
 
 interface SubAgent {
@@ -73,7 +72,7 @@ export default function Composer({
                   className="flex items-center justify-between px-3 py-2 hover:bg-zinc-900/60 cursor-pointer text-xs text-zinc-300 transition-colors"
                 >
                   <span className="font-bold text-white">
-                    {sc.icon} {sc.cmd}
+                    {sc.cmd}
                   </span>
                   <span className="text-[10px] text-zinc-500 font-light ml-2 truncate">
                     {sc.desc}

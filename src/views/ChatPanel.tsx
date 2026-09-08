@@ -363,22 +363,22 @@ shortcutsRef.current.toast.showToast("success", "CHUNK COMMIT SUCCESS", " 时空
     {
       cmd: "/rewind",
 desc: " 逆转时空：一键触发系统级状态秒级双回滚",
-icon: "",
+
     },
     {
       cmd: "/compact",
 desc: " 压缩上下文：蒸馏冗余历史日志，清空废 Token 占用",
-icon: "",
+
     },
     {
       cmd: "/snapshot",
 desc: " 磁盘原子锁定：调用 Windows VSS 建立当前物理快照",
-icon: "",
+
     },
     {
       cmd: "/clean",
 desc: " 清屏重置：擦除当前黑板，保留会话元数据",
-icon: "",
+
     },
   ];
 
@@ -1167,7 +1167,7 @@ summaryText = ` **已执行 ${actionCount} 个操作**`;
               className="text-[10px] bg-cs-header border border-cs-border rounded px-1.5 py-0.5 text-zinc-300 outline-none cursor-pointer max-w-[140px]"
               title="切换项目"
             >
- <option value=""> 选择项目</option>
+ <option value="">选择项目</option>
               {projectList.length > 0 ? projectList.map(p => (
                 <option key={p.id} value={p.name}>{p.name}</option>
               )) : (currentProject && <option value={currentProject}>{currentProject}</option>)}
@@ -1398,7 +1398,7 @@ ${content}`);
                 </>
             </div>
             {/* 审批门禁状态指示 */}
- <span className="text-red-400" title="审批门禁已激活，请通过左侧 Dock 的 图标访问审批面板">
+ <span className="text-red-400" title="审批门禁已激活，请通过左侧 Dock 的审批面板处理">
 第四红线: 审批门禁已激活
             </span>
           </div>
