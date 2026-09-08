@@ -115,11 +115,11 @@ export default function AppGlueBinder() {
         <div className="flex items-center space-x-1.5">
           <button onClick={async () => { const n = !buddyOn; setBuddyOn(n); try { await toggleBuddyScan(n); } catch {} }}
             className={`text-[10px] px-1 py-0.5 rounded border transition-colors ${buddyOn ? "bg-cyan-950/40 border-cyan-500/50 text-cyan-400" : "bg-black border-cs-border text-zinc-500 hover:border-zinc-500"}`}>
-            {buddyOn ? "👁️ Scan ON" : "🔍 Scan OFF"}
+ {buddyOn ? " Scan ON" : " Scan OFF"}
           </button>
           <button onClick={async () => { const n = !glueOn; setGlueOn(n); try { await toggleContextGlue(n); await saveContextGlueBindings(); } catch {} }}
             className={`text-[10px] px-1 py-0.5 rounded border transition-colors ${glueOn ? "bg-purple-950/40 border-purple-500/50 text-purple-400" : "bg-black border-cs-border text-zinc-500 hover:border-zinc-500"}`}>
-            {glueOn ? "🔗 Glue ON" : "🧩 Glue OFF"}
+ {glueOn ? " Glue ON" : " Glue OFF"}
           </button>
         </div>
       </div>

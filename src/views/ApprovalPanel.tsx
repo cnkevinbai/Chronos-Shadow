@@ -277,7 +277,7 @@ export default function ApprovalPanel() {
                         {req.metadata && <div className="flex space-x-1"><span className="text-zinc-500">meta:</span><span className="text-zinc-400 truncate">{req.metadata}</span></div>}
                         {req.auditor_prescreen && (
                           <div className={`text-[10px] ${req.auditor_prescreen.passed ? "text-emerald-500" : "text-red-500"}`}>
-                            Auditor: {req.auditor_prescreen.passed ? "✅ 通过" : "❌ 不通过"} · {req.auditor_prescreen.summary}
+Auditor: {req.auditor_prescreen.passed ? " 通过" : " 不通过"} · {req.auditor_prescreen.summary}
                           </div>
                         )}
                       </div>
@@ -384,8 +384,8 @@ export default function ApprovalPanel() {
                   <span>{t.ap_threshold_below}{rule.auto_approve_below_risk}</span>
                   <span>·</span>
                   <span>{t.ap_timeout} {rule.timeout_secs}s</span>
-                  {rule.project_scope && <><span>·</span><span className="text-cyan-500">🏷️ {rule.project_scope}</span></>}
-                  {rule.enable_auditor_prescreen && <><span>·</span><span className="text-amber-500">🔍 Auditor预检</span></>}
+ {rule.project_scope && <><span>·</span><span className="text-cyan-500"> {rule.project_scope}</span></>}
+ {rule.enable_auditor_prescreen && <><span>·</span><span className="text-amber-500"> Auditor预检</span></>}
                 </div>
               </div>
             ))}

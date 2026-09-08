@@ -158,16 +158,16 @@ export default function RemoteHub() {
       const req = await submitForApproval("ssh_exec", expanded || "remote",
         lang === "zh" ? `远程编译: ${compileCmd}` : `Remote build: ${compileCmd}`, "{}");
       if (req.status === "Pending") {
-        await appAlert(lang === "zh" ? `⛔ 此远程命令需要审批 (${req.id})。请切换到审批面板审核后重试。` : `⛔ This remote command requires approval (${req.id}). Review it in the Approval panel and retry.`);
+await appAlert(lang === "zh" ? ` 此远程命令需要审批 (${req.id})。请切换到审批面板审核后重试。` : ` This remote command requires approval (${req.id}). Review it in the Approval panel and retry.`);
         return;
       }
     } catch { /* 审批接口不可用，放行 */ }
-    setCompileResult(lang === "zh" ? "⏳ 远程编译中…" : "⏳ Building remotely…");
+setCompileResult(lang === "zh" ? " 远程编译中…" : " Building remotely…");
     try {
       const result = await remoteCompile(compileCmd);
-      setCompileResult(`✅ ${result}`);
+setCompileResult(` ${result}`);
     } catch (e) {
-      setCompileResult(`${lang === "zh" ? "❌ 编译失败" : "❌ Build failed"}:
+setCompileResult(`${lang === "zh" ? " 编译失败" : " Build failed"}:
 ${e}`);
     }
   };
@@ -178,7 +178,7 @@ ${e}`);
       const req = await submitForApproval("ssh_exec", expanded || "remote",
         lang === "zh" ? `远程快照: ${snapshotTag}` : `Remote snapshot: ${snapshotTag}`, "{}");
       if (req.status === "Pending") {
-        await appAlert(`⛔ 此远程命令需要审批 (${req.id})。请切换到审批面板审核后重试。`);
+await appAlert(` 此远程命令需要审批 (${req.id})。请切换到审批面板审核后重试。`);
         return;
       }
     } catch { /* 审批接口不可用，放行 */ }
@@ -384,7 +384,7 @@ ${e}`);
                         }`}
                       >
                         <span className="truncate flex-1">
-                          {f.is_dir ? "📁" : "📄"} {f.name}
+ {f.is_dir ? "" : ""} {f.name}
                         </span>
                         {!f.is_dir && (
                           <span className="text-[10px] text-zinc-500 ml-2">{f.size} B</span>
@@ -404,7 +404,7 @@ ${e}`);
                 <div className="border border-cs-border rounded bg-black/40">
                   <div className="px-2 py-1 border-b border-cs-border text-[10px] text-zinc-500 flex justify-between">
                     <span>{t.rh_file_content}</span>
-                    <button onClick={() => setFileContent(null)} className="text-zinc-500 hover:text-zinc-400">✕</button>
+ <button onClick={() => setFileContent(null)} className="text-zinc-500 hover:text-zinc-400">✕</button>
                   </div>
                   <pre className="p-2 text-[10px] text-zinc-300 font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
                     {fileContent}

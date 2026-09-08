@@ -32,6 +32,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **消息搜索 O(n²)**：搜索高亮在 map 内对每条消息反复 `findIndex`——改为预建 id→索引映射 + Set 查表（O(n)）
 - 已排查非缺陷：会话切换时流式输出静默丢弃（按 streamMsgId 匹配，无数据损坏）；handleNewSession 无误持久化
 
+### Changed — EMOJI 全面清零（全局图标规范落地）
+- **文案/模板/数据名称中的 emoji 全部移除**（24 文件，计数 290 → 15）：toast 文案、系统消息模板、宏/技能/MCP 名称、欢迎语、i18n 字典——UI 图标全部使用 lucide/SvgIcons 矢量（前批完成）
+- 保留 15 处**功能性数据**：用户头像默认值与 12 个可选头像、成就字段引用（a.emoji）——属用户可选数据而非图标占位
+- 功能性符号（✕ 关闭/✓ 已配置/● 动画点/↵ 回车）不受影响
+
 ### Fixed — 原生对话框系统性缺陷（交互逻辑审查发现）
 - **Tauri v2 WebView2 默认禁用 window.alert/confirm/prompt**——8 个文件 46 处调用在桌面端静默失效：删除/回滚确认返回 undefined（危险操作被静默跳过）、错误提示不显示、ApprovalPanel 添加规则（4 连 prompt）完全不可用
 - 修复：新建统一对话框工具 `src/lib/dialogs.ts`（Tauri 下走 plugin-dialog 的 confirm/message——capabilities 已含 dialog:default；浏览器模式降级原生对话框），**46 处调用全部迁移**，涉及函数按需 async 化

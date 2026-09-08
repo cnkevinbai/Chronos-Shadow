@@ -228,7 +228,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
             ].map(({ provider, label, has }) => (
               <div key={provider} className="flex flex-col space-y-1">
                 <label className="text-[11px] font-medium text-zinc-400">
-                  {label} {has && <span className="text-emerald-400 text-[10px]">✓ 已配置</span>}
+ {label} {has && <span className="text-emerald-400 text-[10px]">✓ 已配置</span>}
                 </label>
                 <input
                   type="password"
@@ -368,7 +368,7 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
                 )}
                 {ollamaStatus === "checking" && (
                   <div className="flex items-center space-x-2">
-                    <span className="animate-pulse">⏳</span>
+ <span className="animate-pulse"></span>
                     <span>正在探测 Ollama 服务…</span>
                   </div>
                 )}
@@ -487,9 +487,9 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
               <label className="text-[11px] font-medium text-zinc-400">系统人格</label>
               <div className="flex space-x-2">
                 {[
-                  { v: "professional", l: "💼 专业" },
-                  { v: "friendly", l: "🤗 友好" },
-                  { v: "playful", l: "🎮 活泼" },
+ { v: "professional", l: " 专业" },
+ { v: "friendly", l: " 友好" },
+ { v: "playful", l: " 活泼" },
                 ].map(({ v, l }) => (
                   <button key={v} onClick={() => setPersonality(v)}
                     className={`px-3 py-1.5 rounded border text-xs transition-all ${personality === v ? "border-emerald-400 bg-emerald-400/20 text-emerald-300" : "border-cs-border text-zinc-400 hover:border-zinc-500"}`}>
@@ -524,9 +524,9 @@ export default function SettingsPanel({ hasKeys, onKeyChange }: SettingsPanelPro
               <label className="text-[11px] font-medium text-zinc-400">工作模式</label>
               <div className="flex space-x-2">
                 {[
-                  { v: "solo", l: "🧑‍💻 独自" },
-                  { v: "collaborative", l: "🤝 协作" },
-                  { v: "learning", l: "📚 学习" },
+ { v: "solo", l: " 独自" },
+ { v: "collaborative", l: " 协作" },
+ { v: "learning", l: " 学习" },
                 ].map(({ v, l }) => (
                   <button key={v} onClick={() => setWorkMode(v)}
                     className={`px-3 py-1.5 rounded border text-xs transition-all ${workMode === v ? "border-emerald-400 bg-emerald-400/20 text-emerald-300" : "border-cs-border text-zinc-400 hover:border-zinc-500"}`}>
@@ -604,15 +604,15 @@ permissions and limitations under the License.`}
               <h4 className="font-bold text-white">金融级隐私保护</h4>
               <div className="bg-black/40 border border-zinc-900/60 p-3 rounded-md space-y-2 text-[10px] font-light">
                 <div className="flex items-start space-x-1.5">
-                  <span className="text-emerald-400 shrink-0">✔</span>
+ <span className="text-emerald-400 shrink-0">✔</span>
                   <p><b className="text-zinc-300">零明文密钥外泄：</b>API Key 托管于 Windows Credential Vault，磁盘不留存明文。</p>
                 </div>
                 <div className="flex items-start space-x-1.5">
-                  <span className="text-emerald-400 shrink-0">✔</span>
+ <span className="text-emerald-400 shrink-0">✔</span>
                   <p><b className="text-zinc-300">端侧 CV 脱敏：</b>多模态走查前 ONNX 本地模型强制像素级打码，隐私绝不出海。</p>
                 </div>
                 <div className="flex items-start space-x-1.5">
-                  <span className="text-emerald-400 shrink-0">✔</span>
+ <span className="text-emerald-400 shrink-0">✔</span>
                   <p><b className="text-zinc-300">AES-256-GCM 会话加密：</b>历史会话分块落盘前流式加密，密钥硬件指纹绑定，离线破解不可行。</p>
                 </div>
               </div>
@@ -718,7 +718,7 @@ function ModelMatrix() {
                         <span className={`text-[10px] px-1.5 py-0.5 rounded border ${tb.cls}`}>{tb.label}</span>
                         <span className="text-[10px] text-zinc-500" title="上下文窗口 (tokens)">{(m.contextWindow / 1000).toFixed(0)}K ctx</span>
                         {m.supportsCache && (
-                          <span className="text-[10px] text-emerald-400" title="支持 Context Caching">⚡缓存</span>
+ <span className="text-[10px] text-emerald-400" title="支持 Context Caching">缓存</span>
                         )}
                       </div>
                     </div>

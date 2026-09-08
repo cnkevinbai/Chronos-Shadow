@@ -127,7 +127,7 @@ export default function Composer({
                     }
                     className="text-zinc-500 hover:text-zinc-400 ml-1 font-bold"
                   >
-                    ✕
+✕
                   </button>
                 </div>
               ))}
@@ -177,7 +177,7 @@ export default function Composer({
                 placeholder={
                   apiKey
                     ? "键入 / 触发宏命令，键入 @ 唤醒特种兵…"
-                    : "⚙️ 请先在全局配置中填入 API Key…"
+: " 请先在全局配置中填入 API Key…"
                 }
                 className="w-full bg-transparent text-sm text-cs-text placeholder-zinc-600 outline-none border-none p-0"
                 disabled={isThinking}

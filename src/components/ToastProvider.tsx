@@ -69,7 +69,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
               className="text-zinc-500 hover:text-zinc-300 text-[10px] p-0.5 outline-none shrink-0"
             >
-              ✕
+✕
             </button>
           </div>
         ))}

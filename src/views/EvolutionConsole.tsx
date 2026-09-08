@@ -270,7 +270,7 @@ export default function EvolutionConsole() {
                       } catch { setValidationState("idle"); }
                     }}
                     className="flex-1 bg-purple-800/30 hover:bg-purple-700/40 border border-purple-700/40 text-purple-300 text-[10px] py-1 rounded transition-colors">
-                    🧪 验证
+验证
                   </button>
                   <button
                     onClick={async () => {
@@ -279,7 +279,7 @@ export default function EvolutionConsole() {
                       } catch {}
                     }}
                     className="flex-1 bg-amber-800/30 hover:bg-amber-700/40 border border-amber-700/40 text-amber-300 text-[10px] py-1 rounded transition-colors">
-                    🛡️ 拦截
+拦截
                   </button>
                 </div>
                 <button
@@ -389,7 +389,7 @@ export default function EvolutionConsole() {
               {contractsCompiled > 0 && (
                 <div className="mt-2 p-1.5 border border-cyan-900/40 bg-cyan-950/20 rounded text-[10px]">
                   <div className="flex items-center justify-between">
-                    <span className="text-cyan-400 font-bold">📜 CLAUDE.md 契约热编译</span>
+ <span className="text-cyan-400 font-bold"> CLAUDE.md 契约热编译</span>
                     <span className="text-cyan-300 text-[10px]">[100%免Token]</span>
                   </div>
                   <div className="flex space-x-3 mt-0.5 text-[10px] text-zinc-500">

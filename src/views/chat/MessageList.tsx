@@ -127,7 +127,7 @@ export default function MessageList({
                     )
                   </span>
                 )}
-                {/* 🔥 显式呈现特征哈希对齐标记，赋予极客绝对的高能效掌控爽感 */}
+ {/* 显式呈现特征哈希对齐标记，赋予极客绝对的高能效掌控爽感 */}
                 {msg.cachingMarkerHash && (
                   <span className="text-emerald-500 font-bold border border-emerald-950 bg-emerald-950/20 px-1 rounded scale-90 select-none">
                     [Cache-Aligned]

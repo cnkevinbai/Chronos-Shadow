@@ -946,7 +946,7 @@ export async function getUserProfile(): Promise<UserProfile> {
     return await invoke<UserProfile>("get_user_profile");
   } catch {
     return {
-      display_name: "开发者", nickname: "伙伴", avatar: "🦀", timezone_offset: 8,
+display_name: "开发者", nickname: "伙伴", avatar: "", timezone_offset: 8,
       language: "zh-CN", theme: "dark", first_seen: "", last_active: "",
       total_interactions: 0, streak_days: 1, today_interactions: 0,
       personality: "friendly", default_text_model: "deepseek-v4-pro",
@@ -972,12 +972,12 @@ export async function updateUserProfile(args: {
 
 export async function getGreeting(): Promise<string> {
   try { return await invoke<string>("get_greeting"); }
-  catch { return "早上好，伙伴~ 我在这里陪着你 ❤️"; }
+catch { return "早上好，伙伴~ 我在这里陪着你 "; }
 }
 
 export async function getHeartbeat(): Promise<Heartbeat> {
   try { return await invoke<Heartbeat>("get_heartbeat"); }
-  catch { return { energy: "high", mood: "happy", streak: 1, total_interactions: 0, today: 0, avatar: "🦀" }; }
+catch { return { energy: "high", mood: "happy", streak: 1, total_interactions: 0, today: 0, avatar: "" }; }
 }
 
 export async function getAchievements(): Promise<Achievement[]> {
@@ -987,7 +987,7 @@ export async function getAchievements(): Promise<Achievement[]> {
 
 export async function touchInteraction(): Promise<string> {
   try { return await invoke<string>("touch_interaction"); }
-  catch { return "💓 0"; }
+catch { return " 0"; }
 }
 
 // ─── Skill & MCP listing ────────────────────────────────────────
@@ -1799,7 +1799,7 @@ export interface FlywheelDashboard {
 export async function flywheelDashboard(): Promise<FlywheelDashboard> {
   try { return await invoke<FlywheelDashboard>("flywheel_dashboard"); }
   catch {
-    return { enabled: true, cycles: 0, total_tokens_saved: 0, total_cost_saved: "¥0", quality_trend: "0%", trend: "➡️", metrics: [], recent_benefits: [], trend_data: [], engine_contributions: [] };
+ return { enabled: true, cycles: 0, total_tokens_saved: 0, total_cost_saved: "¥0", quality_trend: "0%", trend: "", metrics: [], recent_benefits: [], trend_data: [], engine_contributions: [] };
   }
 }
 

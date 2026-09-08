@@ -149,7 +149,7 @@ export default function ChatPanel({
       {
         ...prev[0],
         content: anyKey
-          ? `🦀 **Chronos-Shadow v${APP_VERSION}** 已就绪 ❤️\n\n${t.chat_welcome_connected}\n\n> *每一次交互，都让系统更懂你*\n> *所有数据端侧处理，你的隐私我们守护* 🔒`
+? ` **Chronos-Shadow v${APP_VERSION}** 已就绪 \n\n${t.chat_welcome_connected}\n\n> *每一次交互，都让系统更懂你*\n> *所有数据端侧处理，你的隐私我们守护* `
           : t.chat_welcome_demo,
       },
       ...prev.slice(1),
@@ -224,7 +224,7 @@ export default function ChatPanel({
         setIsSaving(true);
         setTimeout(() => {
           setIsSaving(false);
-          shortcutsRef.current.toast.showToast("success", "CHUNK COMMIT SUCCESS", "💾 时空分块与缓存特征点已安全写入物理磁盘档案库。");
+shortcutsRef.current.toast.showToast("success", "CHUNK COMMIT SUCCESS", " 时空分块与缓存特征点已安全写入物理磁盘档案库。");
           shortcutsRef.current.refreshManifests();
         }, 300);
         return;
@@ -358,23 +358,23 @@ export default function ChatPanel({
   const slashCommands = [
     {
       cmd: "/rewind",
-      desc: "⏳ 逆转时空：一键触发系统级状态秒级双回滚",
-      icon: "⏳",
+desc: " 逆转时空：一键触发系统级状态秒级双回滚",
+icon: "",
     },
     {
       cmd: "/compact",
-      desc: "✂️ 压缩上下文：蒸馏冗余历史日志，清空废 Token 占用",
-      icon: "✂️",
+desc: " 压缩上下文：蒸馏冗余历史日志，清空废 Token 占用",
+icon: "",
     },
     {
       cmd: "/snapshot",
-      desc: "📸 磁盘原子锁定：调用 Windows VSS 建立当前物理快照",
-      icon: "📸",
+desc: " 磁盘原子锁定：调用 Windows VSS 建立当前物理快照",
+icon: "",
     },
     {
       cmd: "/clean",
-      desc: "🧹 清屏重置：擦除当前黑板，保留会话元数据",
-      icon: "🧹",
+desc: " 清屏重置：擦除当前黑板，保留会话元数据",
+icon: "",
     },
   ];
 
@@ -382,22 +382,22 @@ export default function ChatPanel({
   const subAgents = [
     {
       name: "@Explore",
-      desc: "🦀 源码检索：专职抓取和分析本地/远程代码拓扑树",
+desc: " 源码检索：专职抓取和分析本地/远程代码拓扑树",
       color: "text-emerald-400",
     },
     {
       name: "@Auditor",
-      desc: "🛡️ 安全审计：增量静态 AST 白盒走查，拦截 Secrets 与 GPL 污染",
+desc: " 安全审计：增量静态 AST 白盒走查，拦截 Secrets 与 GPL 污染",
       color: "text-amber-400",
     },
     {
       name: "@Scout",
-      desc: "🌐 多模态探路者：扫描外部 Web 文档与非标系统界面执行纠偏",
+desc: " 多模态探路者：扫描外部 Web 文档与非标系统界面执行纠偏",
       color: "text-purple-400",
     },
     {
       name: "@Compaction",
-      desc: "🥷 摘要刺客：端侧隐密激活，压缩上下文以极致降低云端资费",
+desc: " 摘要刺客：端侧隐密激活，压缩上下文以极致降低云端资费",
       color: "text-pink-400",
     },
   ];
@@ -431,7 +431,7 @@ export default function ChatPanel({
             id: "msg-0",
             sender: "System",
             model: "Local System",
-            content: "🧹 黑板已擦除。会话元数据与分块档案完整保留。",
+content: " 黑板已擦除。会话元数据与分块档案完整保留。",
             timestamp: new Date().toLocaleTimeString(),
           },
         ]);
@@ -597,7 +597,7 @@ export default function ChatPanel({
       toast.showToast(
         "success",
         "CHUNK COMMIT SUCCESS",
-        "💾 时空分块与缓存特征点已安全写入物理磁盘档案库。",
+" 时空分块与缓存特征点已安全写入物理磁盘档案库。",
       );
       refreshManifests();
     }, 300);
@@ -766,18 +766,18 @@ export default function ChatPanel({
                   createdAt: new Date().toLocaleTimeString(), versions: 1,
                 }));
                 setArtifacts(prev => [...prev, ...newArtifacts]);
-                summaryText = `📁 **文件已生成** (${filesCreated.length} files)\n\n${filesSummary || filesCreated.map((f: string) => `✅ ${f}`).join('\n')}`;
+summaryText = ` **文件已生成** (${filesCreated.length} files)\n\n${filesSummary || filesCreated.map((f: string) => ` ${f}`).join('\n')}`;
               } else if (execResult.combined_context) {
                 // 显示动作执行结果 (搜索/抓取/环境检测等)
                 summaryText = execResult.combined_context.slice(0, 2000);
               } else if (failCount > 0) {
                 // 动作失败: 显示错误信息
                 const errors = actionResults.filter((a: any) => !a.success)
-                  .map((a: any, i: number) => `❌ ${i + 1}. ${(a.error || '未知错误')}`)
+.map((a: any, i: number) => ` ${i + 1}. ${(a.error || '未知错误')}`)
                   .join('\n');
-                summaryText = `⚠️ **动作执行失败** (${failCount} 个)\n\n${errors}`;
+summaryText = ` **动作执行失败** (${failCount} 个)\n\n${errors}`;
               } else {
-                summaryText = `⚡ **已执行 ${actionCount} 个操作**`;
+summaryText = ` **已执行 ${actionCount} 个操作**`;
               }
 
               const sysMsg: Message = {
@@ -828,7 +828,7 @@ export default function ChatPanel({
 
               if (followUp.success) {
                 const fuFinal = followUp.content || followUpContent;
-                // 🔬 follow-up 结果也可能包含新动作 (如 web_search) — 递归执行
+ // follow-up 结果也可能包含新动作 (如 web_search) — 递归执行
                 let fuProcessed = fuFinal;
                 try {
                   const fuExec = await extractAndExecuteActions(fuFinal);
@@ -1147,7 +1147,7 @@ export default function ChatPanel({
               className="text-[10px] bg-cs-header border border-cs-border rounded px-1.5 py-0.5 text-zinc-300 outline-none cursor-pointer max-w-[140px]"
               title="切换项目"
             >
-              <option value="">📁 选择项目</option>
+ <option value=""> 选择项目</option>
               {projectList.length > 0 ? projectList.map(p => (
                 <option key={p.id} value={p.name}>{p.name}</option>
               )) : (currentProject && <option value={currentProject}>{currentProject}</option>)}
@@ -1163,7 +1163,7 @@ export default function ChatPanel({
                 }`}
                 title="项目文件"
               >
-                📂{projectFiles.length}
+ {projectFiles.length}
               </button>
             )}
           </div>
@@ -1223,7 +1223,7 @@ export default function ChatPanel({
               onClick={() => setSearchOpen(false)}
               className="text-[10px] text-zinc-500 hover:text-zinc-400 px-1"
             >
-              ✕
+✕
             </button>
           </div>
         )}
@@ -1250,7 +1250,7 @@ export default function ChatPanel({
           <div className="w-48 border-l border-cs-border bg-cs-surface flex flex-col shrink-0 overflow-y-auto">
             <div className="px-2 py-1.5 border-b border-cs-border text-[10px] text-zinc-500 flex items-center justify-between">
               <span className="flex items-center gap-0.5"><FolderOpen size={9} aria-hidden="true" />{currentProject}</span>
-              <button onClick={() => setShowFileExplorer(false)} className="text-zinc-500 hover:text-zinc-400">✕</button>
+ <button onClick={() => setShowFileExplorer(false)} className="text-zinc-500 hover:text-zinc-400">✕</button>
             </div>
             <div className="p-1 space-y-0.5">
               {projectFiles.map((f) => {
@@ -1261,13 +1261,13 @@ export default function ChatPanel({
                   className={`flex items-center space-x-1 px-1 py-0.5 rounded text-[10px] cursor-default transition-colors ${
                     isModified ? 'bg-emerald-950/20 border border-emerald-900/30 animate-pulse' : 'hover:bg-zinc-800/40'
                   }`}>
-                  <span className="shrink-0">{f.is_dir ? '📁' : '📄'}</span>
+ <span className="shrink-0">{f.is_dir ? '' : ''}</span>
                   <span className={`truncate ${
                     isContract ? 'text-amber-400 font-bold' :
                     isModified ? 'text-emerald-400 font-bold' :
                     f.is_dir ? 'text-cyan-400/70' : 'text-zinc-400'
                   }`} title={f.relative_path}>{f.name}</span>
-                  {isContract && <span className="text-[10px] text-amber-500 border border-amber-500/30 bg-amber-950/20 px-0.5 rounded shrink-0">🔒</span>}
+ {isContract && <span className="text-[10px] text-amber-500 border border-amber-500/30 bg-amber-950/20 px-0.5 rounded shrink-0"></span>}
                   {isModified && <span className="text-[10px] text-emerald-400 shrink-0">●</span>}
                 </div>
                 );
@@ -1340,8 +1340,8 @@ ${content}`);
               )}
             </div>
             {/* 审批门禁状态指示 */}
-            <span className="text-red-400" title="审批门禁已激活，请通过左侧 Dock 的 🛡️ 图标访问审批面板">
-              🛡️ 第四红线: 审批门禁已激活
+ <span className="text-red-400" title="审批门禁已激活，请通过左侧 Dock 的 图标访问审批面板">
+第四红线: 审批门禁已激活
             </span>
           </div>
 

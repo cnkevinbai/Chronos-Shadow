@@ -8,7 +8,7 @@ interface IconProps {
   size?: number;
 }
 
-// 💬 沉浸对话视窗
+// 沉浸对话视窗
 export function ChatIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -17,7 +17,7 @@ export function ChatIcon({ className = "stroke-current", size = 18 }: IconProps)
   );
 }
 
-// 📊 全角色调度流水线
+// 全角色调度流水线
 export function PipelineIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -30,7 +30,7 @@ export function PipelineIcon({ className = "stroke-current", size = 18 }: IconPr
   );
 }
 
-// 🔗 跨软件粘合总控台
+// 跨软件粘合总控台
 export function GlueIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -40,7 +40,7 @@ export function GlueIcon({ className = "stroke-current", size = 18 }: IconProps)
   );
 }
 
-// 🔌 Skill 与 MCP 工具中心
+// Skill 与 MCP 工具中心
 export function McpIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -49,7 +49,7 @@ export function McpIcon({ className = "stroke-current", size = 18 }: IconProps) 
   );
 }
 
-// 📁 项目与系统时光机
+// 项目与系统时光机
 export function ChronosFolderIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -60,7 +60,7 @@ export function ChronosFolderIcon({ className = "stroke-current", size = 18 }: I
   );
 }
 
-// ⚙️ 全局系统配置
+// 全局系统配置
 export function SettingsIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -70,7 +70,7 @@ export function SettingsIcon({ className = "stroke-current", size = 18 }: IconPr
   );
 }
 
-// 🛡️ 安全风控防幻觉红线盾
+// 安全风控防幻觉红线盾
 export function ShieldIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -80,7 +80,7 @@ export function ShieldIcon({ className = "stroke-current", size = 18 }: IconProp
   );
 }
 
-// 🖥️ 远程服务器集群
+// 远程服务器集群
 export function RemoteIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -93,7 +93,7 @@ export function RemoteIcon({ className = "stroke-current", size = 18 }: IconProp
   );
 }
 
-// 🌌 Chronos-Shadow 主徽标（时空之影）
+// Chronos-Shadow 主徽标（时空之影）
 export function ChronosLogo({ className = "stroke-current", size = 24 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -111,7 +111,7 @@ export function ChronosLogo({ className = "stroke-current", size = 24 }: IconPro
   );
 }
 
-// 📄 文档/知识库文件
+// 文档/知识库文件
 export function FileTextIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -124,7 +124,7 @@ export function FileTextIcon({ className = "stroke-current", size = 18 }: IconPr
   );
 }
 
-// 🖼️ 多模态图片
+// 多模态图片
 export function ImageIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -135,7 +135,7 @@ export function ImageIcon({ className = "stroke-current", size = 18 }: IconProps
   );
 }
 
-// ⚡ 终端/执行
+// 终端/执行
 export function TerminalIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -145,7 +145,7 @@ export function TerminalIcon({ className = "stroke-current", size = 18 }: IconPr
   );
 }
 
-// 💰 降本财务
+// 降本财务
 export function CoinsIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -156,7 +156,7 @@ export function CoinsIcon({ className = "stroke-current", size = 18 }: IconProps
   );
 }
 
-// 🔑 API 密钥
+// API 密钥
 export function KeyIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -165,7 +165,7 @@ export function KeyIcon({ className = "stroke-current", size = 18 }: IconProps) 
   );
 }
 
-// 🌐 全局网络
+// 全局网络
 export function GlobeIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -176,7 +176,7 @@ export function GlobeIcon({ className = "stroke-current", size = 18 }: IconProps
   );
 }
 
-// 🚨 硬熔断/编译阻断
+// 硬熔断/编译阻断
 export function AlertOctagonIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -187,7 +187,7 @@ export function AlertOctagonIcon({ className = "stroke-current", size = 18 }: Ic
   );
 }
 
-// 🧬 进化控制台
+// 进化控制台
 export function EvolutionIcon({ className = "stroke-current", size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>

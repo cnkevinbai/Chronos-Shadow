@@ -109,7 +109,7 @@ export default function ArtifactPanel({
 
                     <span className="text-[11px] font-bold text-zinc-300 flex items-center gap-1"><Pencil size={11} aria-hidden="true" />编辑: {editingFile.split(/[\\/]/).pop()}</span>
 
-                    <button onClick={() => setEditingFile(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+ <button onClick={() => setEditingFile(null)} className="text-zinc-500 hover:text-zinc-300">✕</button>
 
                   </div>
 
@@ -129,7 +129,7 @@ export default function ArtifactPanel({
 
                     <button onClick={() => { cvfsReadFile(currentProject, editingFile).then(content => setFileContent(content)).catch(() => {}); }}
 
-                      className="text-[10px] text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded border border-cs-border">📂 加载文件</button>
+className="text-[10px] text-zinc-400 hover:text-zinc-200 px-2 py-1 rounded border border-cs-border"> 加载文件</button>
 
                     <button onClick={() => setEditingFile(null)}
 
@@ -137,7 +137,7 @@ export default function ArtifactPanel({
 
                     <button onClick={() => { if (fileContent.trim()) onEditWithAI(editingFile, fileContent) }}
 
-                      className="text-[10px] bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 px-2 py-1 rounded font-bold">💬 让AI修改</button>
+className="text-[10px] bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 px-2 py-1 rounded font-bold"> 让AI修改</button>
 
                   </div>
 

@@ -38,7 +38,7 @@ vi.mock("@/lib/tauri", () => ({
   getUserProfile: vi.fn().mockResolvedValue({
     display_name: "开发者",
     nickname: "伙伴",
-    avatar: "🦀",
+avatar: "",
     personality: "friendly",
     theme: "dark",
     work_hours_start: 9,

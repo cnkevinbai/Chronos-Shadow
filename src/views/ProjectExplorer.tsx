@@ -147,7 +147,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
         try {
           await submitForApproval("worktree_merge", targetId,
             lang === "zh" ? `合并 Worktree ${targetId} 到主分支` : `Merge Worktree ${targetId} to main`, "{}");
-          await appAlert(`已自动提交审批请求 (${targetId})。请切换到审批面板 (🛡️ 第四红线) 审核后重试合并。`);
+await appAlert(`已自动提交审批请求 (${targetId})。请切换到审批面板 ( 第四红线) 审核后重试合并。`);
         } catch { await appAlert(`${lang === "zh" ? "审批提交失败" : "Approval submission failed"}: ${msg}`); }
       } else {
         await appAlert(`${lang === "zh" ? "合并失败" : "Merge failed"}: ${msg}`);
@@ -162,7 +162,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
       {/* 1. 项目主切换枢纽 */}
       <div className="p-3 border-b border-cs-border bg-cs-header flex flex-col space-y-2 shrink-0">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">📁 {t.workspace}</span>
+ <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider"> {t.workspace}</span>
           <div className="flex items-center space-x-1">
             <button onClick={() => setShowSnapshot(!showSnapshot)}
               className="text-[10px] bg-black border border-amber-500/30 hover:border-amber-400 text-amber-400 px-1.5 py-0.5 rounded transition-all" title="手动快照">
@@ -250,7 +250,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
               vfsTree.map((node, idx) => (
                 <div key={idx} className="flex items-center justify-between px-2 py-1 rounded hover:bg-zinc-900/60 text-zinc-300 transition-colors text-[10px]">
                   <div className="flex items-center space-x-1.5 truncate">
-                    <span>{node.is_dir ? "📁" : "📄"}</span>
+ <span>{node.is_dir ? "" : ""}</span>
                     <span className={node.is_locked ? "text-amber-400" : ""}>{node.name}</span>
                   </div>
                   <div className="flex items-center space-x-1 shrink-0">
@@ -309,7 +309,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-zinc-500">
                   <span>{t.pe_files_label}: <b className="text-zinc-300">{health.file_count}</b></span>
                   <span>{t.pe_size_label}: <b className="text-zinc-300">{fmtSize(health.total_size_bytes)}</b></span>
-                  <span>Git: <b className={health.has_git ? "text-emerald-400" : "text-zinc-500"}>{health.has_git ? "✅" : "❌"}</b></span>
+ <span>Git: <b className={health.has_git ? "text-emerald-400" : "text-zinc-500"}>{health.has_git ? "" : ""}</b></span>
                   <span>{t.pe_checkpoints_label}: <b className="text-zinc-300">{health.checkpoint_count}</b></span>
                 </div>
                 {health.last_checkpoint && (
@@ -323,7 +323,7 @@ export default function ProjectExplorer({ currentProject, onProjectChange }: Pro
             {/* Worktree 面板 */}
             <div className="p-2 border border-cs-border rounded bg-cs-header space-y-1.5 text-[10px]">
               <div className="flex items-center justify-between">
-                <span className="text-zinc-400 font-bold">🌿 Worktrees</span>
+ <span className="text-zinc-400 font-bold"> Worktrees</span>
                 <span className="text-zinc-500 text-[10px]">{wtStats.total} {t.pe_total}</span>
               </div>
               <div className="flex space-x-2 text-[10px] text-zinc-500">

@@ -61,7 +61,7 @@ export default function SessionSidebar({
       <div className="w-56 border-r border-cs-border bg-cs-surface flex flex-col shrink-0">
         <div className="p-2.5 border-b border-cs-border bg-cs-header flex items-center justify-between">
           <span className="font-bold text-zinc-500 uppercase tracking-wider text-[10px]">
-            🗂️ 项目会话矩阵
+项目会话矩阵
             {manifests.length > 0 && (
               <span className="ml-1.5 bg-zinc-800 text-zinc-400 text-[10px] px-1.5 py-0.5 rounded-full">
                 {manifests.length}
@@ -74,7 +74,7 @@ export default function SessionSidebar({
               className="text-[10px] bg-black border border-cs-border px-1.5 py-0.5 rounded hover:border-zinc-500 text-zinc-400 hover:text-white transition-colors"
               title="导入 JSON 会话"
             >
-              📥
+ 
             </button>
             <button
               onClick={onNewSession}
@@ -110,7 +110,7 @@ export default function SessionSidebar({
             return Array.from(groups.entries()).map(([project, sessions]) => (
               <div key={project} className="space-y-0.5">
                 <div className="px-1.5 py-0.5 text-[10px] bg-black border border-zinc-900 rounded font-bold text-zinc-400 flex items-center justify-between">
-                  <span className="truncate">📁 {project}</span>
+ <span className="truncate"> {project}</span>
                   <span className="text-zinc-500 font-light text-[10px] shrink-0 ml-1">
                     {sessions.length}会话
                   </span>
@@ -155,7 +155,7 @@ export default function SessionSidebar({
                   </div>
                 )}
                 <div className="text-[10px] text-zinc-500 mt-1 flex items-center justify-between font-light">
-                  <span>🗂️ {m.bound_project}</span>
+ <span> {m.bound_project}</span>
                   <span className="text-emerald-500 font-medium">
                     ¥{m.total_accumulated_cost.toFixed(3)}
                   </span>
@@ -200,7 +200,7 @@ export default function SessionSidebar({
                 className="absolute top-1.5 right-1.5 w-4 h-4 flex items-center justify-center rounded text-[10px] text-zinc-500 hover:text-red-400 hover:bg-red-950/30 opacity-0 group-hover/session:opacity-100 transition-all"
                 title="删除会话"
               >
-                ✕
+✕
               </button>
             </div>
           ))}

@@ -171,7 +171,7 @@ export default function SdlcPipelinePanel({
               <button onClick={handleQuickCreateTask}
                 className="text-[10px] bg-cyan-800/50 hover:bg-cyan-700 text-cyan-300 px-2 py-1 rounded">创建</button>
               <button onClick={() => setShowTaskForm(false)}
-                className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1">✕</button>
+className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1">✕</button>
             </div>
           ) : (
             <button onClick={() => setShowTaskForm(true)}
@@ -194,7 +194,7 @@ export default function SdlcPipelinePanel({
             }`}
             title="零 Token 本地技能检测拦截"
           >
-            {detectorOn ? "🔬 拦截 ON" : "🔬 OFF"}
+ {detectorOn ? " 拦截 ON" : " OFF"}
           </button>
 
           {/* Mode toggle */}
@@ -469,7 +469,7 @@ export default function SdlcPipelinePanel({
           <>
             <span>{t.tasks}: {pipelineStats.completed_tasks}/{pipelineStats.total_tasks}</span>
             {pipelineStats.fused_tasks > 0 && (
-              <span className="text-cs-danger">⚠ {pipelineStats.fused_tasks} {t.fused}</span>
+ <span className="text-cs-danger"> {pipelineStats.fused_tasks} {t.fused}</span>
             )}
           </>
         )}
@@ -480,12 +480,12 @@ export default function SdlcPipelinePanel({
         {eventMetrics.total_events != null && (
           <>
             <span className="text-zinc-500">|</span>
-            <span title="事件总线事件数">📡 {eventMetrics.total_events}</span>
+ <span title="事件总线事件数"> {eventMetrics.total_events}</span>
             {eventMetrics.dead_letter_queue_size != null && eventMetrics.dead_letter_queue_size > 0 && (
-              <span className="text-amber-400" title="死信队列">✉️ {eventMetrics.dead_letter_queue_size}</span>
+ <span className="text-amber-400" title="死信队列"> {eventMetrics.dead_letter_queue_size}</span>
             )}
             {eventMetrics.active_tasks != null && (
-              <span title="活跃任务">📋 {eventMetrics.active_tasks}</span>
+ <span title="活跃任务"> {eventMetrics.active_tasks}</span>
             )}
           </>
         )}
@@ -501,7 +501,7 @@ export default function SdlcPipelinePanel({
                 if (taskId) try { await completeTask(taskId); } catch(e) { await appAlert(`失败: ${e}`); }
               }}
               className="text-[10px] bg-emerald-950/30 border border-emerald-800/30 text-emerald-400 px-1.5 py-0.5 rounded hover:bg-emerald-900/40">
-              ✅ 完成
+完成
             </button>
             <button
               onClick={async () => {
@@ -510,7 +510,7 @@ export default function SdlcPipelinePanel({
                 if (taskId) try { await failTask(taskId, err ?? "unknown"); } catch(e) { await appAlert(`失败: ${e}`); }
               }}
               className="text-[10px] bg-red-950/30 border border-red-800/30 text-red-400 px-1.5 py-0.5 rounded hover:bg-red-900/40">
-              ❌ 失败
+失败
             </button>
           </div>
         )}

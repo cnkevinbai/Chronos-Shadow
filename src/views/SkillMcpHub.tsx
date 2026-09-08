@@ -41,18 +41,18 @@ interface McpServer {
 
 const skills: Skill[] = [
   // ─── 超级专属 Skill (顶级置顶) ──────────────────────────────────
-  { id: "vlm_privacy_dynamic_mask", name: "🛡️ VLM-Privacy DynamicMask", description: "ONNX端侧实时隐私遮罩 · 敏感数据绝不出海 · 视觉开销暴省80%", type: "skill", enabled: true, synced: true, premium: true, badge: "🛡️ 风控", category: "security" },
-  { id: "win32_handle_texthijacker", name: "⚡ Win32-Handle TextHijacker", description: "句柄级免Vision无感数据对齐 · 速度提升300% · Token千分之一", type: "skill", enabled: true, synced: true, premium: true, badge: "⚡ 极速", category: "workbuddy" },
-  { id: "chronos_omni_rewind_trigger", name: "⏳ Chronos-OmniRewind Trigger", description: "VSS原子冷备份+一键时空逆转 · 零沉没成本 · 秒级回滚", type: "skill", enabled: true, synced: true, premium: true, badge: "⏳ 回溯", category: "security" },
+ { id: "vlm_privacy_dynamic_mask", name: " VLM-Privacy DynamicMask", description: "ONNX端侧实时隐私遮罩 · 敏感数据绝不出海 · 视觉开销暴省80%", type: "skill", enabled: true, synced: true, premium: true, badge: " 风控", category: "security" },
+ { id: "win32_handle_texthijacker", name: " Win32-Handle TextHijacker", description: "句柄级免Vision无感数据对齐 · 速度提升300% · Token千分之一", type: "skill", enabled: true, synced: true, premium: true, badge: " 极速", category: "workbuddy" },
+ { id: "chronos_omni_rewind_trigger", name: " Chronos-OmniRewind Trigger", description: "VSS原子冷备份+一键时空逆转 · 零沉没成本 · 秒级回滚", type: "skill", enabled: true, synced: true, premium: true, badge: " 回溯", category: "security" },
   // ─── 超级专属 Skill 4-6 ────────────────────────────────────────
-  { id: "cluster_docker_hothealer", name: "🐳 Cluster-Docker HotHealer", description: "SSH隧道切入远程容器静默编译 · Stderr截获端侧自愈", type: "skill", enabled: true, synced: true, premium: true, badge: "🌐 云盾", category: "devops" },
-  { id: "vlm_uitree_aligner", name: "🎯 VLM-UITree Aligner", description: "Win32 UIA控件树磁吸纠偏 · 像素吸附杜绝误点击 · VLM开销一折", type: "skill", enabled: true, synced: true, premium: true, badge: "🎯 吸附", category: "workbuddy" },
-  { id: "evolution_delta_packer", name: "📦 Evolution-Delta Packer", description: "错题本经验脱敏打包导出 · 0Token团队共享 · 企业知识资产", type: "skill", enabled: true, synced: true, premium: true, badge: "📦 资产", category: "evolution" },
-  { id: "omnidesign_matrix", name: "🎨 OmniDesign-Matrix", description: "自然语言→跨端UI/UX代码 · Vercel/Linear/Apple三主题 · ONNX像素走查", type: "skill", enabled: true, synced: true, premium: true, badge: "🎨 设计", category: "design" },
+ { id: "cluster_docker_hothealer", name: " Cluster-Docker HotHealer", description: "SSH隧道切入远程容器静默编译 · Stderr截获端侧自愈", type: "skill", enabled: true, synced: true, premium: true, badge: " 云盾", category: "devops" },
+ { id: "vlm_uitree_aligner", name: " VLM-UITree Aligner", description: "Win32 UIA控件树磁吸纠偏 · 像素吸附杜绝误点击 · VLM开销一折", type: "skill", enabled: true, synced: true, premium: true, badge: " 吸附", category: "workbuddy" },
+ { id: "evolution_delta_packer", name: " Evolution-Delta Packer", description: "错题本经验脱敏打包导出 · 0Token团队共享 · 企业知识资产", type: "skill", enabled: true, synced: true, premium: true, badge: " 资产", category: "evolution" },
+ { id: "omnidesign_matrix", name: " OmniDesign-Matrix", description: "自然语言→跨端UI/UX代码 · Vercel/Linear/Apple三主题 · ONNX像素走查", type: "skill", enabled: true, synced: true, premium: true, badge: " 设计", category: "design" },
   // ─── 专属内置 Skill (置顶高亮) ───────────────────────────────────
-  { id: "vlm_diff_inspector", name: "🖼️ VLM-Diff Inspector", description: "像素级多模态还原度走查 · 暴省80% VLM Token", type: "skill", enabled: true, synced: true, premium: true, badge: "⚡ 降本", category: "quality" },
-  { id: "context_glue_excelfiller", name: "📊 Context-Glue ExcelFiller", description: "Win32句柄直写批量填表 · Token压缩至千分之一", type: "skill", enabled: true, synced: true, premium: true, badge: "⚡ 降本", category: "workbuddy" },
-  { id: "checkpoints_chronotrigger", name: "⏱️ Checkpoints-ChronoTrigger", description: "VSS卷影+窗口快照 · 秒级时光倒流回滚", type: "skill", enabled: true, synced: true, premium: true, badge: "🛡️ 安全", category: "security" },
+ { id: "vlm_diff_inspector", name: " VLM-Diff Inspector", description: "像素级多模态还原度走查 · 暴省80% VLM Token", type: "skill", enabled: true, synced: true, premium: true, badge: " 降本", category: "quality" },
+ { id: "context_glue_excelfiller", name: " Context-Glue ExcelFiller", description: "Win32句柄直写批量填表 · Token压缩至千分之一", type: "skill", enabled: true, synced: true, premium: true, badge: " 降本", category: "workbuddy" },
+ { id: "checkpoints_chronotrigger", name: " Checkpoints-ChronoTrigger", description: "VSS卷影+窗口快照 · 秒级时光倒流回滚", type: "skill", enabled: true, synced: true, premium: true, badge: " 安全", category: "security" },
   // ─── 常规 Skills ─────────────────────────────────────────────
   { id: "explore", name: "@Explore", description: "源码只读检索", type: "subagent", enabled: true, synced: true, model: "flash" },
   { id: "scout", name: "@Scout", description: "远程文档抓取", type: "subagent", enabled: true, synced: true, model: "flash" },
@@ -76,9 +76,9 @@ interface McpServer {
 
 const mcpServers: McpServer[] = [
   // ─── 三大超级 MCP 服务 ─────────────────────────────────────────
-  { id: "win32-registry", name: "🔍 Win32 Registry Sensor", transport: "stdio", tools: 3, resources: 0, connected: true, premium: true, badge: "🖥️ 系统", description: "注册表读取+环境变量注入，确定性探测替代模型猜测" },
-  { id: "local-vector-glue", name: "🧠 Local Vector Glue", transport: "stdio", tools: 2, resources: 2, connected: true, premium: true, badge: "⚡ 压缩", description: "ONNX端侧向量检索，代码上下文体积压缩至千分之一" },
-  { id: "audit-vault", name: "🔒 Audit Vault", transport: "stdio", tools: 3, resources: 0, connected: true, premium: true, badge: "🛡️ 合规", description: "AST增量审查+GPL协议扫描，端侧零云端请求" },
+ { id: "win32-registry", name: " Win32 Registry Sensor", transport: "stdio", tools: 3, resources: 0, connected: true, premium: true, badge: " 系统", description: "注册表读取+环境变量注入，确定性探测替代模型猜测" },
+ { id: "local-vector-glue", name: " Local Vector Glue", transport: "stdio", tools: 2, resources: 2, connected: true, premium: true, badge: " 压缩", description: "ONNX端侧向量检索，代码上下文体积压缩至千分之一" },
+ { id: "audit-vault", name: " Audit Vault", transport: "stdio", tools: 3, resources: 0, connected: true, premium: true, badge: " 合规", description: "AST增量审查+GPL协议扫描，端侧零云端请求" },
   // ─── 常规 MCP ─────────────────────────────────────────────────
   { id: "postgres", name: "PostgreSQL", transport: "stdio", tools: 12, resources: 3, connected: true },
   { id: "github", name: "GitHub API", transport: "sse", tools: 8, resources: 2, connected: true },
@@ -230,7 +230,7 @@ export default function SkillMcpHub() {
             <div className="flex-1 flex overflow-hidden">
               {/* Left: Markdown editor */}
               <div className="w-1/2 border-r border-cs-border flex flex-col">
-                <div className="text-[10px] text-zinc-500 px-2 py-1 border-b border-cs-border shrink-0">📄 Markdown 大纲</div>
+ <div className="text-[10px] text-zinc-500 px-2 py-1 border-b border-cs-border shrink-0"> Markdown 大纲</div>
                 <textarea
                   value={pptOutline}
                   onChange={e => setPptOutline(e.target.value)}
@@ -239,7 +239,7 @@ export default function SkillMcpHub() {
               </div>
               {/* Right: Preview */}
               <div className="w-1/2 flex flex-col">
-                <div className="text-[10px] text-zinc-500 px-2 py-1 border-b border-cs-border shrink-0">📺 高保真渲染</div>
+ <div className="text-[10px] text-zinc-500 px-2 py-1 border-b border-cs-border shrink-0"> 高保真渲染</div>
                 <div className={`flex-1 p-4 overflow-y-auto ${
                   pptTheme === "linear_dark_neon" ? "bg-[#09090b] text-[#e4e4e7]" :
                   pptTheme === "vercel_monochrome" ? "bg-black text-white" :

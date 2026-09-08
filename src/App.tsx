@@ -259,10 +259,10 @@ function AppInner() {
           try {
             await submitForApproval("pipeline_advance", targetId,
               `SDLC 流水线跃迁: ${targetId}`, "{}");
-            toast.showToast("warning", "⛔ 审批门禁",
+toast.showToast("warning", " 审批门禁",
               `已自动提交审批 (${targetId})。请切换到审批面板审核后重试推进。`);
           } catch {
-            toast.showToast("error", "⛔ 审批门禁", msg);
+toast.showToast("error", " 审批门禁", msg);
           }
         } else {
           toast.showToast("error", "PIPELINE ERROR", msg);
@@ -407,7 +407,7 @@ function AppInner() {
               <span className={`w-1.5 h-1.5 rounded-full ${
                 heartbeat.energy === "high" ? "bg-emerald-400" : heartbeat.energy === "medium" ? "bg-amber-400" : "bg-zinc-600"
               }`} />
-              <span>🔥 连续 {heartbeat.streak} 天</span>
+ <span> 连续 {heartbeat.streak} 天</span>
               <span className="text-zinc-500">·</span>
               <span>今日 {heartbeat.today} 次</span>
             </div>

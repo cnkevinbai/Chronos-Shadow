@@ -170,7 +170,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
               try { await resetFuse(); await appAlert("熔断器已重置。"); } catch(e) { await appAlert(`失败: ${e}`); }
             }}
             className="text-[10px] bg-red-950/30 border border-red-800/30 text-red-400 hover:bg-red-900/40 px-2 py-0.5 rounded transition-colors font-bold">
-            ⚡ 重置熔断
+重置熔断
           </button>
         )}
       </div>
@@ -276,7 +276,7 @@ export default function RedlineGuardPanel({ redlineStatus }: RedlineGuardPanelPr
           {redlineStatus?.current_loop ?? 0}/{redlineStatus?.max_loop ?? 3}
         </span>
         <span className="text-cs-muted ml-1">
-          {redlineStatus?.fused ? `⚠ ${t.fused}` : t.attempts_used}
+ {redlineStatus?.fused ? ` ${t.fused}` : t.attempts_used}
         </span>
         <span className="ml-auto text-cs-dim">
           {privacyEnabled ? t.privacy_on : t.privacy_off}
