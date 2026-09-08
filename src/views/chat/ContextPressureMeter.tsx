@@ -1,7 +1,9 @@
-// src/views/chat/ContextPressureMeter.tsx — 上下文压力可视化面板（自 ChatPanel 拆出）
-// 泄压阈值可视化（分段计量条 + 触发线指针）+ 用量分析（泄压统计/压力趋势/消息 token 分布）
+// src/views/chat/ContextPressureMeter.tsx — 上下文压力面板（语义化直观版）
+// 设计原则：一眼看懂「还能聊多少」，而不是让用户解读 token 百分比。
+// 结构：状态词 + 剩余可输入估算 → 分段计量条（触发线/红线标注）→
+//       泄压事件时间线 → 压力趋势 → 消息占用 Top 6 → 逃生按钮。
 import { useMemo } from "react";
-import { Gauge, Scissors, TrendingUp, FileWarning } from "lucide-react";
+import { Gauge, Scissors, TrendingUp, FileWarning, Sparkles } from "lucide-react";
 import { useLang } from "@/lib/i18n-context";
 import type { PruneStats } from "@/lib/tauri";
 import type { Message } from "@/lib/types";
@@ -23,10 +25,16 @@ interface ContextPressureMeterProps {
   onNewSession: () => void;
 }
 
-const ZONE = (p: number) =>
-  p >= 0.95 ? { label: "红线", cls: "text-red-400", bar: "bg-red-500" }
-  : p >= 0.8 ? { label: "触发", cls: "text-amber-400", bar: "bg-amber-400" }
-  : { label: "安全", cls: "text-emerald-400", bar: "bg-emerald-500" };
+interface Zone {
+  label: string; cls: string; bar: string; ring: string;
+}
+
+function zoneOf(p: number, zh: boolean): Zone {
+  if (p >= 0.95) return { label: zh ? "已达红线" : "Red line", cls: "text-red-400", bar: "bg-red-500", ring: "border-red-500/40" };
+  if (p >= 0.8) return { label: zh ? "接近上限" : "Near limit", cls: "text-amber-400", bar: "bg-amber-400", ring: "border-amber-500/40" };
+  if (p >= 0.5) return { label: zh ? "正常" : "Normal", cls: "text-cyan-400", bar: "bg-cyan-400", ring: "border-cyan-500/30" };
+  return { label: zh ? "充足" : "Plenty", cls: "text-emerald-400", bar: "bg-emerald-500", ring: "border-emerald-500/30" };
+}
 
 export default function ContextPressureMeter({
   pressure, history, lastStats, messages, onClose, onNewSession,
@@ -34,7 +42,17 @@ export default function ContextPressureMeter({
   const { lang } = useLang();
   const zh = lang === "zh";
   const p = pressure ?? 0;
-  const zone = ZONE(p);
+  const zone = zoneOf(p, zh);
+
+  // 活动窗口（后端按模型覆盖后的值）与剩余可输入估算
+  const windowTokens = lastStats?.active_window_tokens || lastStats?.context_window_tokens || 65536;
+  const remainTokens = Math.max(0, Math.floor(windowTokens * (1 - p)));
+  // 中文权重 0.6 token/字 → 1 token ≈ 1.67 字；保守给「万」级估算
+  const remainCharsZh = Math.round(remainTokens / 0.6);
+  const remainWan = (remainCharsZh / 10000).toFixed(1);
+
+  // 触发线在计量条上的位置（窗口占比 80% 处；ratio 自适应）
+  const triggerPos = Math.min(100, (lastStats?.compact_ratio ?? 0.8) * 100);
 
   // 按消息 token 分布 Top 6
   const distribution = useMemo(
@@ -46,114 +64,104 @@ export default function ContextPressureMeter({
   );
   const maxDist = distribution[0]?.tokens || 1;
   const trend = history.slice(-12);
-  const trendMax = Math.max(0.8, ...trend);
+
+  // 泄压事件描述（一句话，替代数字表格）
+  const reliefLine = lastStats && lastStats.stage_reached !== "None"
+    ? (zh
+        ? `最近泄压：剪枝 ${lastStats.tool_results_pruned} 条工具输出 · 移除 ${lastStats.messages_dropped} 条旧消息 · 节省 ${lastStats.chars_saved.toLocaleString()} 字符`
+        : `Last relief: pruned ${lastStats.tool_results_pruned} tool outputs · dropped ${lastStats.messages_dropped} old messages · saved ${lastStats.chars_saved.toLocaleString()} chars`)
+    : null;
 
   return (
     <div
-      className="absolute bottom-full right-2 mb-2 w-[360px] rounded-xl border border-cs-border bg-cs-surface shadow-2xl z-40 overflow-hidden animate-fadeIn"
+      className="absolute bottom-full right-2 mb-2 w-[380px] rounded-xl border border-cs-border bg-cs-surface shadow-2xl z-50 overflow-hidden animate-fadeIn"
       role="dialog"
       aria-label={zh ? "上下文压力面板" : "Context pressure panel"}
     >
-      {/* ── 标题 ── */}
+      {/* ── 头部：状态词 + 关闭 ── */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-cs-border bg-cs-header">
         <span className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5">
           <Gauge size={13} className="text-cyan-400" aria-hidden="true" />
-          {zh ? "上下文压力" : "Context Pressure"}
+          {zh ? "上下文用量" : "Context Usage"}
         </span>
         <button onClick={onClose} aria-label={zh ? "关闭" : "Close"}
           className="w-5 h-5 flex items-center justify-center rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors">✕</button>
       </div>
 
       <div className="p-3 space-y-3">
-        {/* ── 压力大数字 + 分段计量条 ── */}
-        <div className="flex items-end justify-between">
+        {/* ── 一眼看懂：状态词 + 剩余可输入估算 ── */}
+        <div className="flex items-center justify-between">
           <div>
-            <div className={`text-2xl font-bold ${zone.cls}`}>{Math.round(p * 100)}%</div>
-            <div className="text-[9px] text-zinc-500">{zh ? "当前上下文占用" : "Context utilization"}</div>
+            <div className={`text-xl font-bold leading-tight ${zone.cls}`}>{zone.label}</div>
+            <div className="text-[10px] text-zinc-500">
+              {zh
+                ? <>已用 {Math.round(p * 100)}% · <b className="text-zinc-300">约还能输入 {remainWan} 万字</b></>
+                : <>Used {Math.round(p * 100)}% · <b className="text-zinc-300">~{remainWan}0k chars left</b></>}
+            </div>
           </div>
-          <span className={`text-[9px] px-1.5 py-0.5 rounded border ${zone.cls} ${
-            p >= 0.95 ? "border-red-500/30 bg-red-950/20" : p >= 0.8 ? "border-amber-500/30 bg-amber-950/20" : "border-emerald-500/30 bg-emerald-950/20"
-          }`}>{zone.label}</span>
+          <div className="text-right">
+            <div className="text-[9px] text-zinc-500">{zh ? "触发线" : "Trigger"}</div>
+            <div className="text-[11px] font-bold text-zinc-300">{Math.round(p * 100)}%</div>
+          </div>
         </div>
 
-        {/* 分段计量条：0-80 绿 / 80-95 琥珀 / 95-100 红 */}
-        <div className="relative h-3 w-full rounded-full overflow-hidden flex" aria-hidden="true">
-          <div className="h-full bg-emerald-900/60" style={{ width: "80%" }} />
-          <div className="h-full bg-amber-900/60" style={{ width: "15%" }} />
-          <div className="h-full bg-red-900/60" style={{ width: "5%" }} />
-          {/* 当前压力填充 */}
-          <div className={`absolute inset-y-0 left-0 ${zone.bar} opacity-70`} style={{ width: `${Math.min(100, p * 100)}%` }} />
-          {/* 触发线（80%） */}
-          <div className="absolute inset-y-0 w-0.5 bg-zinc-300/80" style={{ left: "80%" }} />
+        {/* ── 分段计量条（触发线 + 红线标注在条上） ── */}
+        <div className="relative h-3.5 w-full rounded-full overflow-hidden flex" aria-hidden="true">
+          <div className="h-full bg-emerald-900/50" style={{ width: "80%" }} />
+          <div className="h-full bg-amber-900/50" style={{ width: "15%" }} />
+          <div className="h-full bg-red-900/50" style={{ width: "5%" }} />
+          <div className={`absolute inset-y-0 left-0 ${zone.bar} opacity-75 transition-all`} style={{ width: `${Math.min(100, p * 100)}%` }} />
+          <div className="absolute inset-y-0 w-0.5 bg-zinc-200/90" style={{ left: `${triggerPos}%` }} title={zh ? "泄压触发线" : "Relief trigger"} />
         </div>
         <div className="flex justify-between text-[8px] text-zinc-600">
-          <span>0%</span>
-          <span className="text-zinc-400">{zh ? "触发 80%" : "trigger 80%"}</span>
-          <span>{zh ? "红线 95%" : "red line 95%"}</span>
+          <span>0</span>
+          <span className="text-zinc-400">↑ {zh ? "自动泄压" : "auto-relief"} ({triggerPos.toFixed(0)}%)</span>
           <span>100%</span>
         </div>
 
-        {/* ── 泄压统计（最近一次） ── */}
-        {lastStats && lastStats.stage_reached !== "None" && (
-          <div className="border border-cs-border rounded-lg p-2.5 space-y-1.5 bg-cs-header/60">
-            <div className="text-[9px] font-bold text-zinc-400 flex items-center gap-1">
-              <Scissors size={10} aria-hidden="true" />
-              {zh ? "最近一次泄压" : "Last relief run"}
-              <span className={`ml-1 px-1 rounded ${
-                lastStats.stage_reached === "PressureEscalation" ? "bg-red-950/40 text-red-400"
-                : lastStats.stage_reached === "HistoryTruncated" ? "bg-amber-950/40 text-amber-400"
-                : "bg-cyan-950/40 text-cyan-400"}`}>
-                {lastStats.stage_reached === "PressureEscalation" ? (zh ? "升级" : "Escalated")
-                : lastStats.stage_reached === "HistoryTruncated" ? (zh ? "已截断" : "Truncated")
-                : (zh ? "已剪枝" : "Pruned")}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 text-[9px]">
-              <div className="flex justify-between"><span className="text-zinc-500">{zh ? "泄压前" : "Before"}</span><b className="text-zinc-300">{lastStats.tokens_before.toLocaleString()}t</b></div>
-              <div className="flex justify-between"><span className="text-zinc-500">{zh ? "泄压后" : "After"}</span><b className="text-emerald-400">{lastStats.tokens_after.toLocaleString()}t</b></div>
-              <div className="flex justify-between"><span className="text-zinc-500">{zh ? "工具输出剪枝" : "Tool pruned"}</span><b className="text-zinc-300">{lastStats.tool_results_pruned}</b></div>
-              <div className="flex justify-between"><span className="text-zinc-500">{zh ? "消息删除" : "Dropped"}</span><b className="text-zinc-300">{lastStats.messages_dropped}</b></div>
-              <div className="flex justify-between col-span-2"><span className="text-zinc-500">{zh ? "字符节省" : "Chars saved"}</span><b className="text-emerald-400">{lastStats.chars_saved.toLocaleString()}</b></div>
-            </div>
+        {/* ── 泄压事件（一句话时间线） ── */}
+        {reliefLine && (
+          <div className="flex items-start gap-1.5 text-[10px] text-zinc-400 bg-cs-header/60 border border-cs-border rounded-lg px-2 py-1.5">
+            <Scissors size={10} className="mt-0.5 shrink-0 text-cyan-400" aria-hidden="true" />
+            <span>{reliefLine}</span>
           </div>
         )}
 
-        {/* ── 压力趋势（最近 12 次发送） ── */}
-        {trend.length > 0 && (
+        {/* ── 压力趋势 ── */}
+        {trend.length > 1 && (
           <div>
             <div className="text-[9px] font-bold text-zinc-400 flex items-center gap-1 mb-1">
               <TrendingUp size={10} aria-hidden="true" />
-              {zh ? "压力趋势（最近发送）" : "Pressure trend"}
+              {zh ? "压力趋势" : "Trend"}
             </div>
-            <div className="flex items-end gap-1 h-10" aria-hidden="true">
-              {trend.map((v, i) => (
-                <div key={i} className="flex-1 flex flex-col justify-end h-full">
-                  <div
-                    className={`rounded-sm ${v >= 0.95 ? "bg-red-500" : v >= 0.8 ? "bg-amber-400" : "bg-emerald-500"}`}
-                    style={{ height: `${Math.max(8, (v / trendMax) * 100)}%` }}
-                    title={`${Math.round(v * 100)}%`}
-                  />
-                </div>
-              ))}
+            <div className="flex items-end gap-1 h-9" aria-hidden="true">
+              {trend.map((v, i) => {
+                const zz = zoneOf(v, zh);
+                return (
+                  <div key={i} className="flex-1 flex flex-col justify-end h-full">
+                    <div className={`rounded-sm ${zz.bar}`} style={{ height: `${Math.max(10, v * 100)}%` }} title={`${Math.round(v * 100)}%`} />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* ── 消息 token 分布 Top 6 ── */}
+        {/* ── 消息占用 Top 6 ── */}
         {distribution.length > 0 && (
           <div>
             <div className="text-[9px] font-bold text-zinc-400 flex items-center gap-1 mb-1">
               <FileWarning size={10} aria-hidden="true" />
-              {zh ? "消息 token 占用 Top 6" : "Top message tokens"}
+              {zh ? "占用最大的消息" : "Largest messages"}
             </div>
             <div className="space-y-1">
               {distribution.map((d) => (
                 <div key={d.id} className="flex items-center gap-1.5 text-[9px]">
-                  <span className="w-12 text-zinc-500 truncate">{d.sender}</span>
+                  <span className="w-14 text-zinc-500 truncate">{d.sender}</span>
                   <div className="flex-1 h-2 bg-zinc-900 rounded-sm overflow-hidden" aria-hidden="true">
                     <div className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400" style={{ width: `${(d.tokens / maxDist) * 100}%` }} />
                   </div>
-                  <span className="w-14 text-right text-zinc-400 font-mono">{d.tokens.toLocaleString()}t</span>
+                  <span className="w-16 text-right text-zinc-400 font-mono">{d.tokens.toLocaleString()}t</span>
                 </div>
               ))}
             </div>
@@ -163,12 +171,13 @@ export default function ContextPressureMeter({
           </div>
         )}
 
-        {/* ── 逃生门 ── */}
+        {/* ── 逃生按钮（红线） ── */}
         {p >= 0.95 && (
           <button
             onClick={onNewSession}
-            className="w-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold py-1.5 rounded transition-colors"
+            className="w-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold py-1.5 rounded transition-colors flex items-center justify-center gap-1"
           >
+            <Sparkles size={11} aria-hidden="true" />
             {zh ? "上下文已达红线 — 新建会话" : "Red line reached — start a new session"}
           </button>
         )}

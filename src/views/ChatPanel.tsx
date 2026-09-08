@@ -694,9 +694,11 @@ content: " 黑板已擦除。会话元数据与分块档案完整保留。",
         if (pruned.stats.stage_reached !== "None") setLastPruneStats(pruned.stats);
         if (pruned.stats.stage_reached === "PressureEscalation") {
           setPressureSuggestion(true);
+          setMeterOpen(true);
           toast.showToast("warning", "CONTEXT PRESSURE", "上下文达到压力红线且无法进一步泄压 — 建议新建会话。");
         } else {
           setPressureSuggestion(false);
+          if (pruned.stats.stage_reached !== "None") setMeterOpen(true);
         }
       } catch {
         setContextPressure(null);
@@ -1415,7 +1417,10 @@ ${content}`);
                     }`}
                     title="上下文压力（tokens / context_window）"
                   >
-                    上下文 {Math.round(contextPressure! * 100)}%
+                    {lang === "zh"
+                      ? (contextPressure! >= 0.95 ? "上下文已满" : contextPressure! >= 0.8 ? "上下文偏高" : contextPressure! >= 0.5 ? "上下文正常" : "上下文充足")
+                      : (contextPressure! >= 0.95 ? "Context full" : contextPressure! >= 0.8 ? "Context high" : contextPressure! >= 0.5 ? "Context normal" : "Context OK")}
+                    · {Math.round(contextPressure! * 100)}%
                   </button>
                 </>
             </div>

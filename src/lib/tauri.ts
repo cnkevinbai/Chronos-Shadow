@@ -1058,6 +1058,9 @@ export interface PruneStats {
   tool_results_pruned: number; messages_dropped: number; chars_saved: number;
   stage_reached: "None" | "ToolPruned" | "HistoryTruncated" | "PressureEscalation";
   pressure_ratio: number;
+  context_window_tokens: number;
+  compact_ratio: number;
+  active_window_tokens: number;
 }
 export interface PruneResult { messages: PruneMessage[]; stats: PruneStats; }
 

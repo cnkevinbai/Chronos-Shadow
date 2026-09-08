@@ -97,6 +97,9 @@ pub struct PruneStats {
     pub chars_saved: usize,
     pub stage_reached: PruneStage,
     pub pressure_ratio: f64,
+    pub context_window_tokens: usize,
+    pub compact_ratio: f64,
+    pub active_window_tokens: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,6 +200,9 @@ pub fn apply_context_pruning(messages: &[PruneMessage], cfg: &PruneConfig) -> Pr
                 } else {
                     tokens_before as f64 / cfg.context_window_tokens as f64
                 },
+                context_window_tokens: cfg.context_window_tokens,
+                compact_ratio: cfg.compact_ratio,
+                active_window_tokens: cfg.context_window_tokens,
             },
         };
     }
@@ -262,6 +268,9 @@ pub fn apply_context_pruning(messages: &[PruneMessage], cfg: &PruneConfig) -> Pr
             } else {
                 tokens_after as f64 / cfg.context_window_tokens as f64
             },
+            context_window_tokens: cfg.context_window_tokens,
+            compact_ratio: cfg.compact_ratio,
+            active_window_tokens: cfg.context_window_tokens,
         },
     }
 }
