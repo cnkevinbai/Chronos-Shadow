@@ -68,6 +68,9 @@ export default function MessageList({
   msgContainerRef, chatEndRef, isNearBottomRef, showFileExplorer,
 }: MessageListProps) {
   const t = useT();
+  // 搜索命中索引查找表：避免在 map 内反复 findIndex（O(n²) → O(n)）
+  const matchIdxSet = new Set(searchMatches);
+  const idxOfId = new Map(messages.map((m, i) => [m.id, i] as const));
   return (
         <div
           ref={msgContainerRef}
@@ -93,9 +96,7 @@ export default function MessageList({
                   ? "animate-msg-in"
                   : ""
               } ${
-                searchMatches.includes(
-                  messages.findIndex((m) => m.id === msg.id),
-                )
+                (idxOfId.has(msg.id) && matchIdxSet.has(idxOfId.get(msg.id)!))
                   ? "ring-1 ring-amber-500/30 rounded-lg"
                   : ""
               } ${

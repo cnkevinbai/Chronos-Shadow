@@ -7,7 +7,7 @@
 // - Git 快照/回滚
 // - 集群状态概览
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useT, useLang } from "@/lib/i18n-context";
 import {
   clusterRegisterServer,
@@ -77,6 +77,10 @@ export default function RemoteHub() {
   }, [refreshCluster]);
 
   // ── 服务器操作 ────────────────────────────────────────────
+  // 注册配置记录：连接已注册服务器时按 server_id 取回真实端口/用户/根路径
+  // （修复：原实现误用添加表单的当前值，导致连接已注册服务器时参数错误）
+  const serverConfigsRef = useRef<Map<string, { port: number; username: string; remoteProjectRoot: string }>>(new Map());
+
   const handleAddServer = async () => {
     if (!newServer.id || !newServer.host) return;
     try {
@@ -88,6 +92,9 @@ export default function RemoteHub() {
         undefined,
         newServer.projectRoot,
       );
+      serverConfigsRef.current.set(newServer.id, {
+        port: newServer.port, username: newServer.username, remoteProjectRoot: newServer.projectRoot,
+      });
       setShowAddForm(false);
       setNewServer({ id: "", host: "", port: 22, username: "root", projectRoot: "/root/project" });
       refreshCluster();
@@ -112,11 +119,13 @@ export default function RemoteHub() {
     const node = activeNodes.find((n) => n.server_id === expanded);
     if (!node) return;
     try {
+      const cfg = serverConfigsRef.current.get(expanded) ??
+        { port: newServer.port, username: newServer.username, remoteProjectRoot: newServer.projectRoot };
       await remoteConnect({
         host: node.host,
-        port: newServer.port,
-        username: newServer.username,
-        remoteProjectRoot: newServer.projectRoot,
+        port: cfg.port,
+        username: cfg.username,
+        remoteProjectRoot: cfg.remoteProjectRoot,
       });
       refreshCluster();
     } catch (e) {

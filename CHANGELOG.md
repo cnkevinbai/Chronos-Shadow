@@ -27,6 +27,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **审批请求全局角标**：App 层 10s 轮询 `list_pending_approvals`，dock 审批按钮红点角标 + Footer 常驻「审批门禁 · N」提示——待审批不再需要主动进面板才能发现
 - **拖拽上传**：Tauri 原生 `onDragDropEvent` 监听，文件拖入窗口自动进入多模态挂载缓冲区（按扩展名分流 doc/image 类型）
 
+### Fixed — 缺陷修复（缺陷审查批次）
+- **RemoteHub 连接参数错误**：点击"连接"已注册服务器时误用"添加表单"的当前值（空/默认端口 22/root），必然连接失败——改为注册时记录配置（serverConfigsRef 内存映射），连接时按 server_id 取回真实端口/用户/根路径
+- **消息搜索 O(n²)**：搜索高亮在 map 内对每条消息反复 `findIndex`——改为预建 id→索引映射 + Set 查表（O(n)）
+- 已排查非缺陷：会话切换时流式输出静默丢弃（按 streamMsgId 匹配，无数据损坏）；handleNewSession 无误持久化
+
 ### Changed — 长尾收尾：运行时提示消息双语化
 - **RemoteHub / ProjectExplorer 的 alert/confirm/prompt 全部双语化**（23 处）：错误提示、危险操作确认、审批拦截提示均按界面语言输出——英文用户不再收到纯中文系统弹窗
 
