@@ -11,6 +11,7 @@ import { useT, useLang } from "@/lib/i18n-context";
 import { appConfirm } from "@/lib/dialogs";
 import ArtifactPanel from "@/views/chat/ArtifactPanel";
 import Composer from "@/views/chat/Composer";
+import ContextPressureMeter from "@/views/chat/ContextPressureMeter";
 import MessageList from "@/views/chat/MessageList";
 import SessionSidebar from "@/views/chat/SessionSidebar";
 import { useToast } from "@/lib/use-toast";
@@ -33,6 +34,7 @@ import {
   cvfsGetProjects,
   cancelChatStream,
   contextPruneApply,
+  type PruneStats,
 } from "@/lib/tauri";
 
 // 真实文件对话框（Tauri 环境可用，浏览器降级为 mock）
@@ -161,6 +163,9 @@ export default function ChatPanel({
   const [isThinking, setIsThinking] = useState(false);
   const [contextPressure, setContextPressure] = useState<number | null>(null);
   const [pressureSuggestion, setPressureSuggestion] = useState(false);
+  const [pressureHistory, setPressureHistory] = useState<number[]>([]);
+  const [lastPruneStats, setLastPruneStats] = useState<PruneStats | null>(null);
+  const [meterOpen, setMeterOpen] = useState(false);
   const [flowStage, setFlowStage] = useState<"idle"|"connecting"|"thinking"|"streaming"|"researching">("idle");
   const [flowStartMs, setFlowStartMs] = useState(0);
   const [flowTick, setFlowTick] = useState(0);
@@ -685,6 +690,8 @@ content: " 黑板已擦除。会话元数据与分块档案完整保留。",
         const pruned = await contextPruneApply(chatMessages, selectedModel);
         outboundMessages = pruned.messages.map((m) => ({ role: m.role, content: m.content }));
         setContextPressure(pruned.stats.pressure_ratio);
+        setPressureHistory((prev) => [...prev.slice(-19), pruned.stats.pressure_ratio]);
+        if (pruned.stats.stage_reached !== "None") setLastPruneStats(pruned.stats);
         if (pruned.stats.stage_reached === "PressureEscalation") {
           setPressureSuggestion(true);
           toast.showToast("warning", "CONTEXT PRESSURE", "上下文达到压力红线且无法进一步泄压 — 建议新建会话。");
@@ -1369,7 +1376,19 @@ ${content}`);
           />
 
           {/* 状态栏：会话统计 + 审批指示 */}
-          <div className="flex items-center justify-between px-4 py-1 border-t border-[#1a1a1e] bg-cs-surface text-[10px] text-zinc-500 select-none">
+          <div className="relative flex items-center justify-between px-4 py-1 border-t border-[#1a1a1e] bg-cs-surface text-[10px] text-zinc-500 select-none">
+            {meterOpen && contextPressure !== null && (
+              <div className="absolute bottom-full right-2 left-auto z-50">
+                <ContextPressureMeter
+                  pressure={contextPressure}
+                  history={pressureHistory}
+                  lastStats={lastPruneStats}
+                  messages={messages}
+                  onClose={() => setMeterOpen(false)}
+                  onNewSession={handleNewSession}
+                />
+              </div>
+            )}
             <div className="flex items-center space-x-3">
               <span className="flex items-center gap-0.5"><MessageSquare size={9} aria-hidden="true" />{messages.length} 条</span>
               <span>|</span>
@@ -1382,8 +1401,12 @@ ${content}`);
               )}
                 <>
                   <span>|</span>
-                  <span
-                    className={`flex items-center gap-0.5 ${
+                  <button
+                    type="button"
+                    onClick={() => setMeterOpen(v => !v)}
+                    aria-expanded={meterOpen}
+                    aria-label="上下文压力面板"
+                    className={`flex items-center gap-0.5 rounded px-0.5 hover:bg-zinc-800/60 transition-colors ${
                       contextPressure! >= 0.95
                         ? "text-red-400"
                         : contextPressure! >= 0.8
@@ -1393,7 +1416,7 @@ ${content}`);
                     title="上下文压力（tokens / context_window）"
                   >
                     上下文 {Math.round(contextPressure! * 100)}%
-                  </span>
+                  </button>
                 </>
             </div>
             {/* 审批门禁状态指示 */}

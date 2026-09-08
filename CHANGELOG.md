@@ -55,6 +55,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - glm-5.2/5.1/5v-turbo 官方模型库暂无对应页面，标注【待核验】保留项目声明值
 - models.test.ts 断言同步（1M 窗口）
 
+### Added — 泄压阈值可视化 + 用量分析面板（第三批）
+- **新组件 `chat/ContextPressureMeter.tsx`**：点击状态栏「上下文 N%」展开——
+  - **泄压阈值可视化**：三段分段计量条（0-80% 绿 / 80-95% 琥珀 / 95-100% 红）+ 当前压力填充 + 80% 触发线指针 + 大数字与区域标签
+  - **泄压统计**：最近一次泄压的阶段（已剪枝/已截断/升级）与前后 token 对比、工具输出剪枝数、消息删除数、字符节省
+  - **用量分析**：压力趋势迷你柱状图（最近 12 次发送，颜色按阈值分级）+ 消息 token 占用 Top 6 横向条形图（滑窗截断时的首要剪枝对象一目了然）
+  - 红线状态（≥95%）显示「新建会话」逃生按钮
+- 状态栏压力文字升级为可点击按钮（aria-expanded/aria-label），面板 absolute 悬浮于状态栏上方
+- 前端 token 估算与 Rust estimate_tokens 同权重（ascii 0.25 / 其他 0.6）
+
 ### Added — 上下文管理设置分区 + 压力红线联动建议（第二批）
 - **SettingsPanel 新增「上下文管理」Tab**（dock 第 8 项）：compact_ratio 滑条（30-95%，实时显示触发阈值 token 数）、默认上下文窗口输入、**按模型窗口覆盖列表**（MODELS 注册表预填 contextWindow，添加/删除）；配置经 saveSettings 持久化（serde default 向后兼容旧 config.json）
 - `context_prune_apply` 改为从 AppSettings 读取配置并按 `selected_model` 应用窗口覆盖（前端不再传 config）
