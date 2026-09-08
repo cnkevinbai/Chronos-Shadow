@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [0.5.1] — 2026-09-07
 
 ### Added — 任务编排面板
 - **新面板 `OrchestrationPanel`（dock 第 10 项「任务编排」）**：将此前无 UI 入口的编排引擎能力可视化——`analyze_task` 意图分析器（意图分类 + 置信度 + 推荐 Agent/模型 + 优化建议 + 次要意图）、`orch_parallel_groups` 并行组泳道、`orch_topological_sort` + `orch_executable_tasks` 执行顺序视图、`orch_schedule_quality` 质量分常驻卡片、`orch_smart_retry` 智能重试；Ctrl+K 命令面板同步新增 `nav-orchestrator` 入口；3 个冒烟测试
